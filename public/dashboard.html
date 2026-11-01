@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — SupportBot Control Center</title>
+  <meta name="description" content="Manage your multi-tenant Telegram support bots, configure SMM panel API endpoints, and view live runtime statistics." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="/css/global.css" />
+  <style>
+    /* Dashboard-Specific App Shell Customizations */
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: var(--space-6);
+    }
+
+    .sidebar-menu {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      flex: 1;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 0.65rem 0.85rem;
+      border-radius: var(--radius-md);
+      font-size: var(--font-sm);
+      font-weight: 600;
+      color: var(--color-text-muted);
+      min-height: var(--touch-target-min);
+      transition: all var(--transition-fast);
+    }
+
+    .sidebar-link:hover, .sidebar-link.active {
+      color: var(--color-accent);
+      background-color: var(--color-accent-muted);
+      border-left: 3px solid var(--color-accent);
+    }
+
+    .sidebar-footer {
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--font-xs);
+      color: var(--color-text-subtle);
+      background: var(--color-bg-alt);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Live Bot Banner */
+    .live-bot-banner {
+      display: none;
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border: 1px solid #bbf7d0;
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-6);
+      margin-bottom: var(--space-6);
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.08);
+    }
+
+    .live-bot-banner.active {
+      display: flex;
+    }
+
+    .btn-telegram {
+      background: #0284c7;
+      color: #ffffff;
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius-md);
+      font-size: var(--font-sm);
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: var(--touch-target-min);
+      transition: background-color var(--transition-fast);
+    }
+
+    .btn-telegram:hover {
+      background-color: #0369a1;
+    }
+
+    /* Dashboard Layout Grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-6);
+    }
+
+    @media (min-width: 1025px) {
+      .dashboard-grid {
+        grid-template-columns: 1.35fr 1fr;
+      }
+    }
+
+    /* Step guide */
+    .steps-list {
+      margin: 0;
+      padding-left: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      font-size: var(--font-sm);
+      color: var(--color-text-muted);
+    }
+
+    .steps-list strong {
+      color: var(--color-text-main);
+    }
+
+    .code-pill {
+      font-family: var(--font-family-mono);
+      background-color: var(--color-surface-elevated);
+      border: 1px solid var(--color-border);
+      padding: 0.15rem 0.45rem;
+      border-radius: var(--radius-xs);
+      color: var(--color-accent-light);
+      font-size: 0.85em;
+    }
+
+    .alert {
+      display: none;
+      padding: 0.85rem 1.15rem;
+      border-radius: var(--radius-md);
+      font-size: var(--font-sm);
+      margin-bottom: var(--space-6);
+      line-height: var(--lh-normal);
+    }
+
+    .alert-error {
+      background-color: var(--color-rose-muted);
+      color: var(--color-rose);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .alert-success {
+      background-color: var(--color-emerald-muted);
+      color: var(--color-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+  </style>
+</head>
+
+<body>
+  <a href="#main-dashboard" class="skip-link">Skip to dashboard content</a>
+
+  <!-- Off-Canvas Sidebar Overlay for Mobile/Tablet (< 1025px) -->
+  <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
+
+  <div class="dashboard-layout">
+    <!-- App Sidebar -->
+    <aside id="dashboardSidebar" class="dashboard-sidebar" aria-label="Dashboard navigation">
+      <div class="sidebar-brand">
+        <div class="brand-icon-box">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="6" width="18" height="14" rx="4" fill="#ffffff" />
+            <circle cx="8.5" cy="12" r="1.5" fill="#ea580c" />
+            <circle cx="15.5" cy="12" r="1.5" fill="#ea580c" />
+            <path d="M9 16C10 17 14 17 15 16" stroke="#ea580c" stroke-width="1.5" stroke-linecap="round" />
+            <path d="M12 2V6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+            <circle cx="12" cy="2" r="1" fill="#ffffff" />
+          </svg>
+        </div>
+        <span style="font-size: var(--font-h4); font-weight: 800;">SupportBot</span>
+      </div>
+
+      <nav class="sidebar-menu">
+        <a href="/dashboard" class="sidebar-link active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Bot Deployment
+        </a>
+        <a href="#activity" class="sidebar-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          Runtime Logs
+        </a>
+        <a href="/" class="sidebar-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          Public Site
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-pill">
+          <span class="badge-dot pulse" style="background-color: var(--color-emerald);"></span>
+          <span id="sidebarUserEmail">Loading session...</span>
+        </div>
+        <button type="button" id="sidebarSignOutBtn" class="btn btn-outline btn-block" style="min-height: 38px; font-size: var(--font-xs);">
+          Sign out
+        </button>
+      </div>
+    </aside>
+
+    <!-- Topbar -->
+    <header class="dashboard-topbar">
+      <div style="display: flex; align-items: center; gap: var(--space-4);">
+        <!-- Mobile/Tablet Sidebar Drawer Toggle Button -->
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn btn btn-icon btn-secondary" aria-label="Toggle navigation sidebar" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <span style="font-size: var(--font-h4); font-weight: 700;">Control Panel</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: var(--space-4);">
+        <span class="badge badge-accent" id="topbarPlanBadge">PRO TRIAL</span>
+        <button type="button" id="topbarSignOutBtn" class="btn btn-ghost" style="font-size: var(--font-xs); min-height: 36px;">
+          Sign out
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Scrollable Dashboard Content -->
+    <main class="dashboard-main" id="main-dashboard">
+      <div class="container" style="max-width: 100%; padding: 0;">
+        <!-- Page Header -->
+        <div style="margin-bottom: var(--space-6);">
+          <h1 style="font-size: var(--font-h1); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.25rem;">Bot Deployment & Controls</h1>
+          <p style="font-size: var(--font-body); color: var(--color-text-muted);">Configure your Telegram support bot credentials and activate automated 24/7 customer queries.</p>
+        </div>
+
+        <!-- Live Running Bot Banner -->
+        <div id="liveBotBanner" class="live-bot-banner" aria-live="polite">
+          <div style="display: flex; align-items: center; gap: var(--space-3);">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--color-emerald-muted); color: var(--color-emerald); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(16, 185, 129, 0.3);">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+            </div>
+            <div>
+              <div style="font-weight: 700; color: var(--color-emerald); font-size: var(--font-sm);">Telegram Bot is Live & Listening</div>
+              <div id="liveBotSub" style="font-size: var(--font-xs); color: var(--color-text-muted);">Customers can now message your bot for instant balance checks.</div>
+            </div>
+          </div>
+          <a href="#" id="openTelegramBtn" class="btn-telegram" target="_blank" rel="noopener noreferrer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.77-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+            </svg>
+            Open in Telegram
+          </a>
+        </div>
+
+        <div id="alertBox" class="alert" role="alert"></div>
+
+        <!-- Dashboard Widgets Grid -->
+        <div class="dashboard-grid">
+          <!-- Left Column: Bot Credentials & Configuration -->
+          <section class="card card-glass dashboard-widget-container">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Bot Credentials</h2>
+              <span class="badge badge-inactive" id="statusBadge">
+                <span class="badge-dot"></span>
+                <span id="statusText">INACTIVE</span>
+              </span>
+            </div>
+            <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-6);">
+              Provide your Telegram Bot Token from @BotFather and your active SMM panel API endpoint to activate automated customer support.
+            </p>
+
+            <form id="botConfigForm" novalidate>
+              <!-- Bot Token Input -->
+              <div class="form-group">
+                <label for="botToken" class="form-label">
+                  <span>Telegram Bot Token</span>
+                </label>
+                <div class="input-icon-wrapper">
+                  <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                  <input type="password" id="botToken" name="botToken" class="form-control has-right-icon" placeholder="7123456789:AAHk..._xyz" required autocomplete="off" />
+                  <button type="button" class="input-icon-right" id="toggleTokenVisibility" aria-label="Show token" aria-controls="botToken" aria-pressed="false">
+                    <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                </div>
+                <span style="font-size: var(--font-xs); color: var(--color-text-subtle); margin-top: 0.25rem;">
+                  Obtain from Telegram by messaging <strong>@BotFather</strong> and running <code>/newbot</code>. Masked for security.
+                </span>
+              </div>
+
+              <!-- SMM Panel API URL Input -->
+              <div class="form-group">
+                <label for="panelApiUrl" class="form-label">
+                  <span>SMM Panel API URL</span>
+                </label>
+                <div class="input-icon-wrapper">
+                  <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                  </svg>
+                  <input type="url" id="panelApiUrl" name="panelApiUrl" class="form-control" placeholder="https://mypanel.com/api/v2" required />
+                </div>
+                <span style="font-size: var(--font-xs); color: var(--color-text-subtle); margin-top: 0.25rem;">
+                  The standard API v2 endpoint of your SMM panel (e.g., <code>https://mypanel.com/api/v2</code>).
+                </span>
+              </div>
+
+              <div style="display: flex; gap: var(--space-4); margin-top: var(--space-6); flex-wrap: wrap;">
+                <button type="submit" class="btn btn-primary" id="deployBtn" style="flex: 1;">
+                  🚀 Deploy & Activate Bot
+                </button>
+                <button type="button" class="btn btn-danger" id="deactivateBtn" style="display: none;">
+                  Stop Bot
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <!-- Right Column: Live Status & Customer Guide -->
+          <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+            <!-- Status Card -->
+            <section class="card card-glass dashboard-widget-container">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">Live Bot State</h2>
+              <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">Current runtime and integration parameters.</p>
+
+              <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Runtime Status</div>
+                  <div id="summaryStatus" style="font-size: var(--font-sm); font-weight: 600; margin-top: 0.2rem;">Inactive</div>
+                </div>
+
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Configured Panel</div>
+                  <div id="summaryPanel" class="font-mono" style="font-size: var(--font-sm); word-break: break-all; margin-top: 0.2rem;">None configured</div>
+                </div>
+
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Tenant ID</div>
+                  <div id="summaryTenantId" class="font-mono" style="font-size: var(--font-sm); margin-top: 0.2rem;">—</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Guide Card -->
+            <section class="card card-glass">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">Customer Announcement</h2>
+              <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">Share these instructions with your SMM panel customers:</p>
+
+              <ol class="steps-list" style="margin-bottom: var(--space-6);">
+                <li>Customer opens your bot on Telegram and taps <strong>Start</strong> (<span class="code-pill">/start</span>).</li>
+                <li>Customer links account with their personal SMM panel API Key.</li>
+                <li>Customer queries real-time balance anytime via <span class="code-pill">/balance</span>.</li>
+                <li>Customer checks instant service catalog rates via <span class="code-pill">/services</span>.</li>
+              </ol>
+
+              <button type="button" class="btn btn-secondary btn-block" id="copyInviteBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span id="copyInviteText">Copy Customer Announcement</span>
+              </button>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Authentication Guard
+    const token = localStorage.getItem('supportbot_token');
+    if (!token) {
+      window.location.href = '/login';
+    }
+
+    // DOM References
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    const dashboardSidebar = document.getElementById('dashboardSidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const sidebarUserEmail = document.getElementById('sidebarUserEmail');
+    const sidebarSignOutBtn = document.getElementById('sidebarSignOutBtn');
+    const topbarSignOutBtn = document.getElementById('topbarSignOutBtn');
+
+    const alertBox = document.getElementById('alertBox');
+    const botConfigForm = document.getElementById('botConfigForm');
+    const botTokenInput = document.getElementById('botToken');
+    const panelApiUrlInput = document.getElementById('panelApiUrl');
+    const deployBtn = document.getElementById('deployBtn');
+    const deactivateBtn = document.getElementById('deactivateBtn');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    const summaryStatus = document.getElementById('summaryStatus');
+    const summaryPanel = document.getElementById('summaryPanel');
+    const summaryTenantId = document.getElementById('summaryTenantId');
+    const liveBotBanner = document.getElementById('liveBotBanner');
+    const openTelegramBtn = document.getElementById('openTelegramBtn');
+    const liveBotSub = document.getElementById('liveBotSub');
+    const toggleTokenVisibility = document.getElementById('toggleTokenVisibility');
+    const eyeIcon = document.getElementById('eyeIcon');
+    const copyInviteBtn = document.getElementById('copyInviteBtn');
+    const copyInviteText = document.getElementById('copyInviteText');
+
+    let currentTenant = null;
+    let savedBotUsername = localStorage.getItem('supportbot_username') || null;
+
+    function getFocusableElements(container) {
+      return Array.from(
+        container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ).filter(el => !el.hasAttribute('disabled') && el.offsetParent !== null);
+    }
+
+    // Off-Canvas Sidebar Management using window.matchMedia()
+    function openSidebar() {
+      dashboardSidebar.classList.add('open');
+      sidebarOverlay.classList.add('open');
+      sidebarOverlay.setAttribute('aria-hidden', 'false');
+      sidebarToggleBtn.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+      const focusables = getFocusableElements(dashboardSidebar);
+      if (focusables.length > 0) {
+        setTimeout(() => focusables[0].focus(), 50);
+      }
+    }
+
+    function closeSidebar() {
+      if (!dashboardSidebar.classList.contains('open')) return;
+      dashboardSidebar.classList.remove('open');
+      sidebarOverlay.classList.remove('open');
+      sidebarOverlay.setAttribute('aria-hidden', 'true');
+      sidebarToggleBtn.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+      if (sidebarToggleBtn) sidebarToggleBtn.focus();
+    }
+
+    // Keyboard navigation: Escape to close & Focus trap
+    document.addEventListener('keydown', (e) => {
+      if (!dashboardSidebar.classList.contains('open') || window.matchMedia('(min-width: 1025px)').matches) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSidebar();
+        return;
+      }
+      if (e.key === 'Tab') {
+        const focusables = getFocusableElements(dashboardSidebar);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
+    if (sidebarToggleBtn) {
+      sidebarToggleBtn.addEventListener('click', openSidebar);
+    }
+
+    if (sidebarOverlay) {
+      sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+
+    // Close mobile drawer when clicking nav links
+    const sidebarLinks = document.querySelectorAll('.sidebar-link');
+    sidebarLinks.forEach((link) => {
+      link.addEventListener('click', () => {
+        if (!window.matchMedia('(min-width: 1025px)').matches) {
+          closeSidebar();
+        }
+      });
+    });
+
+    // Auto-close off-canvas sidebar if user resizes past desktop breakpoint
+    const desktopQuery = window.matchMedia('(min-width: 1025px)');
+    desktopQuery.addEventListener('change', (e) => {
+      if (e.matches) {
+        closeSidebar();
+      }
+    });
+
+    // Sign out handler
+    function handleSignOut() {
+      localStorage.removeItem('supportbot_token');
+      localStorage.removeItem('supportbot_user');
+      localStorage.removeItem('supportbot_username');
+      window.location.href = '/login';
+    }
+
+    sidebarSignOutBtn.addEventListener('click', handleSignOut);
+    topbarSignOutBtn.addEventListener('click', handleSignOut);
+
+    // Toggle Bot Token Visibility
+    toggleTokenVisibility.addEventListener('click', () => {
+      const isPassword = botTokenInput.type === 'password';
+      if (isPassword) {
+        botTokenInput.type = 'text';
+        toggleTokenVisibility.setAttribute('aria-pressed', 'true');
+        toggleTokenVisibility.setAttribute('aria-label', 'Hide token');
+        eyeIcon.innerHTML = `
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+        `;
+      } else {
+        botTokenInput.type = 'password';
+        toggleTokenVisibility.setAttribute('aria-pressed', 'false');
+        toggleTokenVisibility.setAttribute('aria-label', 'Show token');
+        eyeIcon.innerHTML = `
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        `;
+      }
+    });
+
+    // Copy Customer Announcement Snippet
+    copyInviteBtn.addEventListener('click', () => {
+      const botHandle = savedBotUsername ? `@${savedBotUsername}` : 'our Telegram support bot';
+      const botLink = savedBotUsername ? `https://t.me/${savedBotUsername}` : 'Telegram';
+      const text = `🤖 Automated Telegram Support is now active!\n\nCheck your balance and view service rates 24/7:\n1. Open ${botHandle}: ${botLink}\n2. Send /start and enter your panel API key\n3. Query your real-time balance anytime with /balance\n4. View catalog rates with /services`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        copyInviteText.textContent = '✓ Copied to Clipboard!';
+        copyInviteBtn.style.borderColor = 'var(--color-emerald)';
+        setTimeout(() => {
+          copyInviteText.textContent = 'Copy Customer Announcement';
+          copyInviteBtn.style.borderColor = 'var(--color-border)';
+        }, 2200);
+      });
+    });
+
+    function showAlert(message, isError = true) {
+      alertBox.textContent = message;
+      alertBox.className = isError ? 'alert alert-error' : 'alert alert-success';
+      alertBox.style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function clearAlert() {
+      alertBox.style.display = 'none';
+    }
+
+    function updateStatusUI(status, username) {
+      statusBadge.className = 'badge';
+      if (username) {
+        savedBotUsername = username;
+        localStorage.setItem('supportbot_username', username);
+      }
+
+      if (status === 'ACTIVE') {
+        statusBadge.classList.add('badge-active');
+        statusText.textContent = 'ACTIVE';
+        summaryStatus.textContent = '🟢 Running & Listening';
+        deactivateBtn.style.display = 'inline-flex';
+        deployBtn.textContent = '🔄 Re-Deploy / Update Bot';
+
+        liveBotBanner.classList.add('active');
+        if (savedBotUsername) {
+          liveBotSub.textContent = `Bot @${savedBotUsername} is answering customer balance checks in real-time.`;
+          openTelegramBtn.href = `https://t.me/${savedBotUsername}`;
+          openTelegramBtn.style.display = 'inline-flex';
+        } else {
+          liveBotSub.textContent = 'Your bot is answering customer balance checks in real-time.';
+          openTelegramBtn.href = 'https://web.telegram.org';
+        }
+      } else if (status === 'EXPIRED') {
+        statusBadge.classList.add('badge-amber');
+        statusText.textContent = 'EXPIRED';
+        summaryStatus.textContent = '🟠 Subscription Expired';
+        deactivateBtn.style.display = 'none';
+        deployBtn.textContent = '🚀 Deploy & Activate Bot';
+        liveBotBanner.classList.remove('active');
+      } else {
+        statusBadge.classList.add('badge-inactive');
+        statusText.textContent = 'INACTIVE';
+        summaryStatus.textContent = '⚪ Inactive (Not running)';
+        deactivateBtn.style.display = 'none';
+        deployBtn.textContent = '🚀 Deploy & Activate Bot';
+        liveBotBanner.classList.remove('active');
+      }
+    }
+
+    async function loadTenantData() {
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (res.status === 401) {
+          handleSignOut();
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.success || !data.tenant) {
+          throw new Error(data.error || 'Failed to load user session.');
+        }
+
+        currentTenant = data.tenant;
+        sidebarUserEmail.textContent = currentTenant.email;
+        summaryTenantId.textContent = currentTenant.id;
+
+        if (currentTenant.botToken) {
+          botTokenInput.value = currentTenant.botToken;
+        }
+        if (currentTenant.panelApiUrl) {
+          panelApiUrlInput.value = currentTenant.panelApiUrl;
+          summaryPanel.textContent = currentTenant.panelApiUrl;
+        }
+
+        updateStatusUI(currentTenant.subscriptionStatus);
+      } catch (err) {
+        showAlert(err.message || 'Error connecting to dashboard backend.');
+      }
+    }
+
+    botConfigForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearAlert();
+
+      const botToken = botTokenInput.value.trim();
+      const panelApiUrl = panelApiUrlInput.value.trim();
+
+      if (!botToken || !panelApiUrl) {
+        showAlert('Both Telegram Bot Token and SMM Panel API URL are required.');
+        return;
+      }
+
+      deployBtn.disabled = true;
+      deployBtn.textContent = '⏳ [1/2] Verifying Bot Token with Telegram...';
+
+      try {
+        // Step 1: Save Bot & Panel configuration
+        const configRes = await fetch('/api/tenants/configure', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ botToken, panelApiUrl })
+        });
+
+        const configData = await configRes.json();
+        if (!configRes.ok) {
+          throw new Error(configData.error || 'Failed to save bot configuration');
+        }
+
+        if (configData.botUsername) {
+          savedBotUsername = configData.botUsername;
+          localStorage.setItem('supportbot_username', configData.botUsername);
+        }
+
+        // Step 2: Activate subscription and start bot
+        deployBtn.textContent = '⏳ [2/2] Starting Bot Instance...';
+        const activateRes = await fetch('/api/tenants/activate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const activateData = await activateRes.json();
+        if (!activateRes.ok) {
+          throw new Error(activateData.error || 'Failed to activate bot');
+        }
+
+        updateStatusUI(activateData.status, savedBotUsername);
+        summaryPanel.textContent = panelApiUrl;
+        showAlert('🎉 Bot deployed successfully! Your Telegram bot is active and answering customers.', false);
+      } catch (err) {
+        showAlert(err.message || 'Deployment error occurred.');
+      } finally {
+        deployBtn.disabled = false;
+        if (statusText.textContent === 'ACTIVE') {
+          deployBtn.textContent = '🔄 Re-Deploy / Update Bot';
+        } else {
+          deployBtn.textContent = '🚀 Deploy & Activate Bot';
+        }
+      }
+    });
+
+    deactivateBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to stop this bot? Customers will not receive balance responses while stopped.')) {
+        return;
+      }
+
+      clearAlert();
+      deactivateBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/tenants/deactivate', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to stop bot');
+        }
+
+        updateStatusUI(data.status);
+        showAlert('Bot has been stopped.', false);
+      } catch (err) {
+        showAlert(err.message || 'Failed to deactivate bot');
+      } finally {
+        deactivateBtn.disabled = false;
+      }
+    });
+
+    loadTenantData();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,42 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  EXPIRED
+}
+
+model Tenant {
+  id                 String             @id @default(uuid())
+  email              String             @unique
+  passwordHash       String
+  botToken           String?            @unique
+  panelApiUrl        String?
+  subscriptionStatus SubscriptionStatus @default(INACTIVE)
+  crawledData        Json?
+  lastCrawledAt      DateTime?
+  endUserSessions    BotUserSession[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model BotUserSession {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  telegramUserId String
+  userPanelKey   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // CRITICAL: Prevents session collision when one reseller uses two different SMM panels' bots
+  @@unique([tenantId, telegramUserId])
+  @@index([tenantId, telegramUserId])
+}

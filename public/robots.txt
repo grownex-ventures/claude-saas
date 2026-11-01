@@ -1,0 +1,11 @@
+# robots.txt for SupportBot (https://supportbot.com)
+User-agent: *
+Allow: /
+Allow: /css/
+Allow: /assets/
+Disallow: /dashboard
+Disallow: /login
+Disallow: /signup
+Disallow: /api/
+
+Sitemap: https://supportbot.com/sitemap.xml

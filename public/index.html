@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SupportBot — Automated Telegram Support for SMM Panels</title>
+  <meta name="description" content="Dedicated 24/7 automated Telegram customer support bots for SMM reseller and provider panels. Instant balance checks, service catalog cache, and zero polling conflicts." />
+  <link rel="canonical" href="https://supportbot.com/" />
+  
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="SupportBot — Automated Telegram Support for SMM Panels" />
+  <meta property="og:description" content="Dedicated 24/7 automated Telegram customer support bots for SMM reseller and provider panels. Instant balance checks, service catalog cache, and zero polling conflicts." />
+  <meta property="og:url" content="https://supportbot.com/" />
+  <meta property="og:image" content="https://supportbot.com/images/hero-robot.jpg" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SupportBot — Automated Telegram Support for SMM Panels" />
+  <meta name="twitter:description" content="Dedicated 24/7 automated Telegram customer support bots for SMM reseller and provider panels." />
+  <meta name="twitter:image" content="https://supportbot.com/images/hero-robot.jpg" />
+
+  <!-- Structured Data JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "SupportBot",
+        "operatingSystem": "Cloud-based",
+        "applicationCategory": "BusinessApplication",
+        "description": "Automated Telegram support bot platform for SMM panels.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      },
+      {
+        "@type": "Organization",
+        "name": "SupportBot Labs",
+        "url": "https://supportbot.com"
+      }
+    ]
+  }
+  </script>
+
+  <link rel="stylesheet" href="/css/global.css" />
+  <style>
+    /* Page-Specific Hero & Decorative Enhancements */
+    .hero-section {
+      padding-top: var(--space-12);
+      padding-bottom: var(--space-12);
+      position: relative;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: center;
+      gap: var(--space-8);
+    }
+
+    @media (min-width: 769px) {
+      .hero-grid {
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: var(--space-10);
+      }
+    }
+
+    .hero-title {
+      font-size: var(--font-hero);
+      font-weight: 800;
+      line-height: var(--lh-tight);
+      letter-spacing: -0.03em;
+      margin: var(--space-4) 0;
+    }
+
+    .hero-desc {
+      font-size: var(--font-body);
+      color: var(--color-text-muted);
+      line-height: var(--lh-normal);
+      max-width: 540px;
+      margin-bottom: var(--space-8);
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+      align-items: center;
+    }
+
+    .hero-visual-wrapper {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      max-width: 440px;
+      margin: 0 auto;
+    }
+
+    .hero-glow-aura {
+      position: absolute;
+      inset: -10%;
+      background: radial-gradient(circle, var(--color-accent-glow) 0%, transparent 70%);
+      filter: blur(28px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .hero-mascot-img {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow-xl);
+    }
+
+    /* Feature Cards */
+    .feature-icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      background-color: var(--color-accent-muted);
+      color: var(--color-accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-4);
+      border: 1px solid var(--color-border-glow);
+    }
+
+    .feature-card h3 {
+      font-size: var(--font-h3);
+      font-weight: 700;
+      margin-bottom: var(--space-2);
+      letter-spacing: -0.01em;
+    }
+
+    .feature-card p {
+      font-size: var(--font-sm);
+      color: var(--color-text-muted);
+      line-height: var(--lh-normal);
+    }
+
+    /* Request Form Container */
+    .form-wrapper {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .form-header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
+    }
+
+    .form-hint {
+      font-size: var(--font-xs);
+      color: var(--color-text-subtle);
+      margin-top: 0.25rem;
+    }
+
+    .form-success-banner {
+      display: none;
+      background: var(--color-emerald-muted);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--color-emerald);
+      padding: var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: var(--font-sm);
+      margin-bottom: var(--space-6);
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* Closing Ribbon */
+    .closing-ribbon {
+      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+      border: 1px solid #fed7aa;
+      border-radius: var(--radius-xl);
+      padding: var(--space-6) var(--space-8);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(234, 88, 12, 0.08);
+    }
+
+    @media (min-width: 769px) {
+      .closing-ribbon {
+        flex-direction: row;
+      }
+    }
+
+    .closing-tg-img {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+      flex-shrink: 0;
+    }
+
+    footer {
+      padding: var(--space-8) 0;
+      color: var(--color-text-subtle);
+      font-size: var(--font-sm);
+      text-align: center;
+      border-top: 1px solid var(--color-border);
+    }
+  </style>
+</head>
+
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Off-Canvas Mobile Drawer Navigation -->
+  <div id="mobileDrawerOverlay" class="mobile-drawer-overlay" aria-hidden="true"></div>
+  <aside id="mobileDrawer" class="mobile-drawer" aria-label="Mobile navigation">
+    <div class="mobile-drawer-header">
+      <div class="brand-logo">
+        <div class="brand-icon-box">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="6" width="18" height="14" rx="4" fill="#ffffff" />
+            <circle cx="8.5" cy="12" r="1.5" fill="#ea580c" />
+            <circle cx="15.5" cy="12" r="1.5" fill="#ea580c" />
+            <path d="M9 16C10 17 14 17 15 16" stroke="#ea580c" stroke-width="1.5" stroke-linecap="round" />
+            <path d="M12 2V6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+            <circle cx="12" cy="2" r="1" fill="#ffffff" />
+          </svg>
+        </div>
+        <span>SupportBot</span>
+      </div>
+      <button type="button" id="mobileDrawerClose" class="btn btn-icon btn-ghost" aria-label="Close menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="mobile-drawer-links" id="drawerNavLinks">
+      <a href="#features" class="nav-link drawer-item">Features</a>
+      <a href="#request-setup" class="nav-link drawer-item">Request Setup</a>
+      <a href="/login" class="nav-link drawer-item" id="drawerSignIn">Sign In</a>
+      <a href="/signup" class="btn btn-primary btn-block drawer-item" id="drawerSignUp" style="margin-top: var(--space-4);">Get Started</a>
+    </div>
+
+    <div style="margin-top: auto; padding-top: var(--space-6); border-top: 1px solid var(--color-border); font-size: var(--font-xs); color: var(--color-text-subtle);">
+      © SupportBot Labs · Multi-tenant Telegram Engine
+    </div>
+  </aside>
+
+  <!-- Sticky Header -->
+  <header class="header-sticky">
+    <div class="container nav-container">
+      <a href="/" class="brand-logo" aria-label="SupportBot Home">
+        <div class="brand-icon-box">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="6" width="18" height="14" rx="4" fill="#ffffff" />
+            <circle cx="8.5" cy="12" r="1.5" fill="#ea580c" />
+            <circle cx="15.5" cy="12" r="1.5" fill="#ea580c" />
+            <path d="M9 16C10 17 14 17 15 16" stroke="#ea580c" stroke-width="1.5" stroke-linecap="round" />
+            <path d="M12 2V6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+            <circle cx="12" cy="2" r="1" fill="#ffffff" />
+          </svg>
+        </div>
+        <span>SupportBot</span>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav class="desktop-nav" id="desktopNavLinks">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#request-setup" class="nav-link">Request Setup</a>
+        <a href="/login" class="nav-link" id="navSignIn">Sign In</a>
+        <a href="/signup" class="btn btn-primary" id="navSignUp">Sign Up</a>
+      </nav>
+
+      <!-- Mobile Hamburger Button -->
+      <button type="button" class="mobile-menu-trigger" id="mobileMenuBtn" aria-label="Open mobile menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container" id="main-content">
+    <!-- Hero Section (2 Columns) -->
+    <section class="hero-section">
+      <div class="hero-grid">
+        <!-- Hero Text -->
+        <div>
+          <div class="badge badge-accent">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z"/>
+            </svg>
+            <span>SMM Panel Automation</span>
+          </div>
+
+          <h1 class="hero-title">
+            Automated Telegram support for your <span class="text-gradient">SMM</span> panel.
+          </h1>
+
+          <p class="hero-desc">
+            Dedicated multi-tenant bots that check user balances, sync provider services, and respond to customers 24/7 with zero polling collisions.
+          </p>
+
+          <div class="hero-actions">
+            <a href="#request-setup" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+              Request Bot Setup
+            </a>
+            <a href="#features" class="btn btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+              </svg>
+              Explore Features
+            </a>
+          </div>
+        </div>
+
+        <!-- Hero Graphic -->
+        <div class="hero-visual-wrapper">
+          <div class="hero-glow-aura"></div>
+          <img src="/images/hero-robot.jpg" alt="SupportBot Telegram Bot Mascot" class="hero-mascot-img aspect-1-1" width="440" height="440" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section (Auto-wrapping Grid) -->
+    <section class="section-spacing" id="features">
+      <div class="section-header" style="text-align: center; margin-bottom: var(--space-8);">
+        <h2 class="section-title">Why SMM Panels Choose SupportBot</h2>
+        <p style="color: var(--color-text-muted); font-size: var(--font-body); max-width: 600px; margin: var(--space-2) auto 0;">Automate repetitive customer queries, speed up response times, and reduce ticket overhead.</p>
+      </div>
+      <div class="grid-autofit">
+        <!-- Card 1 -->
+        <article class="card card-interactive feature-card">
+          <div class="feature-icon-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h3>Strict Tenant Isolation</h3>
+          <p>Composite sessions indexed by {tenantId}:{telegramUserId} guarantee zero crossed customer keys or credential leaks.</p>
+        </article>
+
+        <!-- Card 2 -->
+        <article class="card card-interactive feature-card">
+          <div class="feature-icon-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+          </div>
+          <h3>Real-time Balance Checks</h3>
+          <p>Customers query their active balance in milliseconds via /balance directly from your SMM provider API.</p>
+        </article>
+
+        <!-- Card 3 -->
+        <article class="card card-interactive feature-card">
+          <div class="feature-icon-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            </svg>
+          </div>
+          <h3>Cached Service Catalogs</h3>
+          <p>Service catalogs sync automatically and cache in Redis, reducing panel backend workload by up to 92%.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Request Setup Form Section -->
+    <section class="section-spacing" id="request-setup">
+      <div class="form-wrapper">
+        <div class="card card-glass">
+          <div style="margin-bottom: var(--space-6); text-align: center;">
+            <div class="badge badge-accent form-header-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+              <span>Instant Setup</span>
+            </div>
+            <h2 style="font-size: var(--font-h2); font-weight: 800; letter-spacing: -0.02em; margin-bottom: var(--space-2);">
+              Get SupportBot for Your SMM Panel
+            </h2>
+            <p style="font-size: var(--font-sm); color: var(--color-text-muted);">
+              Submit your panel details below and our team will prepare your automated bot.
+            </p>
+          </div>
+
+          <div id="formSuccessBanner" class="form-success-banner" role="status">
+            ✓ Thank you! Your request has been received. Our team will contact you shortly.
+          </div>
+
+          <form id="panelRequestForm" novalidate>
+            <!-- Work Email -->
+            <div class="form-group">
+              <label for="reqEmail" class="form-label">
+                <span>Work Email</span>
+              </label>
+              <div class="input-icon-wrapper">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <input type="email" id="reqEmail" name="email" class="form-control" placeholder="owner@your-smm-panel.com" required autocomplete="email" />
+              </div>
+              <span class="form-hint">Verification and credentials will be sent to this address.</span>
+            </div>
+
+            <!-- SMM Panel Link -->
+            <div class="form-group">
+              <label for="reqPanelLink" class="form-label">
+                <span>SMM Panel Link</span>
+              </label>
+              <div class="input-icon-wrapper">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                <input type="url" id="reqPanelLink" name="panelLink" class="form-control" placeholder="https://your-smm-panel.com" required />
+              </div>
+              <span class="form-hint">The website URL of your active reseller or provider panel.</span>
+            </div>
+
+            <!-- Contact Number / Handle -->
+            <div class="form-group">
+              <label for="reqContactNumber" class="form-label">
+                <span>Contact Number / Handle</span>
+              </label>
+              <div class="input-icon-wrapper">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                <input type="text" id="reqContactNumber" name="contactNumber" class="form-control" placeholder="+1 (555) 000-0000 or @telegram_handle" required />
+              </div>
+              <span class="form-hint">WhatsApp number or Telegram username for live onboarding.</span>
+            </div>
+
+            <!-- Message (Optional) -->
+            <div class="form-group">
+              <label for="reqMessage" class="form-label">
+                <span>Message</span>
+                <span class="optional">optional</span>
+              </label>
+              <textarea id="reqMessage" name="message" class="form-control" rows="3" placeholder="Tell us about your panel daily volume, custom bot commands, or specific requirements..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="reqSubmitBtn" style="margin-top: var(--space-4);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+              Submit Request
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Closing Ribbon Card -->
+    <section class="section-spacing" style="padding-top: 0;">
+      <div class="closing-ribbon">
+        <div style="display: flex; align-items: center; gap: var(--space-4); text-align: left;">
+          <img src="/images/telegram-3d.jpg" alt="Telegram 3D Logo" class="closing-tg-img aspect-1-1" width="58" height="58" />
+          <div>
+            <h3 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: 0.25rem;">Automate your Telegram customer support today</h3>
+            <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin: 0;">Deliver instant responses and 24/7 balance checks to your panel customers.</p>
+          </div>
+        </div>
+        <a href="#request-setup" class="btn btn-primary" style="flex-shrink: 0;">Request SupportBot</a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Semantic Footer -->
+  <footer>
+    <div class="container">
+      © SupportBot Labs · Multi-tenant Telegram customer automation platform.
+    </div>
+  </footer>
+
+  <!-- Vanilla JavaScript Logic (ES6+ Web APIs) -->
+  <script>
+    // Responsive Mobile Drawer Navigation via window.matchMedia
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    const mobileDrawer = document.getElementById('mobileDrawer');
+    const mobileDrawerOverlay = document.getElementById('mobileDrawerOverlay');
+    const mobileDrawerClose = document.getElementById('mobileDrawerClose');
+    const drawerItems = document.querySelectorAll('.drawer-item');
+
+    function getFocusableElements(container) {
+      return Array.from(
+        container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ).filter(el => !el.hasAttribute('disabled') && el.offsetParent !== null);
+    }
+
+    function openMobileDrawer() {
+      mobileDrawer.classList.add('open');
+      mobileDrawerOverlay.classList.add('open');
+      mobileDrawerOverlay.setAttribute('aria-hidden', 'false');
+      mobileMenuBtn.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+      setTimeout(() => {
+        if (mobileDrawerClose) mobileDrawerClose.focus();
+      }, 50);
+    }
+
+    function closeMobileDrawer() {
+      if (!mobileDrawer.classList.contains('open')) return;
+      mobileDrawer.classList.remove('open');
+      mobileDrawerOverlay.classList.remove('open');
+      mobileDrawerOverlay.setAttribute('aria-hidden', 'true');
+      mobileMenuBtn.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+      if (mobileMenuBtn) mobileMenuBtn.focus();
+    }
+
+    // Keyboard navigation: Escape to close & Focus trap
+    document.addEventListener('keydown', (e) => {
+      if (!mobileDrawer.classList.contains('open')) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMobileDrawer();
+        return;
+      }
+      if (e.key === 'Tab') {
+        const focusables = getFocusableElements(mobileDrawer);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
+    if (mobileMenuBtn) {
+      mobileMenuBtn.addEventListener('click', openMobileDrawer);
+    }
+
+    if (mobileDrawerClose) {
+      mobileDrawerClose.addEventListener('click', closeMobileDrawer);
+    }
+
+    if (mobileDrawerOverlay) {
+      mobileDrawerOverlay.addEventListener('click', closeMobileDrawer);
+    }
+
+    drawerItems.forEach((item) => {
+      item.addEventListener('click', () => {
+        closeMobileDrawer();
+      });
+    });
+
+    // Handle responsive state transition using window.matchMedia
+    const desktopMedia = window.matchMedia('(min-width: 769px)');
+    desktopMedia.addEventListener('change', (e) => {
+      if (e.matches) {
+        closeMobileDrawer();
+      }
+    });
+
+    // Handle Request Form UI Submission
+    const requestForm = document.getElementById('panelRequestForm');
+    const formSuccessBanner = document.getElementById('formSuccessBanner');
+    const reqSubmitBtn = document.getElementById('reqSubmitBtn');
+
+    if (requestForm) {
+      requestForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('reqEmail').value.trim();
+        const panelLink = document.getElementById('reqPanelLink').value.trim();
+        const contact = document.getElementById('reqContactNumber').value.trim();
+
+        if (!email || !panelLink || !contact) {
+          alert('Please fill in your Email, SMM Panel Link, and Contact Number.');
+          return;
+        }
+
+        reqSubmitBtn.disabled = true;
+        reqSubmitBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+          Submitting...
+        `;
+
+        setTimeout(() => {
+          formSuccessBanner.style.display = 'block';
+          requestForm.reset();
+          reqSubmitBtn.disabled = false;
+          reqSubmitBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+            Submit Request
+          `;
+          formSuccessBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 350);
+      });
+    }
+
+    // Dynamic Navigation when Authenticated
+    const token = localStorage.getItem('supportbot_token');
+    if (token) {
+      const desktopNav = document.getElementById('desktopNavLinks');
+      const drawerNav = document.getElementById('drawerNavLinks');
+
+      const signIn = document.getElementById('navSignIn');
+      const signUp = document.getElementById('navSignUp');
+      if (signIn) signIn.remove();
+      if (signUp) signUp.remove();
+
+      const drawerSignIn = document.getElementById('drawerSignIn');
+      const drawerSignUp = document.getElementById('drawerSignUp');
+      if (drawerSignIn) drawerSignIn.remove();
+      if (drawerSignUp) drawerSignUp.remove();
+
+      // Desktop Dashboard Link
+      const dashboardLink = document.createElement('a');
+      dashboardLink.href = '/dashboard';
+      dashboardLink.textContent = 'Dashboard';
+      dashboardLink.className = 'btn btn-primary';
+      desktopNav.appendChild(dashboardLink);
+
+      // Desktop Sign Out Link
+      const signOutLink = document.createElement('a');
+      signOutLink.href = '#';
+      signOutLink.textContent = 'Sign out';
+      signOutLink.className = 'nav-link';
+      signOutLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('supportbot_token');
+        localStorage.removeItem('supportbot_user');
+        window.location.reload();
+      });
+      desktopNav.appendChild(signOutLink);
+
+      // Mobile Drawer Links
+      const drawerDashboard = document.createElement('a');
+      drawerDashboard.href = '/dashboard';
+      drawerDashboard.textContent = 'Dashboard';
+      drawerDashboard.className = 'btn btn-primary btn-block drawer-item';
+      drawerNav.appendChild(drawerDashboard);
+
+      const drawerSignOut = document.createElement('a');
+      drawerSignOut.href = '#';
+      drawerSignOut.textContent = 'Sign out';
+      drawerSignOut.className = 'nav-link drawer-item';
+      drawerSignOut.style.marginTop = 'var(--space-2)';
+      drawerSignOut.addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('supportbot_token');
+        localStorage.removeItem('supportbot_user');
+        window.location.reload();
+      });
+      drawerNav.appendChild(drawerSignOut);
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,33 @@
+{
+  "name": "cloud-saas",
+  "version": "1.0.0",
+  "description": "Multi-Tenant Telegram SMM Support Bot SaaS",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/src/server.js",
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "argon2": "^0.45.1",
+    "compression": "^1.8.2",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.7.2",
+    "grammy": "^1.35.0",
+    "helmet": "^8.3.0",
+    "ioredis": "^5.6.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.8.1",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^22.13.9",
+    "prisma": "^6.4.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}
