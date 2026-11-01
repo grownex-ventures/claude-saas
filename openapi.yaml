@@ -1,0 +1,333 @@
+openapi: 3.1.0
+info:
+  title: Cloud-SaaS Multi-Tenant API
+  description: Multi-tenant Telegram & WhatsApp SMM reseller bot platform with embeddable live customer chat widget.
+  version: 1.0.0
+servers:
+  - url: /api/v1
+    description: Version 1 API
+  - url: /api
+    description: Backward-compatible alias
+paths:
+  /tenants/configure:
+    post:
+      summary: Configure Telegram Bot Token and SMM Panel API URL
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [botToken, panelApiUrl]
+              properties:
+                botToken:
+                  type: string
+                  example: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                panelApiUrl:
+                  type: string
+                  format: uri
+                  example: "https://mysmmpanel.com"
+      responses:
+        '200':
+          description: Configuration successfully saved and encrypted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  tenantId: { type: string, format: uuid }
+                  panelApiUrl: { type: string }
+                  botTokenConfigured: { type: boolean }
+                  botUsername: { type: string, nullable: true }
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitExceededError'
+
+  /tenants/activate:
+    post:
+      summary: Activate tenant subscription and launch bot workers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Subscription activated and bot started.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ACTIVE, INACTIVE, EXPIRED] }
+                  botRunning: { type: boolean }
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /tenants/deactivate:
+    post:
+      summary: Deactivate tenant subscription and halt bot workers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Subscription marked expired and bot halted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ACTIVE, INACTIVE, EXPIRED] }
+                  botRunning: { type: boolean }
+
+  /tenants/me:
+    delete:
+      summary: Permanently delete tenant account and cascade delete all tenant data (COMP-02)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  description: Password re-confirmation required for account deletion
+      responses:
+        '200':
+          description: Tenant account and all associated sessions/messages permanently deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/whatsapp/configure:
+    post:
+      summary: Configure WhatsApp customer support line phone and toggle
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phoneNumber: { type: string, nullable: true }
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: WhatsApp settings updated.
+
+  /tenants/whatsapp/start:
+    post:
+      summary: Start WhatsApp Baileys connection engine
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: { type: string, enum: [qr, pairing] }
+                phoneNumber: { type: string, nullable: true }
+                forceRestart: { type: boolean }
+      responses:
+        '200':
+          description: WhatsApp initialization triggered.
+
+  /tenants/whatsapp/pairing-code:
+    post:
+      summary: Request fresh 8-digit WhatsApp pairing code for phone number
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phoneNumber]
+              properties:
+                phoneNumber: { type: string }
+      responses:
+        '200':
+          description: Pairing code generated.
+
+  /tenants/whatsapp/status:
+    get:
+      summary: Get current WhatsApp connection and pairing status
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Status of WhatsApp engine.
+
+  /tenants/whatsapp/disconnect:
+    post:
+      summary: Disconnect WhatsApp session
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clearCredentials: { type: boolean }
+      responses:
+        '200':
+          description: WhatsApp disconnected.
+
+  /tenants/widget/configure:
+    post:
+      summary: Configure website chat widget appearance and public demo API key
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                widgetApiKey: { type: string, nullable: true }
+                widgetTitle: { type: string }
+                widgetWelcomeMessage: { type: string }
+                widgetAccentColor: { type: string }
+                widgetEnabled: { type: boolean }
+      responses:
+        '200':
+          description: Widget settings saved.
+
+  /tenants/widget/settings:
+    get:
+      summary: Get current widget configuration
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current widget settings.
+
+  /widget/config/{tenantId}:
+    get:
+      summary: Public endpoint to fetch widget UI configuration
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Public widget settings and theme tokens.
+
+  /widget/chat:
+    post:
+      summary: "Send visitor message to AI chat assistant (Rate limited: 20 req/min per IP/session)"
+      headers:
+        RateLimit-Limit:
+          schema: { type: integer, example: 20 }
+        RateLimit-Remaining:
+          schema: { type: integer, example: 19 }
+        RateLimit-Reset:
+          schema: { type: integer, example: 60 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenantId, sessionId, message]
+              properties:
+                tenantId: { type: string, format: uuid }
+                sessionId: { type: string }
+                message: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: AI response and updated chat state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reply: { type: string }
+                  sessionId: { type: string }
+                  timestamp: { type: string, format: date-time }
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/RateLimitExceededError'
+
+  /widget/history/{sessionId}:
+    get:
+      summary: Public endpoint to restore visitor chat history
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: tenantId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Chat history messages for session.
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter the tenant JWT token received upon login/signup.
+
+  responses:
+    BadRequestError:
+      description: Invalid request parameters or bad formatting.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+
+    UnauthorizedError:
+      description: Authentication required or invalid token.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+
+    RateLimitExceededError:
+      description: Rate limit exceeded. Please back off before retrying.
+      headers:
+        RateLimit-Limit:
+          schema: { type: integer }
+        RateLimit-Remaining:
+          schema: { type: integer }
+        RateLimit-Reset:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+              code: { type: string, example: RATE_LIMIT_EXCEEDED }

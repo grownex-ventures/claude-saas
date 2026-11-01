@@ -112,6 +112,133 @@
 }
 
 /* --------------------------------------------------------------------------
+   Dark Mode Token System (Phase 5)
+   -------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  --color-bg: #090d16;
+  --color-bg-alt: #0f172a;
+  --color-surface: #131b2e;
+  --color-surface-hover: #1e293b;
+  --color-surface-elevated: #1e293b;
+  --color-surface-translucent: rgba(19, 27, 46, 0.9);
+
+  --color-border: #223049;
+  --color-border-subtle: #172236;
+  --color-border-hover: #334155;
+  --color-border-glow: rgba(234, 88, 12, 0.35);
+
+  --color-accent: #f97316;
+  --color-accent-hover: #ea580c;
+  --color-accent-light: #fb923c;
+  --color-accent-muted: rgba(234, 88, 12, 0.15);
+  --color-accent-glow: rgba(234, 88, 12, 0.35);
+
+  --color-emerald: #22c55e;
+  --color-emerald-muted: rgba(34, 197, 94, 0.15);
+  --color-amber: #f59e0b;
+  --color-amber-muted: rgba(245, 158, 11, 0.15);
+  --color-cyan: #38bdf8;
+  --color-cyan-muted: rgba(56, 189, 248, 0.15);
+  --color-rose: #ef4444;
+  --color-rose-muted: rgba(239, 68, 68, 0.15);
+  --color-indigo: #818cf8;
+
+  --color-text-main: #f8fafc;
+  --color-text-muted: #cbd5e1;
+  --color-text-subtle: #94a3b8;
+  --color-text-inverse: #0f172a;
+
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #090d16;
+    --color-bg-alt: #0f172a;
+    --color-surface: #131b2e;
+    --color-surface-hover: #1e293b;
+    --color-surface-elevated: #1e293b;
+    --color-surface-translucent: rgba(19, 27, 46, 0.9);
+
+    --color-border: #223049;
+    --color-border-subtle: #172236;
+    --color-border-hover: #334155;
+    --color-border-glow: rgba(234, 88, 12, 0.35);
+
+    --color-accent: #f97316;
+    --color-accent-hover: #ea580c;
+    --color-accent-light: #fb923c;
+    --color-accent-muted: rgba(234, 88, 12, 0.15);
+    --color-accent-glow: rgba(234, 88, 12, 0.35);
+
+    --color-emerald: #22c55e;
+    --color-emerald-muted: rgba(34, 197, 94, 0.15);
+    --color-amber: #f59e0b;
+    --color-amber-muted: rgba(245, 158, 11, 0.15);
+    --color-cyan: #38bdf8;
+    --color-cyan-muted: rgba(56, 189, 248, 0.15);
+    --color-rose: #ef4444;
+    --color-rose-muted: rgba(239, 68, 68, 0.15);
+    --color-indigo: #818cf8;
+
+    --color-text-main: #f8fafc;
+    --color-text-muted: #cbd5e1;
+    --color-text-subtle: #94a3b8;
+    --color-text-inverse: #0f172a;
+  }
+}
+
+/* Global 150ms theme transition */
+body, .card, .dashboard-topbar, .dashboard-sidebar, .form-control, .btn, .badge, .live-bot-banner {
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+/* Global Focus-Visible (WCAG 2.4.7 Focus Visible) */
+:focus-visible {
+  outline: 2px solid var(--color-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* Skeleton Loading Shimmer Placeholders */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface-hover) 25%, var(--color-border) 50%, var(--color-surface-hover) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
+.skeleton-text {
+  height: 1.1em;
+  min-width: 80px;
+  vertical-align: middle;
+}
+
+.skeleton-badge {
+  height: 24px;
+  width: 90px;
+  border-radius: var(--radius-full);
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--color-surface-hover);
+  }
+  body, .card, .dashboard-topbar, .dashboard-sidebar, .form-control, .btn, .badge, .live-bot-banner {
+    transition: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
    2. Responsive Breakpoint Token Adjustments (Mobile-First)
    -------------------------------------------------------------------------- */
 

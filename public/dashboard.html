@@ -163,6 +163,117 @@
       color: var(--color-emerald);
       border: 1px solid rgba(16, 185, 129, 0.3);
     }
+
+    /* Channel Switcher Tabs */
+    .channel-tabs {
+      display: flex;
+      gap: var(--space-3);
+      margin-bottom: var(--space-6);
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: var(--space-2);
+    }
+
+    .channel-tab-btn {
+      background: none;
+      border: none;
+      padding: 0.6rem 1.25rem;
+      font-size: var(--font-sm);
+      font-weight: 700;
+      color: var(--color-text-muted);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      transition: all var(--transition-fast);
+    }
+
+    .channel-tab-btn:hover {
+      color: var(--color-text-main);
+      background-color: var(--color-bg-alt);
+    }
+
+    .channel-tab-btn.active {
+      color: var(--color-accent);
+      background-color: var(--color-accent-muted);
+      border-bottom: 2px solid var(--color-accent);
+    }
+
+    /* WhatsApp Specific Styling */
+    .wa-connection-card {
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      margin-top: var(--space-4);
+    }
+
+    .wa-mode-toggle {
+      display: flex;
+      background: var(--color-surface-elevated);
+      padding: 0.25rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      margin-bottom: var(--space-6);
+    }
+
+    .wa-mode-btn {
+      flex: 1;
+      padding: 0.5rem;
+      border: none;
+      background: transparent;
+      color: var(--color-text-muted);
+      font-size: var(--font-xs);
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      text-align: center;
+    }
+
+    .wa-mode-btn.active {
+      background: var(--color-card);
+      color: var(--color-text-main);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+
+    .qr-frame {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-4);
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      border: 2px dashed #cbd5e1;
+      margin: 0 auto;
+      max-width: 260px;
+      min-height: 260px;
+      position: relative;
+    }
+
+    .qr-frame img {
+      width: 220px;
+      height: 220px;
+      object-fit: contain;
+    }
+
+    .pairing-code-display {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      font-family: var(--font-family-mono);
+      font-size: var(--font-h3);
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      color: var(--color-accent);
+      background: var(--color-surface-elevated);
+      border: 1px dashed var(--color-accent);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      margin: var(--space-4) 0;
+    }
   </style>
 </head>
 
@@ -217,7 +328,7 @@
       <div class="sidebar-footer">
         <div class="user-pill">
           <span class="badge-dot pulse" style="background-color: var(--color-emerald);"></span>
-          <span id="sidebarUserEmail">Loading session...</span>
+          <span id="sidebarUserEmail"><span class="skeleton skeleton-text" style="width: 120px;"></span></span>
         </div>
         <button type="button" id="sidebarSignOutBtn" class="btn btn-outline btn-block" style="min-height: 38px; font-size: var(--font-xs);">
           Sign out
@@ -240,6 +351,22 @@
       </div>
 
       <div style="display: flex; align-items: center; gap: var(--space-4);">
+        <button type="button" id="themeToggleBtn" class="btn btn-icon btn-ghost" aria-label="Toggle dark/light theme" title="Toggle theme" style="min-height: 36px; width: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+          <svg id="themeIconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="themeIconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
         <span class="badge badge-accent" id="topbarPlanBadge">PRO TRIAL</span>
         <button type="button" id="topbarSignOutBtn" class="btn btn-ghost" style="font-size: var(--font-xs); min-height: 36px;">
           Sign out
@@ -280,12 +407,34 @@
 
         <div id="alertBox" class="alert" role="alert"></div>
 
-        <!-- Dashboard Widgets Grid -->
-        <div class="dashboard-grid">
+        <!-- Channel Switcher Tabs -->
+        <div class="channel-tabs" role="tablist" aria-label="Support Channels">
+          <button type="button" class="channel-tab-btn active" id="tabTelegram" role="tab" aria-selected="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.77-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+            </svg>
+            Telegram Bot
+          </button>
+          <button type="button" class="channel-tab-btn" id="tabWhatsApp" role="tab" aria-selected="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+            </svg>
+            WhatsApp Support Line
+          </button>
+          <button type="button" class="channel-tab-btn" id="tabWidget" role="tab" aria-selected="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Website Chat Widget
+          </button>
+        </div>
+
+        <!-- Telegram Container -->
+        <div id="containerTelegram" class="dashboard-grid">
           <!-- Left Column: Bot Credentials & Configuration -->
           <section class="card card-glass dashboard-widget-container">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
-              <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Bot Credentials</h2>
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Telegram Credentials</h2>
               <span class="badge badge-inactive" id="statusBadge">
                 <span class="badge-dot"></span>
                 <span id="statusText">INACTIVE</span>
@@ -357,17 +506,17 @@
               <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                 <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
                   <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Runtime Status</div>
-                  <div id="summaryStatus" style="font-size: var(--font-sm); font-weight: 600; margin-top: 0.2rem;">Inactive</div>
+                  <div id="summaryStatus" style="font-size: var(--font-sm); font-weight: 600; margin-top: 0.2rem;"><span class="skeleton skeleton-text" style="width: 90px;"></span></div>
                 </div>
 
                 <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
                   <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Configured Panel</div>
-                  <div id="summaryPanel" class="font-mono" style="font-size: var(--font-sm); word-break: break-all; margin-top: 0.2rem;">None configured</div>
+                  <div id="summaryPanel" class="font-mono" style="font-size: var(--font-sm); word-break: break-all; margin-top: 0.2rem;"><span class="skeleton skeleton-text" style="width: 160px;"></span></div>
                 </div>
 
                 <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
                   <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Tenant ID</div>
-                  <div id="summaryTenantId" class="font-mono" style="font-size: var(--font-sm); margin-top: 0.2rem;">—</div>
+                  <div id="summaryTenantId" class="font-mono" style="font-size: var(--font-sm); margin-top: 0.2rem;"><span class="skeleton skeleton-text" style="width: 140px;"></span></div>
                 </div>
               </div>
             </section>
@@ -394,15 +543,281 @@
             </section>
           </div>
         </div>
+
+        <!-- WhatsApp Container -->
+        <div id="containerWhatsApp" class="dashboard-grid" style="display: none;">
+          <!-- Left Column: WhatsApp Pairing & Connection -->
+          <section class="card card-glass dashboard-widget-container">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">WhatsApp Support Line</h2>
+              <span class="badge badge-inactive" id="waStatusBadge" role="status" aria-live="polite">
+                <span class="badge-dot"></span>
+                <span id="waStatusText">DISCONNECTED</span>
+              </span>
+            </div>
+            <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">
+              Connect your WhatsApp business or support phone number. Customers can chat directly to check balances, query services, and track orders.
+            </p>
+
+            <!-- Mode Toggle -->
+            <div class="wa-mode-toggle">
+              <button type="button" class="wa-mode-btn active" id="waModeBtnQr">📷 QR Code Scan</button>
+              <button type="button" class="wa-mode-btn" id="waModeBtnPairing">📲 8-Digit Pairing Code</button>
+            </div>
+
+            <!-- Mode 1: QR Code -->
+            <div id="waPanelQr">
+              <div class="qr-frame">
+                <div id="waQrPlaceholder" style="text-align: center; color: var(--color-text-muted); font-size: var(--font-sm);">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 0.5rem; opacity: 0.6;">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                  </svg>
+                  <div>Click below to generate live QR Code</div>
+                </div>
+                <img id="waQrImg" style="display: none;" alt="WhatsApp Scan QR" />
+              </div>
+              <p style="font-size: var(--font-xs); color: var(--color-text-subtle); text-align: center; margin-top: var(--space-3);">
+                Scan this code in WhatsApp: <strong>Settings &gt; Linked Devices &gt; Link a Device</strong>.
+              </p>
+              <button type="button" class="btn btn-primary btn-block" id="waStartQrBtn" style="margin-top: var(--space-4);">
+                ⚡ Start WhatsApp & Generate QR
+              </button>
+            </div>
+
+            <!-- Mode 2: Pairing Code -->
+            <div id="waPanelPairing" style="display: none;">
+              <div class="form-group">
+                <label for="waPhoneInput" class="form-label">
+                  <span>WhatsApp Phone Number</span>
+                </label>
+                <input type="tel" id="waPhoneInput" class="form-control" placeholder="e.g. 919876543210 (with country code)" />
+                <span style="font-size: var(--font-xs); color: var(--color-text-subtle); margin-top: 0.25rem;">
+                  Enter phone digits with country code, no symbols or spaces (e.g. <code>919876543210</code> or <code>12125551234</code>).
+                </span>
+              </div>
+
+              <div id="waPairingBox" class="pairing-code-display" style="display: none;" role="status" aria-live="polite">
+                <span id="waPairingText">---- - ----</span>
+              </div>
+
+              <button type="button" class="btn btn-primary btn-block" id="waGeneratePairingBtn">
+                📲 Request 8-Digit Pairing Code
+              </button>
+
+              <div style="margin-top: var(--space-4); font-size: var(--font-xs); color: var(--color-text-muted); background: var(--color-bg-alt); padding: var(--space-3); border-radius: var(--radius-md); border-left: 3px solid var(--color-accent);">
+                <div><strong>How to link:</strong> Open WhatsApp on your phone &gt; <strong>Linked Devices</strong> &gt; <strong>Link with phone number instead</strong> &gt; Enter the 8-digit code.</div>
+                <div style="margin-top: 0.35rem; color: var(--color-text-subtle);"><strong>⚠️ Notice:</strong> The pairing code is cryptographically locked to the number entered above. The WhatsApp on your phone must match this number. To connect any phone without matching numbers, switch to <strong>📷 QR Code Scan</strong>.</div>
+              </div>
+            </div>
+
+            <!-- Disconnect Action -->
+            <div style="margin-top: var(--space-6); border-top: 1px solid var(--color-border); padding-top: var(--space-4); display: none;" id="waDisconnectSection">
+              <button type="button" class="btn btn-danger btn-block" id="waDisconnectBtn">
+                🛑 Disconnect WhatsApp Line
+              </button>
+            </div>
+          </section>
+
+          <!-- Right Column: WhatsApp Live Status & Guide -->
+          <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+            <!-- WhatsApp Live State -->
+            <section class="card card-glass dashboard-widget-container">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">WhatsApp Line State</h2>
+              <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">Live Baileys WebSocket connection metrics.</p>
+
+              <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Connection Status</div>
+                  <div id="waSummaryStatus" style="font-size: var(--font-sm); font-weight: 600; margin-top: 0.2rem;">Disconnected</div>
+                </div>
+
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Connected Phone</div>
+                  <div id="waSummaryPhone" class="font-mono" style="font-size: var(--font-sm); margin-top: 0.2rem;">None linked</div>
+                </div>
+
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Engine Mode</div>
+                  <div style="font-size: var(--font-sm); font-weight: 600; margin-top: 0.2rem; color: var(--color-emerald);">Baileys Multi-Device (Zero Ban Risk)</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- WhatsApp Customer Guide -->
+            <section class="card card-glass">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">WhatsApp Customer Announcement</h2>
+              <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">Share these instructions with your WhatsApp clients:</p>
+
+              <ol class="steps-list" style="margin-bottom: var(--space-6);">
+                <li>Customer sends message or enters their panel API key (<span class="code-pill">/setkey &lt;KEY&gt;</span>).</li>
+                <li>Message with the raw key is <strong>auto-deleted</strong> immediately for privacy.</li>
+                <li>Customer checks real-time funds with <span class="code-pill">/balance</span>.</li>
+                <li>Customer searches catalog with <span class="code-pill">/services &lt;keyword&gt;</span>.</li>
+                <li>Customer tracks live order with <span class="code-pill">/status &lt;order_id&gt;</span>.</li>
+              </ol>
+
+              <button type="button" class="btn btn-secondary btn-block" id="copyWaInviteBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span id="copyWaInviteText">Copy WhatsApp Announcement</span>
+              </button>
+            </section>
+          </div>
+        </div>
+
+        <!-- Website Chat Widget Container -->
+        <div id="containerWidget" class="dashboard-grid" style="display: none;">
+          <!-- Left Column: Widget Configuration & Embed Code -->
+          <section class="card card-glass dashboard-widget-container">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Public Website Chat Widget</h2>
+              <span class="badge badge-active" id="widgetStatusBadge" role="status" aria-live="polite">
+                <span class="badge-dot"></span>
+                <span>PUBLIC & LIVE</span>
+              </span>
+            </div>
+            <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-6);">
+              Embed a floating 24/7 support widget on your SMM panel. Website visitors can browse services, search rates, and track orders with zero login required.
+            </p>
+
+            <form id="widgetConfigForm" novalidate>
+              <!-- Catalog / Demo API Key Input -->
+              <div class="form-group">
+                <label for="widgetApiKeyInput" class="form-label">
+                  <span>Panel Catalog / Demo API Key</span>
+                </label>
+                <div class="input-icon-wrapper">
+                  <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                  <input type="password" id="widgetApiKeyInput" name="widgetApiKey" class="form-control" placeholder="Enter API key from a demo/catalog account" autocomplete="off" />
+                </div>
+                <span style="font-size: var(--font-xs); color: var(--color-text-subtle); margin-top: 0.25rem;">
+                  Used by our backend to fetch live services & rates for public visitors. <strong>Never exposed</strong> to website visitors.
+                </span>
+              </div>
+
+              <!-- Widget Title -->
+              <div class="form-group">
+                <label for="widgetTitleInput" class="form-label">
+                  <span>Widget Title</span>
+                </label>
+                <input type="text" id="widgetTitleInput" class="form-control" placeholder="e.g. Customer Support" value="Customer Support" />
+              </div>
+
+              <!-- Accent Color & Enable/Disable in grid -->
+              <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4);">
+                <div class="form-group">
+                  <label for="widgetAccentInput" class="form-label">
+                    <span>Accent Color</span>
+                  </label>
+                  <input type="color" id="widgetAccentInput" class="form-control" value="#ea580c" style="height: 42px; padding: 4px; cursor: pointer;" />
+                </div>
+                <div class="form-group">
+                  <label for="widgetEnabledSelect" class="form-label">
+                    <span>Widget Visibility</span>
+                  </label>
+                  <select id="widgetEnabledSelect" class="form-control">
+                    <option value="true">Active (Visible to public)</option>
+                    <option value="false">Disabled (Hidden)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Welcome Greeting -->
+              <div class="form-group">
+                <label for="widgetWelcomeInput" class="form-label">
+                  <span>Welcome Message</span>
+                </label>
+                <textarea id="widgetWelcomeInput" class="form-control" rows="2" placeholder="Greeting message shown to new visitors...">Hello! Welcome to 24/7 Support. How can we help you today? Ask about our services, pricing, or order status.</textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block" id="saveWidgetBtn" style="margin-top: var(--space-4);">
+                💾 Save Widget Settings
+              </button>
+            </form>
+
+            <!-- 1-Click Embed Snippet Box -->
+            <div style="margin-top: var(--space-6); background: var(--color-bg-alt); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--color-border);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2);">
+                <span style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">1-Click Embed Snippet</span>
+                <span class="badge badge-accent" style="font-size: 10px;">SHADOW DOM ISOLATED</span>
+              </div>
+              <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-bottom: var(--space-3);">
+                Paste this script tag before the closing <code>&lt;/body&gt;</code> tag of your SMM panel theme:
+              </p>
+              <pre id="widgetEmbedCode" style="background: #090d16; color: #38bdf8; padding: var(--space-3); border-radius: var(--radius-md); font-size: var(--font-xs); overflow-x: auto; font-family: var(--font-family-mono); border: 1px solid var(--color-border); margin-bottom: var(--space-3);"></pre>
+              <button type="button" class="btn btn-secondary btn-block" id="copyEmbedCodeBtn" aria-label="Copy widget embed snippet to clipboard">
+                📋 Copy Embed Code
+              </button>
+            </div>
+          </section>
+
+          <!-- Right Column: Widget Live Preview & Features -->
+          <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+            <section class="card card-glass dashboard-widget-container">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">Public Widget Benefits</h2>
+              <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">Engineered specifically for high-conversion SMM panel storefronts.</p>
+
+              <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-sm); font-weight: 700; color: var(--color-emerald);">⚡ Zero Friction (No Login Required)</div>
+                  <div style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">Visitors can ask about prices, packages, and delivery times instantly without creating an account or providing API keys.</div>
+                </div>
+
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-sm); font-weight: 700; color: #38bdf8;">🛡️ Shadow DOM CSS Isolation</div>
+                  <div style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">Guarantees the chat launcher and dialog will never break or inherit styles from SmartStore, PerfectPanel, or custom CSS themes.</div>
+                </div>
+
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-sm); font-weight: 700; color: #eab308;">🔒 SSRF Hardened Proxy</div>
+                  <div style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">All requests are verified through DNS resolution and private network IP filtering before touching the panel.</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Test Widget Card -->
+            <section class="card card-glass">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">Test In Action</h2>
+              <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">See how public visitors experience your support widget.</p>
+              <button type="button" class="btn btn-primary btn-block" id="testLaunchWidgetBtn">
+                💬 Open Live Support Widget Now
+              </button>
+            </section>
+          </div>
+        </div>
+
       </div>
     </main>
   </div>
 
   <script>
-    // Authentication Guard
+    // Authentication & CSRF Helpers (SEC-03)
     const token = localStorage.getItem('supportbot_token');
-    if (!token) {
-      window.location.href = '/login';
+
+    function getCsrfToken() {
+      const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+      if (match) return decodeURIComponent(match[1]);
+      return localStorage.getItem('supportbot_csrf') || '';
+    }
+
+    function getAuthHeaders(extraHeaders = {}) {
+      const headers = { ...extraHeaders };
+      const csrf = getCsrfToken();
+      if (csrf) {
+        headers['X-CSRF-Token'] = csrf;
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      return headers;
     }
 
     // DOM References
@@ -428,6 +843,34 @@
     const openTelegramBtn = document.getElementById('openTelegramBtn');
     const liveBotSub = document.getElementById('liveBotSub');
     const toggleTokenVisibility = document.getElementById('toggleTokenVisibility');
+
+    // Dark Mode Theme Toggle & Preference Persistence (Phase 5)
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIconSun = document.getElementById('themeIconSun');
+    const themeIconMoon = document.getElementById('themeIconMoon');
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      if (theme === 'dark') {
+        if (themeIconSun) themeIconSun.style.display = 'none';
+        if (themeIconMoon) themeIconMoon.style.display = 'block';
+      } else {
+        if (themeIconSun) themeIconSun.style.display = 'block';
+        if (themeIconMoon) themeIconMoon.style.display = 'none';
+      }
+    }
+
+    const savedTheme = localStorage.getItem('supportbot_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(savedTheme);
+
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('supportbot_theme', newTheme);
+        applyTheme(newTheme);
+      });
+    }
     const eyeIcon = document.getElementById('eyeIcon');
     const copyInviteBtn = document.getElementById('copyInviteBtn');
     const copyInviteText = document.getElementById('copyInviteText');
@@ -515,9 +958,16 @@
     });
 
     // Sign out handler
-    function handleSignOut() {
+    async function handleSignOut() {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' })
+        });
+      } catch (e) {}
       localStorage.removeItem('supportbot_token');
       localStorage.removeItem('supportbot_user');
+      localStorage.removeItem('supportbot_csrf');
       localStorage.removeItem('supportbot_username');
       window.location.href = '/login';
     }
@@ -566,6 +1016,8 @@
     function showAlert(message, isError = true) {
       alertBox.textContent = message;
       alertBox.className = isError ? 'alert alert-error' : 'alert alert-success';
+      alertBox.setAttribute('role', isError ? 'alert' : 'status');
+      alertBox.setAttribute('aria-live', isError ? 'assertive' : 'polite');
       alertBox.style.display = 'block';
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -617,9 +1069,7 @@
     async function loadTenantData() {
       try {
         const res = await fetch('/api/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: getAuthHeaders()
         });
 
         if (res.status === 401) {
@@ -669,10 +1119,7 @@
         // Step 1: Save Bot & Panel configuration
         const configRes = await fetch('/api/tenants/configure', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ botToken, panelApiUrl })
         });
 
@@ -690,10 +1137,7 @@
         deployBtn.textContent = '⏳ [2/2] Starting Bot Instance...';
         const activateRes = await fetch('/api/tenants/activate', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' })
         });
 
         const activateData = await activateRes.json();
@@ -727,9 +1171,7 @@
       try {
         const res = await fetch('/api/tenants/deactivate', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' })
         });
 
         const data = await res.json();
@@ -746,7 +1188,430 @@
       }
     });
 
+    // ==========================================
+    // CHANNEL TABS SWITCHER
+    // ==========================================
+    const tabTelegram = document.getElementById('tabTelegram');
+    const tabWhatsApp = document.getElementById('tabWhatsApp');
+    const tabWidget = document.getElementById('tabWidget');
+    const containerTelegram = document.getElementById('containerTelegram');
+    const containerWhatsApp = document.getElementById('containerWhatsApp');
+    const containerWidget = document.getElementById('containerWidget');
+
+    tabTelegram.addEventListener('click', () => {
+      tabTelegram.classList.add('active');
+      tabTelegram.setAttribute('aria-selected', 'true');
+      tabWhatsApp.classList.remove('active');
+      tabWhatsApp.setAttribute('aria-selected', 'false');
+      tabWidget.classList.remove('active');
+      tabWidget.setAttribute('aria-selected', 'false');
+      containerTelegram.style.display = 'grid';
+      containerWhatsApp.style.display = 'none';
+      containerWidget.style.display = 'none';
+    });
+
+    tabWhatsApp.addEventListener('click', () => {
+      tabWhatsApp.classList.add('active');
+      tabWhatsApp.setAttribute('aria-selected', 'true');
+      tabTelegram.classList.remove('active');
+      tabTelegram.setAttribute('aria-selected', 'false');
+      tabWidget.classList.remove('active');
+      tabWidget.setAttribute('aria-selected', 'false');
+      containerWhatsApp.style.display = 'grid';
+      containerTelegram.style.display = 'none';
+      containerWidget.style.display = 'none';
+      loadWhatsAppStatus();
+    });
+
+    tabWidget.addEventListener('click', () => {
+      tabWidget.classList.add('active');
+      tabWidget.setAttribute('aria-selected', 'true');
+      tabTelegram.classList.remove('active');
+      tabTelegram.setAttribute('aria-selected', 'false');
+      tabWhatsApp.classList.remove('active');
+      tabWhatsApp.setAttribute('aria-selected', 'false');
+      containerWidget.style.display = 'grid';
+      containerTelegram.style.display = 'none';
+      containerWhatsApp.style.display = 'none';
+      loadWidgetSettings();
+    });
+
+    // ==========================================
+    // WHATSAPP CHANNEL CONTROLS & EVENT SOURCE
+    // ==========================================
+    const waStatusBadge = document.getElementById('waStatusBadge');
+    const waStatusText = document.getElementById('waStatusText');
+    const waSummaryStatus = document.getElementById('waSummaryStatus');
+    const waSummaryPhone = document.getElementById('waSummaryPhone');
+    const waDisconnectSection = document.getElementById('waDisconnectSection');
+    const waDisconnectBtn = document.getElementById('waDisconnectBtn');
+
+    const waModeBtnQr = document.getElementById('waModeBtnQr');
+    const waModeBtnPairing = document.getElementById('waModeBtnPairing');
+    const waPanelQr = document.getElementById('waPanelQr');
+    const waPanelPairing = document.getElementById('waPanelPairing');
+
+    const waQrPlaceholder = document.getElementById('waQrPlaceholder');
+    const waQrImg = document.getElementById('waQrImg');
+    const waStartQrBtn = document.getElementById('waStartQrBtn');
+
+    const waPhoneInput = document.getElementById('waPhoneInput');
+    const waGeneratePairingBtn = document.getElementById('waGeneratePairingBtn');
+    const waPairingBox = document.getElementById('waPairingBox');
+    const waPairingText = document.getElementById('waPairingText');
+    const copyWaInviteBtn = document.getElementById('copyWaInviteBtn');
+    const copyWaInviteText = document.getElementById('copyWaInviteText');
+
+    let waEventSource = null;
+
+    // Mode Toggle
+    waModeBtnQr.addEventListener('click', () => {
+      waModeBtnQr.classList.add('active');
+      waModeBtnPairing.classList.remove('active');
+      waPanelQr.style.display = 'block';
+      waPanelPairing.style.display = 'none';
+    });
+
+    waModeBtnPairing.addEventListener('click', () => {
+      waModeBtnPairing.classList.add('active');
+      waModeBtnQr.classList.remove('active');
+      waPanelPairing.style.display = 'block';
+      waPanelQr.style.display = 'none';
+    });
+
+    function updateWhatsAppUI(data) {
+      if (!data) return;
+
+      if (data.phoneNumber) {
+        waPhoneInput.value = data.phoneNumber;
+        waSummaryPhone.textContent = `+${data.phoneNumber}`;
+      }
+
+      if (data.connected || data.status === 'open') {
+        waStatusBadge.className = 'badge badge-active';
+        waStatusText.textContent = 'CONNECTED';
+        waSummaryStatus.textContent = '🟢 Online & Listening';
+        waDisconnectSection.style.display = 'block';
+        waStartQrBtn.style.display = 'none';
+        waQrPlaceholder.textContent = '✅ WhatsApp Line is Connected!';
+        waQrPlaceholder.style.display = 'block';
+        waQrImg.style.display = 'none';
+        if (waEventSource) {
+          waEventSource.close();
+          waEventSource = null;
+        }
+      } else if (data.status === 'connecting') {
+        waStatusBadge.className = 'badge badge-amber';
+        waStatusText.textContent = 'CONNECTING...';
+        waSummaryStatus.textContent = '🟡 Pairing / Waiting for scan';
+        waDisconnectSection.style.display = 'block';
+        waStartQrBtn.style.display = 'none';
+
+        if (data.qrDataUrl) {
+          waQrPlaceholder.style.display = 'none';
+          waQrImg.src = data.qrDataUrl;
+          waQrImg.style.display = 'block';
+        }
+
+        if (data.pairingCode) {
+          waPairingBox.style.display = 'flex';
+          waPairingText.textContent = data.pairingCode;
+        }
+      } else {
+        waStatusBadge.className = 'badge badge-inactive';
+        waStatusText.textContent = 'DISCONNECTED';
+        waSummaryStatus.textContent = '⚪ Disconnected';
+        waDisconnectSection.style.display = 'none';
+        waStartQrBtn.style.display = 'block';
+        waStartQrBtn.textContent = '⚡ Start WhatsApp & Generate QR';
+        waQrImg.style.display = 'none';
+        waQrPlaceholder.style.display = 'block';
+        waQrPlaceholder.innerHTML = '<div>Click below to generate live QR Code</div>';
+      }
+    }
+
+    async function loadWhatsAppStatus() {
+      try {
+        const res = await fetch('/api/tenants/whatsapp/status', {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          updateWhatsAppUI(data);
+        }
+      } catch (err) {
+        console.error('Failed to load WhatsApp status:', err);
+      }
+    }
+
+    // Start WhatsApp & Stream QR
+    waStartQrBtn.addEventListener('click', async () => {
+      clearAlert();
+      waStartQrBtn.disabled = true;
+      waStartQrBtn.textContent = '⏳ Generating WhatsApp QR Code...';
+      waQrPlaceholder.innerHTML = '<div>⏳ Initializing fresh WhatsApp session...</div>';
+      waQrImg.style.display = 'none';
+
+      try {
+        const panelApiUrl = panelApiUrlInput.value.trim();
+        if (!panelApiUrl) {
+          throw new Error('Please configure and save your SMM Panel API URL first.');
+        }
+
+        const res = await fetch('/api/tenants/whatsapp/start', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ mode: 'qr', forceRestart: true })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to start WhatsApp');
+        }
+
+        updateWhatsAppUI(data);
+
+        // Start SSE stream for real-time QR
+        if (waEventSource) waEventSource.close();
+        waEventSource = new EventSource(`/api/tenants/whatsapp/qr-stream?token=${encodeURIComponent(token)}`);
+
+        waEventSource.onmessage = (event) => {
+          try {
+            const update = JSON.parse(event.data);
+            if (update.qrDataUrl) {
+              waQrPlaceholder.style.display = 'none';
+              waQrImg.src = update.qrDataUrl;
+              waQrImg.style.display = 'block';
+            }
+            if (update.status) {
+              updateWhatsAppUI(update);
+            }
+          } catch {}
+        };
+
+        waEventSource.onerror = () => {
+          // Fallback to polling if SSE drops
+          loadWhatsAppStatus();
+        };
+      } catch (err) {
+        showAlert(err.message || 'Failed to start WhatsApp line.');
+        waStartQrBtn.disabled = false;
+        waStartQrBtn.textContent = '⚡ Start WhatsApp & Generate QR';
+      }
+    });
+
+    // Request Pairing Code
+    waGeneratePairingBtn.addEventListener('click', async () => {
+      clearAlert();
+      const phoneNumber = waPhoneInput.value.trim().replace(/[^0-9]/g, '');
+      if (!phoneNumber || phoneNumber.length < 8) {
+        showAlert('Please enter a valid phone number with country code (e.g. 919876543210 for India, 12125551234 for US).');
+        return;
+      }
+
+      waGeneratePairingBtn.disabled = true;
+      waGeneratePairingBtn.textContent = '⏳ Requesting 8-Digit Pairing Code...';
+      waPairingBox.style.display = 'flex';
+      waPairingText.textContent = 'GENERATING...';
+
+      try {
+        const res = await fetch('/api/tenants/whatsapp/pairing-code', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ phoneNumber })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to request pairing code');
+        }
+
+        if (data.pairingCode) {
+          waPairingBox.style.display = 'flex';
+          waPairingText.textContent = data.pairingCode;
+          updateWhatsAppUI({ status: 'connecting', pairingCode: data.pairingCode, phoneNumber });
+          showAlert('📲 Pairing Code generated! On your phone: WhatsApp > Linked Devices > Link with phone number instead, then enter this code.', false);
+        }
+
+        // Start SSE stream or poll to detect when scan completes
+        if (waEventSource) waEventSource.close();
+        waEventSource = new EventSource(`/api/tenants/whatsapp/qr-stream?token=${encodeURIComponent(token || '')}`);
+        waEventSource.onmessage = (event) => {
+          try {
+            const update = JSON.parse(event.data);
+            if (update.status) {
+              updateWhatsAppUI(update);
+            }
+          } catch {}
+        };
+
+      } catch (err) {
+        showAlert(err.message || 'Failed to request pairing code.');
+        waPairingBox.style.display = 'none';
+      } finally {
+        waGeneratePairingBtn.disabled = false;
+        waGeneratePairingBtn.textContent = '📲 Request 8-Digit Pairing Code';
+      }
+    });
+
+    // Disconnect WhatsApp
+    waDisconnectBtn.addEventListener('click', async () => {
+      if (!confirm('Disconnect WhatsApp support line? Customers will not receive automated replies until re-connected.')) {
+        return;
+      }
+
+      waDisconnectBtn.disabled = true;
+      try {
+        const res = await fetch('/api/tenants/whatsapp/disconnect', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ clearCredentials: true })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to disconnect');
+
+        updateWhatsAppUI({ status: 'close', connected: false });
+        showAlert('WhatsApp support line disconnected successfully.', false);
+      } catch (err) {
+        showAlert(err.message || 'Disconnect failed');
+      } finally {
+        waDisconnectBtn.disabled = false;
+      }
+    });
+
+    // Copy WhatsApp Customer Announcement
+    copyWaInviteBtn.addEventListener('click', () => {
+      const phone = waPhoneInput.value.trim();
+      const phoneText = phone ? `+${phone}` : 'our business WhatsApp line';
+      const text = `💬 24/7 Automated WhatsApp Support is active!\n\nCheck balance & track orders directly on WhatsApp:\n1. Message ${phoneText}\n2. Enter your panel API Key or send /setkey <KEY> (message is wiped for privacy)\n3. Check your real-time wallet funds with /balance\n4. Search services with /services <keyword>\n5. Track orders with /status <order_id>`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        copyWaInviteText.textContent = '✓ Copied to Clipboard!';
+        copyWaInviteBtn.style.borderColor = 'var(--color-emerald)';
+        setTimeout(() => {
+          copyWaInviteText.textContent = 'Copy WhatsApp Announcement';
+          copyWaInviteBtn.style.borderColor = 'var(--color-border)';
+        }, 2200);
+      });
+    });
+
+    // ==========================================
+    // WEBSITE CHAT WIDGET MANAGEMENT
+    // ==========================================
+    const widgetConfigForm = document.getElementById('widgetConfigForm');
+    const widgetApiKeyInput = document.getElementById('widgetApiKeyInput');
+    const widgetTitleInput = document.getElementById('widgetTitleInput');
+    const widgetAccentInput = document.getElementById('widgetAccentInput');
+    const widgetEnabledSelect = document.getElementById('widgetEnabledSelect');
+    const widgetWelcomeInput = document.getElementById('widgetWelcomeInput');
+    const saveWidgetBtn = document.getElementById('saveWidgetBtn');
+    const widgetEmbedCode = document.getElementById('widgetEmbedCode');
+    const copyEmbedCodeBtn = document.getElementById('copyEmbedCodeBtn');
+    const testLaunchWidgetBtn = document.getElementById('testLaunchWidgetBtn');
+
+    function updateEmbedCodeSnippet(tenantId, accent, title) {
+      if (!tenantId) return;
+      const origin = window.location.origin;
+      const snippet = `<script\n  src="${origin}/widget.js"\n  data-tenant="${tenantId}"\n  data-title="${title || 'Customer Support'}"\n  data-accent="${accent || '#ea580c'}"\n><` + `/script>`;
+      widgetEmbedCode.textContent = snippet;
+    }
+
+    async function loadWidgetSettings() {
+      try {
+        const res = await fetch('/api/tenants/widget/settings', {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.widgetTitle) widgetTitleInput.value = data.widgetTitle;
+          if (data.widgetAccentColor) widgetAccentInput.value = data.widgetAccentColor;
+          if (data.widgetWelcomeMessage) widgetWelcomeInput.value = data.widgetWelcomeMessage;
+          if (data.widgetEnabled !== undefined) widgetEnabledSelect.value = String(data.widgetEnabled);
+          if (data.hasWidgetApiKey) {
+            widgetApiKeyInput.placeholder = '•••••••••••••••• (Encrypted catalog key saved)';
+          }
+          updateEmbedCodeSnippet(data.tenantId, data.widgetAccentColor, data.widgetTitle);
+        }
+      } catch (err) {
+        console.error('Failed to load widget settings:', err);
+      }
+    }
+
+    widgetConfigForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearAlert();
+
+      saveWidgetBtn.disabled = true;
+      saveWidgetBtn.textContent = '⏳ Saving Widget Settings...';
+
+      const payload = {
+        widgetTitle: widgetTitleInput.value.trim(),
+        widgetAccentColor: widgetAccentInput.value.trim(),
+        widgetWelcomeMessage: widgetWelcomeInput.value.trim(),
+        widgetEnabled: widgetEnabledSelect.value === 'true'
+      };
+
+      if (widgetApiKeyInput.value.trim()) {
+        payload.widgetApiKey = widgetApiKeyInput.value.trim();
+      }
+
+      try {
+        const res = await fetch('/api/tenants/widget/configure', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save widget settings');
+
+        showAlert('🎉 Widget settings saved successfully! Embed code updated.', false);
+        updateEmbedCodeSnippet(currentTenant ? currentTenant.id : '', payload.widgetAccentColor, payload.widgetTitle);
+        if (payload.widgetApiKey) {
+          widgetApiKeyInput.value = '';
+          widgetApiKeyInput.placeholder = '•••••••••••••••• (Encrypted catalog key saved)';
+        }
+      } catch (err) {
+        showAlert(err.message || 'Error saving widget settings');
+      } finally {
+        saveWidgetBtn.disabled = false;
+        saveWidgetBtn.textContent = '💾 Save Widget Settings';
+      }
+    });
+
+    copyEmbedCodeBtn.addEventListener('click', () => {
+      const code = widgetEmbedCode.textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const oldText = copyEmbedCodeBtn.textContent;
+        copyEmbedCodeBtn.textContent = '✓ Copied Embed Snippet!';
+        copyEmbedCodeBtn.style.borderColor = 'var(--color-emerald)';
+        setTimeout(() => {
+          copyEmbedCodeBtn.textContent = oldText;
+          copyEmbedCodeBtn.style.borderColor = 'var(--color-border)';
+        }, 2200);
+      });
+    });
+
+    testLaunchWidgetBtn.addEventListener('click', () => {
+      if (!currentTenant) return;
+      if (document.getElementById('smm-support-widget-root')) {
+        const hostEl = document.getElementById('smm-support-widget-root');
+        const launcherInShadow = hostEl?.shadowRoot?.getElementById('smmLauncher');
+        if (launcherInShadow) launcherInShadow.click();
+        return;
+      }
+      const s = document.createElement('script');
+      s.src = '/widget.js';
+      s.setAttribute('data-tenant', currentTenant.id);
+      s.setAttribute('data-accent', widgetAccentInput.value || '#ea580c');
+      s.setAttribute('data-title', widgetTitleInput.value || 'Customer Support');
+      document.body.appendChild(s);
+    });
+
     loadTenantData();
+    loadWhatsAppStatus();
+
   </script>
 </body>
 

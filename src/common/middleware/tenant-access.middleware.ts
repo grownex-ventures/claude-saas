@@ -57,13 +57,38 @@ export function tenantAccessMiddleware(
   res: Response,
   next: NextFunction
 ): void {
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else if (req.cookies && typeof req.cookies.auth_token === 'string' && req.cookies.auth_token.trim()) {
+    token = req.cookies.auth_token.trim();
+  } else if (typeof req.query?.token === 'string' && req.query.token.trim()) {
+    token = req.query.token.trim();
+  }
+
+  if (!token) {
     res.status(401).json({ error: 'Unauthorized: Missing or invalid Bearer token' });
     return;
   }
 
-  const token = authHeader.substring(7).trim();
+  // Double-submit CSRF protection for cookie-authenticated mutating requests (SEC-03)
+  // If authenticated via cookie without explicit Authorization header, require matching X-CSRF-Token
+  const method = (req.method || 'GET').toUpperCase();
+  const isMutatingMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  const isCookieAuth = Boolean(!authHeader && req.cookies && req.cookies.auth_token);
+
+  if (isMutatingMethod && isCookieAuth) {
+    const headerCsrf = req.headers['x-csrf-token'];
+    const cookieCsrf = req.cookies?.csrf_token;
+    if (!headerCsrf || !cookieCsrf || headerCsrf !== cookieCsrf) {
+      res.status(403).json({
+        error: 'Forbidden: CSRF token missing or mismatch',
+        code: 'EBADCSRFTOKEN'
+      });
+      return;
+    }
+  }
   const secret = process.env.JWT_SECRET;
   if (process.env.NODE_ENV === 'production' && (!secret || secret === 'super-secret-jwt-key-for-tenant-admin' || secret.length < 32)) {
     res.status(500).json({ error: 'Server misconfiguration: Secure JWT_SECRET required' });

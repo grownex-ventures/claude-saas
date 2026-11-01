@@ -23,6 +23,16 @@ model Tenant {
   crawledData        Json?
   lastCrawledAt      DateTime?
   endUserSessions    BotUserSession[]
+  whatsAppPhoneNumber String?
+  whatsAppEnabled    Boolean            @default(false)
+  whatsAppSessions   WhatsAppSession[]
+  widgetApiKey       String?            // AES-256 encrypted catalog API key for public visitor queries
+  widgetTitle        String?            @default("Customer Support")
+  widgetWelcomeMessage String?          @default("Hello! How can we help you today? Ask about our services, pricing, or order tracking.")
+  widgetAccentColor  String?            @default("#ea580c")
+  widgetEnabled      Boolean            @default(true)
+  webChatSessions    WebChatSession[]
+  auditLogs          AuditLog[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
@@ -38,5 +48,56 @@ model BotUserSession {
 
   // CRITICAL: Prevents session collision when one reseller uses two different SMM panels' bots
   @@unique([tenantId, telegramUserId])
-  @@index([tenantId, telegramUserId])
 }
+
+model WhatsAppSession {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  whatsappJid  String   // Customer's WhatsApp JID (e.g. "123456789@s.whatsapp.net")
+  phoneNumber  String?  // Extracted phone digits
+  userPanelKey String   // AES-256 encrypted SMM customer API key
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Prevents cross-tenant session collision
+  @@unique([tenantId, whatsappJid])
+}
+
+model WebChatSession {
+  id              String           @id @default(uuid())
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessionId       String           @unique
+  messages        WebChatMessage[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([tenantId, sessionId])
+  @@index([tenantId, sessionId])
+}
+
+model WebChatMessage {
+  id          String         @id @default(uuid())
+  sessionId   String
+  session     WebChatSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  role        String         // 'user' | 'assistant'
+  content     String
+  createdAt   DateTime       @default(now())
+
+  @@index([sessionId, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  action    String
+  actorIp   String
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+

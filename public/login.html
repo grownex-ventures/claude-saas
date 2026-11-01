@@ -136,7 +136,7 @@
 
   <script>
     // If already logged in, redirect directly to dashboard
-    if (localStorage.getItem('supportbot_token')) {
+    if (localStorage.getItem('supportbot_user')) {
       window.location.href = '/dashboard';
     }
 
@@ -197,9 +197,12 @@
           throw new Error(data.error || 'Authentication failed. Please verify credentials.');
         }
 
-        // Save session JWT token in localStorage
-        localStorage.setItem('supportbot_token', data.token);
+        // JWT is stored in an httpOnly cookie. Store user profile and CSRF token in localStorage
+        localStorage.removeItem('supportbot_token');
         localStorage.setItem('supportbot_user', JSON.stringify(data.tenant));
+        if (data.csrfToken) {
+          localStorage.setItem('supportbot_csrf', data.csrfToken);
+        }
 
         // Redirect to dashboard
         window.location.href = '/dashboard';

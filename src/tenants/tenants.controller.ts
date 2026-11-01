@@ -66,7 +66,198 @@ export class TenantsController {
         res.status(400).json({ error: error.message || 'Deactivation failed' });
       }
     });
+
+    // POST /api/tenants/whatsapp/configure
+    this.router.post('/whatsapp/configure', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { phoneNumber, enabled } = req.body || {};
+        const result = await this.tenantsService.configureWhatsApp(tenantId, {
+          phoneNumber: phoneNumber || null,
+          enabled: typeof enabled === 'boolean' ? enabled : true
+        });
+        res.status(200).json({
+          message: 'WhatsApp settings configured successfully',
+          ...result
+        });
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'WhatsApp configuration failed' });
+      }
+    });
+
+    // POST /api/tenants/whatsapp/start
+    this.router.post('/whatsapp/start', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { mode, phoneNumber, forceRestart } = req.body || {};
+        const result = await this.tenantsService.startWhatsApp(tenantId, {
+          mode: mode || 'qr',
+          phoneNumber,
+          forceRestart: Boolean(forceRestart)
+        });
+        res.status(200).json({
+          message: 'WhatsApp initialization triggered',
+          ...result
+        });
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'WhatsApp startup failed' });
+      }
+    });
+
+    // POST /api/tenants/whatsapp/pairing-code
+    this.router.post('/whatsapp/pairing-code', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { phoneNumber } = req.body || {};
+        if (!phoneNumber) {
+          res.status(400).json({ error: 'phoneNumber is required' });
+          return;
+        }
+        const result = await this.tenantsService.requestPairingCode(tenantId, phoneNumber);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Pairing code generation failed' });
+      }
+    });
+
+    // GET /api/tenants/whatsapp/status
+    this.router.get('/whatsapp/status', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const status = await this.tenantsService.getWhatsAppStatus(tenantId);
+        res.status(200).json(status);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to fetch WhatsApp status' });
+      }
+    });
+
+    // GET /api/tenants/whatsapp/qr-stream (Server-Sent Events)
+    this.router.get('/whatsapp/qr-stream', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders?.();
+
+        const manager = this.tenantsService.getWhatsAppManager();
+        let service = manager.getService(tenantId);
+
+        if (!service) {
+          service = await this.tenantsService.startWhatsApp(tenantId, { mode: 'qr' }).then(() => manager.getService(tenantId));
+        }
+
+        if (!service) {
+          res.write(`data: ${JSON.stringify({ type: 'error', message: 'Could not initialize service' })}\n\n`);
+          res.end();
+          return;
+        }
+
+        if (service.isConnected()) {
+          res.write(`data: ${JSON.stringify({ type: 'status', status: 'open', message: 'WhatsApp is connected' })}\n\n`);
+        } else if (service.lastQR) {
+          res.write(`data: ${JSON.stringify({ type: 'qr', qr: service.lastQR, qrDataUrl: service.lastQRDataUrl })}\n\n`);
+        } else if (service.pairingCode) {
+          res.write(`data: ${JSON.stringify({ type: 'pairingCode', pairingCode: service.pairingCode })}\n\n`);
+        }
+
+        const onQR = (qr: string, dataUrl?: string) => {
+          res.write(`data: ${JSON.stringify({ type: 'qr', qr, qrDataUrl: dataUrl || service?.lastQRDataUrl })}\n\n`);
+        };
+
+        const onConn = (update: any) => {
+          res.write(`data: ${JSON.stringify({ type: 'status', ...update, qrDataUrl: update.qrDataUrl || service?.lastQRDataUrl })}\n\n`);
+          if (update.qr) {
+            res.write(`data: ${JSON.stringify({ type: 'qr', qr: update.qr, qrDataUrl: update.qrDataUrl || service?.lastQRDataUrl })}\n\n`);
+          }
+          if (update.pairingCode) {
+            res.write(`data: ${JSON.stringify({ type: 'pairingCode', pairingCode: update.pairingCode })}\n\n`);
+          }
+        };
+
+        service.onQR = onQR;
+        service.onConnectionUpdate = onConn;
+
+        req.on('close', () => {
+          if (service && service.onQR === onQR) service.onQR = undefined;
+          if (service && service.onConnectionUpdate === onConn) service.onConnectionUpdate = undefined;
+        });
+      } catch (err: any) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`);
+        res.end();
+      }
+    });
+
+    // POST /api/tenants/whatsapp/disconnect
+    this.router.post('/whatsapp/disconnect', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { clearCredentials } = req.body || {};
+        const result = await this.tenantsService.disconnectWhatsApp(tenantId, Boolean(clearCredentials));
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to disconnect WhatsApp' });
+      }
+    });
+
+    // POST /api/tenants/widget/configure
+    this.router.post('/widget/configure', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { widgetApiKey, widgetTitle, widgetWelcomeMessage, widgetAccentColor, widgetEnabled } = req.body || {};
+        const result = await this.tenantsService.configureWidget(tenantId, {
+          widgetApiKey,
+          widgetTitle,
+          widgetWelcomeMessage,
+          widgetAccentColor,
+          widgetEnabled
+        });
+        res.status(200).json({
+          message: 'Website widget settings saved successfully',
+          ...result
+        });
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to configure widget' });
+      }
+    });
+
+    // GET /api/tenants/widget/settings
+    this.router.get('/widget/settings', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const settings = await this.tenantsService.getWidgetSettings(tenantId);
+        res.status(200).json(settings);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to fetch widget settings' });
+      }
+    });
+
+    // DELETE /api/tenants/me (COMP-02)
+    // Authenticated account deletion with password re-confirmation
+    this.router.delete('/me', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { password } = req.body || {};
+
+        if (!password) {
+          res.status(400).json({ error: 'Password re-confirmation is required' });
+          return;
+        }
+
+        const result = await this.tenantsService.deleteAccount(tenantId, password, {
+          ip: req.ip,
+          userAgent: req.headers['user-agent'] as string
+        });
+
+        res.status(200).json(result);
+      } catch (error: any) {
+        const statusCode = error.statusCode || 400;
+        res.status(statusCode).json({ error: error.message || 'Failed to delete account' });
+      }
+    });
   }
 }
+
 
 export const tenantsController = new TenantsController();

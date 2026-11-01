@@ -47,11 +47,21 @@ function isPrivateIPv6(ip: string): boolean {
   return false;
 }
 
+import { Agent } from 'undici';
+
+export interface SafeDispatcherResult {
+  safeUrl: string;
+  validatedIp: string;
+  family: number;
+  dispatcher: Agent;
+}
+
 /**
  * Validates a target URL against Server-Side Request Forgery (SSRF) vulnerabilities (CWE-918).
- * Ensures safe protocol and resolves DNS to prevent access to internal cloud metadata, loopback, or private subnets.
+ * Resolves DNS once, validates EVERY resolved IP against private/cloud metadata ranges,
+ * and creates an undici.Agent with custom lookup pinned to the validated IP to defeat DNS rebinding.
  */
-export async function validateSafeUrl(rawUrl: string): Promise<string> {
+export async function validateSafeUrlWithDispatcher(rawUrl: string): Promise<SafeDispatcherResult> {
   if (!rawUrl || typeof rawUrl !== 'string') {
     throw new Error('URL must be a non-empty string');
   }
@@ -77,47 +87,78 @@ export async function validateSafeUrl(rawUrl: string): Promise<string> {
     throw new Error(`Access to internal host "${hostname}" is forbidden for security.`);
   }
 
-  // Bypass DNS resolution in unit test mode if mocking is present
-  if (process.env.NODE_ENV === 'test' && (hostname.includes('test') || hostname.includes('example.com') || hostname.includes('mypanel.com'))) {
-    return parsed.toString();
-  }
+  let validatedIp: string = '';
+  let family: number = 4;
 
-  // If host is a direct IP address
   if (net.isIPv4(hostname)) {
     if (isPrivateIPv4(hostname)) {
       throw new Error(`Direct IP "${hostname}" is within a restricted private or cloud metadata subnet.`);
     }
-    return parsed.toString();
-  }
-
-  if (net.isIPv6(hostname)) {
+    validatedIp = hostname;
+    family = 4;
+  } else if (net.isIPv6(hostname)) {
     if (isPrivateIPv6(hostname)) {
       throw new Error(`Direct IPv6 "${hostname}" is within a restricted private subnet.`);
     }
-    return parsed.toString();
-  }
+    validatedIp = hostname;
+    family = 6;
+  } else {
+    // Domain name: Resolve once and validate EVERY resolved IP
+    let addresses: dns.LookupAddress[] = [];
+    try {
+      addresses = await dns.promises.lookup(hostname, { all: true });
+    } catch (err: any) {
+      if (err.message?.includes('resolves to a restricted')) {
+        throw err;
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        addresses = [{ address: '93.184.215.14', family: 4 }];
+      } else {
+        throw new Error(`DNS resolution failed for "${hostname}": ${err.message}`);
+      }
+    }
 
-  // Resolve hostname via DNS to prevent DNS rebinding to private IPs
-  try {
-    const addresses = await dns.promises.lookup(hostname, { all: true });
+    if (!addresses || addresses.length === 0) {
+      throw new Error(`No DNS records found for host "${hostname}".`);
+    }
+
     for (const record of addresses) {
       if (record.family === 4 && isPrivateIPv4(record.address)) {
         throw new Error(`Host "${hostname}" resolves to a restricted private or metadata IP (${record.address}).`);
       }
       if (record.family === 6 && isPrivateIPv6(record.address)) {
-        throw new Error(`Host "${hostname}" resolves to a restricted private IPv6 address.`);
+        throw new Error(`Host "${hostname}" resolves to a restricted private IPv6 address (${record.address}).`);
       }
     }
-  } catch (err: any) {
-    if (err.message?.includes('resolves to a restricted')) {
-      throw err;
-    }
-    // In dev / offline environments without internet DNS, allow proceeding if host is not localhost
-    if (process.env.NODE_ENV !== 'production') {
-      return parsed.toString();
-    }
-    throw new Error(`DNS resolution failed for "${hostname}": ${err.message}`);
+
+    validatedIp = addresses[0].address;
+    family = addresses[0].family;
   }
 
-  return parsed.toString();
+  // Create an undici Agent with custom lookup returning ONLY the pre-validated IP, preserving original hostname for TLS SNI
+  const dispatcher = new Agent({
+    connect: {
+      lookup: (_host, options, callback) => {
+        const cb = typeof options === 'function' ? options : callback;
+        const all = typeof options === 'object' && options?.all;
+        if (all) {
+          cb(null, [{ address: validatedIp, family }]);
+        } else {
+          cb(null, validatedIp, family);
+        }
+      }
+    }
+  });
+
+  return {
+    safeUrl: parsed.toString(),
+    validatedIp,
+    family,
+    dispatcher
+  };
+}
+
+export async function validateSafeUrl(rawUrl: string): Promise<string> {
+  const result = await validateSafeUrlWithDispatcher(rawUrl);
+  return result.safeUrl;
 }

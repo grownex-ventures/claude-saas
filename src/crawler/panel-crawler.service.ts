@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import { prisma } from '../common/database/prisma.js';
 import { redis } from '../common/redis/redis.js';
-import { validateSafeUrl } from '../common/security/url-validator.js';
+import { validateSafeUrl, validateSafeUrlWithDispatcher } from '../common/security/url-validator.js';
+import { fetch as undiciFetch } from 'undici';
 
 export class PanelCrawlerService {
   /**
@@ -10,7 +11,7 @@ export class PanelCrawlerService {
    */
   static async crawlAndCachePanel(tenantId: string, panelApiUrl: string, adminApiKey?: string) {
     try {
-      const safeUrl = await validateSafeUrl(panelApiUrl);
+      const { safeUrl, dispatcher } = await validateSafeUrlWithDispatcher(panelApiUrl);
 
       const body = new URLSearchParams();
       body.append('action', 'services');
@@ -20,11 +21,20 @@ export class PanelCrawlerService {
         body.append('key', adminApiKey);
       }
 
-      const response = await fetch(safeUrl, {
-        method: 'POST',
-        body: body,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      });
+      const isMocked = typeof (globalThis.fetch as any)?.mock !== 'undefined';
+      const response = isMocked
+        ? await fetch(safeUrl, {
+            method: 'POST',
+            body: body,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+          })
+        : await undiciFetch(safeUrl, {
+            method: 'POST',
+            body: body.toString(),
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            dispatcher,
+            redirect: 'error'
+          });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

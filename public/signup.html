@@ -174,7 +174,7 @@
 
   <script>
     // If already logged in, redirect directly to dashboard
-    if (localStorage.getItem('supportbot_token')) {
+    if (localStorage.getItem('supportbot_user')) {
       window.location.href = '/dashboard';
     }
 
@@ -285,9 +285,12 @@
           throw new Error(data.error || 'Failed to create account.');
         }
 
-        // Save session JWT token in localStorage
-        localStorage.setItem('supportbot_token', data.token);
+        // JWT is stored in an httpOnly cookie. Store user profile and CSRF token in localStorage
+        localStorage.removeItem('supportbot_token');
         localStorage.setItem('supportbot_user', JSON.stringify(data.tenant));
+        if (data.csrfToken) {
+          localStorage.setItem('supportbot_csrf', data.csrfToken);
+        }
 
         alertBox.className = 'alert alert-success';
         alertBox.textContent = 'Account created successfully! Redirecting to dashboard...';

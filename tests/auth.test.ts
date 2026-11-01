@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { AuthService } from '../src/auth/auth.service.js';
@@ -197,4 +197,222 @@ describe('AuthController', () => {
       error: 'Invalid email or password'
     }));
   });
+
+  it('sets httpOnly auth_token and client-accessible csrf_token cookies on successful login', async () => {
+    const rawPass = 'SecretPassword123';
+    const hash = await argon2.hash(rawPass);
+
+    const req = {
+      body: { email: 'cookie-user@example.com', password: rawPass }
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+      cookie: vi.fn().mockReturnThis(),
+    } as any;
+
+    vi.spyOn(prisma.tenant, 'findUnique').mockResolvedValueOnce({
+      id: 'cookie-tenant-1',
+      email: 'cookie-user@example.com',
+      passwordHash: hash,
+      subscriptionStatus: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as any);
+
+    await controller.login(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.cookie).toHaveBeenCalledWith('auth_token', expect.any(String), expect.objectContaining({
+      httpOnly: true,
+      sameSite: 'strict',
+      path: '/'
+    }));
+    expect(res.cookie).toHaveBeenCalledWith('csrf_token', expect.any(String), expect.objectContaining({
+      httpOnly: false,
+      sameSite: 'strict',
+      path: '/'
+    }));
+  });
+
+  it('clears auth_token and csrf_token cookies on logout', async () => {
+    const req = {} as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+      clearCookie: vi.fn().mockReturnThis()
+    } as any;
+
+    await controller.logout(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.clearCookie).toHaveBeenCalledWith('auth_token', { path: '/' });
+    expect(res.clearCookie).toHaveBeenCalledWith('csrf_token', { path: '/' });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      message: 'Logged out successfully'
+    }));
+  });
 });
+
+describe('SEC-03: Cookie Auth & CSRF Protection Middleware', () => {
+  const jwtSecret = 'super-secret-jwt-key-for-tenant-admin';
+  const validToken = jwt.sign({ tenantId: 'tenant-csrf-1' }, jwtSecret);
+
+  it('authenticates GET requests via httpOnly auth_token cookie', async () => {
+    const { tenantAccessMiddleware } = await import('../src/common/middleware/tenant-access.middleware.js');
+
+    const req = {
+      method: 'GET',
+      headers: {},
+      cookies: { auth_token: validToken }
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn()
+    } as any;
+    const next = vi.fn();
+
+    tenantAccessMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.tenantId).toBe('tenant-csrf-1');
+  });
+
+  it('rejects POST request authenticated via cookie if X-CSRF-Token is missing', async () => {
+    const { tenantAccessMiddleware } = await import('../src/common/middleware/tenant-access.middleware.js');
+
+    const req = {
+      method: 'POST',
+      headers: {},
+      cookies: { auth_token: validToken, csrf_token: 'valid-csrf-token' }
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn()
+    } as any;
+    const next = vi.fn();
+
+    tenantAccessMiddleware(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'EBADCSRFTOKEN'
+    }));
+  });
+
+  it('rejects POST request if X-CSRF-Token header does not match csrf_token cookie', async () => {
+    const { tenantAccessMiddleware } = await import('../src/common/middleware/tenant-access.middleware.js');
+
+    const req = {
+      method: 'POST',
+      headers: { 'x-csrf-token': 'wrong-token' },
+      cookies: { auth_token: validToken, csrf_token: 'legit-csrf-token' }
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn()
+    } as any;
+    const next = vi.fn();
+
+    tenantAccessMiddleware(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'EBADCSRFTOKEN'
+    }));
+  });
+
+  it('allows POST request when X-CSRF-Token matches csrf_token cookie', async () => {
+    const { tenantAccessMiddleware } = await import('../src/common/middleware/tenant-access.middleware.js');
+
+    const req = {
+      method: 'POST',
+      headers: { 'x-csrf-token': 'legit-csrf-token' },
+      cookies: { auth_token: validToken, csrf_token: 'legit-csrf-token' }
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn()
+    } as any;
+    const next = vi.fn();
+
+    tenantAccessMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.tenantId).toBe('tenant-csrf-1');
+  });
+
+  it('allows POST request with Authorization Bearer header without requiring CSRF header for API clients', async () => {
+    const { tenantAccessMiddleware } = await import('../src/common/middleware/tenant-access.middleware.js');
+
+    const req = {
+      method: 'POST',
+      headers: { authorization: `Bearer ${validToken}` },
+      cookies: {}
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn()
+    } as any;
+    const next = vi.fn();
+
+    tenantAccessMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.tenantId).toBe('tenant-csrf-1');
+  });
+});
+
+describe('Auth Rate Limiter Startup Guard & Bypass Rules (Item 3)', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalE2eFlag = process.env.E2E_DISABLE_AUTH_LIMIT;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.E2E_DISABLE_AUTH_LIMIT = originalE2eFlag;
+  });
+
+  it('throws an error if E2E_DISABLE_AUTH_LIMIT is set in production mode', async () => {
+    const { shouldSkipAuthLimiter } = await import('../src/server.js');
+    process.env.NODE_ENV = 'production';
+    process.env.E2E_DISABLE_AUTH_LIMIT = '1';
+
+    expect(() => shouldSkipAuthLimiter()).toThrow(/strictly prohibited in production mode/i);
+  });
+
+  it('enforces auth limiter in production mode when flag is not set', async () => {
+    const { shouldSkipAuthLimiter } = await import('../src/server.js');
+    process.env.NODE_ENV = 'production';
+    delete process.env.E2E_DISABLE_AUTH_LIMIT;
+
+    expect(shouldSkipAuthLimiter()).toBe(false);
+  });
+
+  it('skips auth limiter when NODE_ENV === test', async () => {
+    const { shouldSkipAuthLimiter } = await import('../src/server.js');
+    process.env.NODE_ENV = 'test';
+    delete process.env.E2E_DISABLE_AUTH_LIMIT;
+
+    expect(shouldSkipAuthLimiter()).toBe(true);
+  });
+
+  it('skips auth limiter in non-production when E2E_DISABLE_AUTH_LIMIT === 1', async () => {
+    const { shouldSkipAuthLimiter } = await import('../src/server.js');
+    process.env.NODE_ENV = 'development';
+    process.env.E2E_DISABLE_AUTH_LIMIT = '1';
+
+    expect(shouldSkipAuthLimiter()).toBe(true);
+  });
+
+  it('does not skip auth limiter in development when flag is not set', async () => {
+    const { shouldSkipAuthLimiter } = await import('../src/server.js');
+    process.env.NODE_ENV = 'development';
+    delete process.env.E2E_DISABLE_AUTH_LIMIT;
+
+    expect(shouldSkipAuthLimiter()).toBe(false);
+  });
+});
+
