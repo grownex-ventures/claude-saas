@@ -3,6 +3,7 @@ import { redis } from '../common/redis/redis.js';
 import { decrypt } from '../common/crypto/encryption.js';
 import { SmmProviderClient, SmmService } from '../smm-core/smm-client.js';
 import { PanelCrawlerService } from '../crawler/panel-crawler.service.js';
+import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
 
 export interface WidgetPublicConfig {
   enabled: boolean;
@@ -294,6 +295,20 @@ export class WidgetService {
         content: reply
       }
     });
+
+    // Record live telemetry for widget chat
+    RuntimeLogService.record({
+      tenantId,
+      channel: 'widget',
+      level: 'info',
+      event: 'WIDGET_CHAT_MESSAGE',
+      message: `Visitor sent: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`,
+      details: {
+        sessionId,
+        intent: orderMatch ? 'ORDER_TRACKING' : (lower.includes('service') ? 'CATALOG_QUERY' : 'GENERAL_QUERY'),
+        replyPreview: reply.slice(0, 80)
+      }
+    }).catch(() => {});
 
     return {
       sessionId,

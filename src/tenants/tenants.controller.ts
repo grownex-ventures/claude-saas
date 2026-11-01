@@ -4,6 +4,7 @@ import {
   tenantAccessMiddleware
 } from '../common/middleware/tenant-access.middleware.js';
 import { TenantsService } from './tenants.service.js';
+import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
 
 export class TenantsController {
   public router: Router;
@@ -256,6 +257,41 @@ export class TenantsController {
         res.status(statusCode).json({ error: error.message || 'Failed to delete account' });
       }
     });
+
+    // GET /api/tenants/logs
+    this.router.get('/logs', (req: AuthenticatedRequest, res: Response) => this.getLogs(req, res));
+
+    // DELETE /api/tenants/logs
+    this.router.delete('/logs', (req: AuthenticatedRequest, res: Response) => this.clearLogs(req, res));
+  }
+
+  public async getLogs(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const tenantId = req.tenantId!;
+      const { channel, level, search, limit } = (req.query || {}) as Record<string, string>;
+      const result = await RuntimeLogService.getLogs(tenantId, {
+        channel,
+        level,
+        search,
+        limit: limit ? parseInt(limit, 10) : 50
+      });
+      res.status(200).json({
+        success: true,
+        ...result
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to fetch runtime logs' });
+    }
+  }
+
+  public async clearLogs(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const tenantId = req.tenantId!;
+      await RuntimeLogService.clearLogs(tenantId);
+      res.status(200).json({ success: true, message: 'Runtime logs cleared' });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to clear runtime logs' });
+    }
   }
 }
 

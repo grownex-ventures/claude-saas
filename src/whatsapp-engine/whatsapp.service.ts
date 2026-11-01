@@ -11,6 +11,7 @@ import QRCode from 'qrcode';
 import fs from 'node:fs';
 import path from 'node:path';
 import { formatWhatsAppMessage } from './formatter.js';
+import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'silent' });
 
@@ -120,6 +121,14 @@ export class WhatsAppService {
           this.lastQRDataUrl = null;
         }
 
+        RuntimeLogService.record({
+          tenantId: this.config.tenantId,
+          channel: 'whatsapp',
+          level: 'info',
+          event: 'WHATSAPP_QR_GENERATED',
+          message: 'WhatsApp authentication QR code refreshed'
+        }).catch(() => {});
+
         if (this.onQR) this.onQR(qr, this.lastQRDataUrl || undefined);
         if (this.onConnectionUpdate) {
           this.onConnectionUpdate({
@@ -136,11 +145,30 @@ export class WhatsAppService {
         this.lastQRDataUrl = null;
         this.pairingCode = null;
         this.connectionStatus = 'open';
+
+        RuntimeLogService.record({
+          tenantId: this.config.tenantId,
+          channel: 'whatsapp',
+          level: 'success',
+          event: 'WHATSAPP_CONNECTED',
+          message: `WhatsApp connected (${this.sock?.user?.id || 'Active Session'})`,
+          details: { user: this.sock?.user?.id }
+        }).catch(() => {});
+
         if (this.onConnectionUpdate) {
           this.onConnectionUpdate({ status: 'open', user: this.sock?.user });
         }
       } else if (connection === 'close') {
         this.connectionStatus = 'close';
+
+        RuntimeLogService.record({
+          tenantId: this.config.tenantId,
+          channel: 'whatsapp',
+          level: 'warn',
+          event: 'WHATSAPP_DISCONNECTED',
+          message: 'WhatsApp connection closed'
+        }).catch(() => {});
+
         if (this.onConnectionUpdate) {
           this.onConnectionUpdate({ status: 'close', error: lastDisconnect?.error });
         }

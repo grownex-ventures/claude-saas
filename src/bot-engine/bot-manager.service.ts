@@ -5,6 +5,7 @@ import { redis } from '../common/redis/redis.js';
 import { PanelCrawlerService } from '../crawler/panel-crawler.service.js';
 import { encrypt, decrypt } from '../common/crypto/encryption.js';
 import { validateSafeUrl } from '../common/security/url-validator.js';
+import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
 
 function resolveBotToken(token: string): string {
   if (!token) return '';
@@ -125,6 +126,15 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
 
     // Command: /start
     bot.command('start', async (ctx) => {
+      RuntimeLogService.record({
+        tenantId,
+        channel: 'telegram',
+        level: 'info',
+        event: 'COMMAND_START',
+        message: `User ${ctx.from?.id} issued /start`,
+        details: { userId: ctx.from?.id, username: ctx.from?.username }
+      }).catch(() => {});
+
       await ctx.reply(
         'Welcome! Send /setkey <YOUR_API_KEY> to connect your account, or ask any question about our services.'
       );
@@ -163,6 +173,15 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
         }
       });
 
+      RuntimeLogService.record({
+        tenantId,
+        channel: 'telegram',
+        level: 'success',
+        event: 'API_KEY_SAVED',
+        message: `User ${telegramUserId} linked panel API key`,
+        details: { userId: telegramUserId, username: ctx.from?.username }
+      }).catch(() => {});
+
       await ctx.reply('✓ Your API key has been securely saved and your message was wiped for safety.');
     });
 
@@ -200,15 +219,47 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
         if (res.ok) {
           const data: any = await res.json();
           if (data && data.error) {
+            RuntimeLogService.record({
+              tenantId,
+              channel: 'telegram',
+              level: 'warn',
+              event: 'BALANCE_CHECK_PANEL_ERROR',
+              message: `Balance lookup for user ${telegramUserId} returned error: ${data.error}`,
+              details: { userId: telegramUserId }
+            }).catch(() => {});
             await ctx.reply(`Panel error: ${data.error}`);
           } else {
+            RuntimeLogService.record({
+              tenantId,
+              channel: 'telegram',
+              level: 'success',
+              event: 'BALANCE_CHECK_SUCCESS',
+              message: `User ${telegramUserId} checked balance: ${data.balance ?? 0} ${data.currency || 'USD'}`,
+              details: { userId: telegramUserId, balance: data.balance, currency: data.currency }
+            }).catch(() => {});
             await ctx.reply(`Your current balance: ${data.balance ?? 0} ${data.currency || 'USD'}`);
           }
         } else {
+          RuntimeLogService.record({
+            tenantId,
+            channel: 'telegram',
+            level: 'warn',
+            event: 'BALANCE_CHECK_HTTP_FAILED',
+            message: `Panel returned HTTP ${res.status} for balance lookup`,
+            details: { userId: telegramUserId, status: res.status }
+          }).catch(() => {});
           await ctx.reply('Failed to fetch balance from panel. Please verify your API key.');
         }
       } catch (e: any) {
         console.error(`Balance error for tenant ${tenantId}:`, e?.message || e);
+        RuntimeLogService.record({
+          tenantId,
+          channel: 'telegram',
+          level: 'error',
+          event: 'BALANCE_CHECK_EXCEPTION',
+          message: `Network error connecting to panel for user ${telegramUserId}`,
+          details: { userId: telegramUserId, error: e?.message }
+        }).catch(() => {});
         await ctx.reply('Panel server is currently unreachable. Please try again later.');
       }
     });

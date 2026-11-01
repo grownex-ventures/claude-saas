@@ -171,4 +171,40 @@ test.describe('SupportBot E2E Test Suite (Item 18)', () => {
     await expect(dialog).not.toHaveClass(/open/);
     console.log('Step 9: dialog closed verified');
   });
+
+  test('Flow 5: Runtime Logs Navigation, Live Stream Toggle & Filter Controls', async ({ page }) => {
+    await ensureLoggedIn(page);
+
+    // 1. Click sidebar Runtime Logs link
+    await page.click('#navRuntimeLogs');
+    await expect(page.locator('#viewRuntimeLogs')).toBeVisible();
+    await expect(page.locator('#viewDeployment')).toBeHidden();
+    await expect(page.locator('#topbarHeaderTitle')).toContainText('Runtime Logs');
+
+    // 2. Verify telemetry terminal container & status elements
+    await expect(page.locator('#logsTerminalBody')).toBeVisible();
+    await expect(page.locator('#logStreamBadge')).toBeVisible();
+
+    // 3. Test Pause / Resume live stream button
+    const toggleStreamBtn = page.locator('#toggleLiveStreamBtn');
+    await toggleStreamBtn.click();
+    await expect(page.locator('#liveToggleText')).toContainText('Resume Stream');
+    await expect(page.locator('#logStreamStatusText')).toContainText('STREAM PAUSED');
+
+    await toggleStreamBtn.click();
+    await expect(page.locator('#liveToggleText')).toContainText('Pause Stream');
+    await expect(page.locator('#logStreamStatusText')).toContainText('LIVE STREAM');
+
+    // 4. Test Channel Filter Chips
+    await page.click('button[data-channel="telegram"]');
+    await expect(page.locator('button[data-channel="telegram"]')).toHaveClass(/active/);
+    await expect(page.locator('button[data-channel="all"]')).not.toHaveClass(/active/);
+
+    // 5. Return to Bot Deployment view
+    await page.click('#navDeployment');
+    await expect(page.locator('#viewDeployment')).toBeVisible();
+    await expect(page.locator('#viewRuntimeLogs')).toBeHidden();
+    await expect(page.locator('#topbarHeaderTitle')).toContainText('Control Panel');
+  });
 });
+

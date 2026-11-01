@@ -274,6 +274,90 @@
       padding: var(--space-4);
       margin: var(--space-4) 0;
     }
+
+    /* Runtime Logs Terminal & Filter Styles */
+    .log-filter-btn {
+      padding: 4px 10px;
+      font-size: var(--font-xs);
+      font-weight: 600;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-alt);
+      color: var(--color-text-muted);
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .log-filter-btn:hover {
+      background: var(--color-surface-elevated);
+      color: var(--color-text-main);
+    }
+    .log-filter-btn.active {
+      background: var(--color-accent);
+      color: #ffffff;
+      border-color: var(--color-accent);
+    }
+    .log-row {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: background 0.15s ease;
+    }
+    .log-row:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .log-row-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .log-badge-level {
+      font-weight: 700;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .log-badge-level.info { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+    .log-badge-level.success { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .log-badge-level.warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .log-badge-level.error { background: rgba(244, 63, 94, 0.18); color: #f43f5e; }
+
+    .log-badge-channel {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+    }
+    .log-badge-channel.telegram { color: #38bdf8; background: rgba(56, 189, 248, 0.12); }
+    .log-badge-channel.whatsapp { color: #22c55e; background: rgba(34, 197, 94, 0.12); }
+    .log-badge-channel.widget { color: #f97316; background: rgba(249, 115, 22, 0.12); }
+    .log-badge-channel.system { color: #a855f7; background: rgba(168, 85, 247, 0.12); }
+
+    .log-time {
+      color: #64748b;
+      font-size: 11.5px;
+    }
+    .log-msg {
+      color: #e2e8f0;
+      word-break: break-word;
+    }
+    .log-details-block {
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin-top: 4px;
+      font-size: 11px;
+      color: #94a3b8;
+      overflow-x: auto;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
   </style>
 </head>
 
@@ -301,7 +385,7 @@
       </div>
 
       <nav class="sidebar-menu">
-        <a href="/dashboard" class="sidebar-link active">
+        <a href="#deployment" id="navDeployment" class="sidebar-link active">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="3" width="7" height="7"></rect>
             <rect x="14" y="3" width="7" height="7"></rect>
@@ -310,7 +394,7 @@
           </svg>
           Bot Deployment
         </a>
-        <a href="#activity" class="sidebar-link">
+        <a href="#logs" id="navRuntimeLogs" class="sidebar-link">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
           </svg>
@@ -347,7 +431,7 @@
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
-        <span style="font-size: var(--font-h4); font-weight: 700;">Control Panel</span>
+        <span id="topbarHeaderTitle" style="font-size: var(--font-h4); font-weight: 700;">Control Panel</span>
       </div>
 
       <div style="display: flex; align-items: center; gap: var(--space-4);">
@@ -377,8 +461,10 @@
     <!-- Main Scrollable Dashboard Content -->
     <main class="dashboard-main" id="main-dashboard">
       <div class="container" style="max-width: 100%; padding: 0;">
-        <!-- Page Header -->
-        <div style="margin-bottom: var(--space-6);">
+        <!-- View 1: Bot Deployment & Controls -->
+        <div id="viewDeployment">
+          <!-- Page Header -->
+          <div style="margin-bottom: var(--space-6);">
           <h1 style="font-size: var(--font-h1); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.25rem;">Bot Deployment & Controls</h1>
           <p style="font-size: var(--font-body); color: var(--color-text-muted);">Configure your Telegram support bot credentials and activate automated 24/7 customer queries.</p>
         </div>
@@ -793,8 +879,123 @@
             </section>
           </div>
         </div>
+      </div> <!-- /viewDeployment -->
 
-      </div>
+      <!-- View 2: Runtime Logs & Live Telemetry -->
+      <div id="viewRuntimeLogs" style="display: none;">
+        <!-- Page Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-6);">
+          <div>
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: 0.25rem;">
+              <h1 style="font-size: var(--font-h1); font-weight: 800; letter-spacing: -0.02em; margin: 0;">Runtime Logs & Telemetry</h1>
+              <span class="badge badge-active" id="logStreamBadge" style="display: inline-flex; align-items: center; gap: 6px;">
+                <span class="badge-dot pulse" style="background-color: var(--color-emerald);"></span>
+                <span id="logStreamStatusText">LIVE STREAM</span>
+              </span>
+            </div>
+            <p style="font-size: var(--font-body); color: var(--color-text-muted); margin: 0;">Real-time event stream across Telegram, WhatsApp, Website Widget, and Administrative operations.</p>
+          </div>
+
+          <!-- Action Controls -->
+          <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+            <button type="button" id="toggleLiveStreamBtn" class="btn btn-outline" style="min-height: 38px; font-size: var(--font-xs); display: inline-flex; align-items: center; gap: 6px;">
+              <span class="badge-dot" id="liveToggleDot" style="background-color: var(--color-emerald); width: 8px; height: 8px; border-radius: 50%;"></span>
+              <span id="liveToggleText">Pause Stream</span>
+            </button>
+            <button type="button" id="refreshLogsBtn" class="btn btn-secondary" style="min-height: 38px; font-size: var(--font-xs); display: inline-flex; align-items: center; gap: 6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              Refresh
+            </button>
+            <button type="button" id="clearLogsBtn" class="btn btn-outline" style="min-height: 38px; font-size: var(--font-xs); display: inline-flex; align-items: center; gap: 6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Clear
+            </button>
+            <button type="button" id="exportLogsBtn" class="btn btn-primary" style="min-height: 38px; font-size: var(--font-xs); display: inline-flex; align-items: center; gap: 6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Export JSON
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Metrics Bar -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6);">
+          <div class="card card-glass" style="padding: var(--space-4);">
+            <div style="font-size: var(--font-xs); color: var(--color-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Total Events</div>
+            <div id="statTotalEvents" style="font-size: var(--font-h2); font-weight: 800; color: var(--color-text-main);">0</div>
+          </div>
+          <div class="card card-glass" style="padding: var(--space-4);">
+            <div style="font-size: var(--font-xs); color: var(--color-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Active Channels</div>
+            <div id="statActiveChannels" style="font-size: var(--font-h2); font-weight: 800; color: var(--color-emerald);">3 Channels</div>
+          </div>
+          <div class="card card-glass" style="padding: var(--space-4);">
+            <div style="font-size: var(--font-xs); color: var(--color-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Errors / Warnings</div>
+            <div id="statErrorsCount" style="font-size: var(--font-h2); font-weight: 800; color: var(--color-emerald);">0</div>
+          </div>
+          <div class="card card-glass" style="padding: var(--space-4);">
+            <div style="font-size: var(--font-xs); color: var(--color-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Last Activity</div>
+            <div id="statLastActivity" style="font-size: var(--font-sm); font-weight: 700; color: var(--color-text-main); margin-top: 6px;">Listening...</div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="card card-glass" style="padding: var(--space-4); margin-bottom: var(--space-4);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4);">
+            <!-- Channel Filter Chips -->
+            <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;" id="channelFilterGroup">
+              <span style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-muted); margin-right: 4px;">CHANNEL:</span>
+              <button type="button" class="btn btn-xs log-filter-btn active" data-channel="all">All</button>
+              <button type="button" class="btn btn-xs log-filter-btn" data-channel="telegram">✈️ Telegram</button>
+              <button type="button" class="btn btn-xs log-filter-btn" data-channel="whatsapp">💬 WhatsApp</button>
+              <button type="button" class="btn btn-xs log-filter-btn" data-channel="widget">🌐 Widget</button>
+              <button type="button" class="btn btn-xs log-filter-btn" data-channel="system">⚙️ System</button>
+            </div>
+
+            <!-- Level & Search Filter -->
+            <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+              <select id="logLevelSelect" class="form-control" style="width: auto; padding: 6px 12px; font-size: var(--font-xs); min-height: 34px;">
+                <option value="all">All Levels</option>
+                <option value="info">INFO</option>
+                <option value="success">SUCCESS</option>
+                <option value="warn">WARN</option>
+                <option value="error">ERROR</option>
+              </select>
+
+              <div style="position: relative;">
+                <input type="text" id="logSearchInput" class="form-control" placeholder="Search logs..." style="width: 220px; padding: 6px 12px; font-size: var(--font-xs); min-height: 34px;" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Console Terminal Window -->
+        <div class="card card-glass" style="padding: 0; overflow: hidden; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);">
+          <!-- Terminal Titlebar -->
+          <div style="background: rgba(15, 23, 42, 0.85); border-bottom: 1px solid var(--color-border); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; display: inline-block;"></span>
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+              <span style="font-family: var(--font-family-mono); font-size: 12px; color: #94a3b8; margin-left: 8px; font-weight: 600;">telemetry.stream // live-operational-feed</span>
+            </div>
+            <div id="logCountIndicator" style="font-family: var(--font-family-mono); font-size: 11px; color: #64748b;">0 entries displayed</div>
+          </div>
+
+          <!-- Terminal Scroll Area -->
+          <div id="logsTerminalBody" style="background: #090d16; color: #f8fafc; font-family: var(--font-family-mono); font-size: 12.5px; line-height: 1.6; padding: 14px; min-height: 480px; max-height: 650px; overflow-y: auto;">
+            <!-- Dynamic Log Entries rendered here -->
+          </div>
+        </div>
+      </div> <!-- /viewRuntimeLogs -->
     </main>
   </div>
 
@@ -1608,6 +1809,349 @@
       s.setAttribute('data-title', widgetTitleInput.value || 'Customer Support');
       document.body.appendChild(s);
     });
+
+    // ==========================================
+    // RUNTIME LOGS & TELEMETRY CONTROLLER
+    // ==========================================
+    const navDeployment = document.getElementById('navDeployment');
+    const navRuntimeLogs = document.getElementById('navRuntimeLogs');
+    const viewDeployment = document.getElementById('viewDeployment');
+    const viewRuntimeLogs = document.getElementById('viewRuntimeLogs');
+    const topbarHeaderTitle = document.getElementById('topbarHeaderTitle');
+
+    const logsTerminalBody = document.getElementById('logsTerminalBody');
+    const logCountIndicator = document.getElementById('logCountIndicator');
+    const statTotalEvents = document.getElementById('statTotalEvents');
+    const statErrorsCount = document.getElementById('statErrorsCount');
+    const statLastActivity = document.getElementById('statLastActivity');
+
+    const toggleLiveStreamBtn = document.getElementById('toggleLiveStreamBtn');
+    const liveToggleText = document.getElementById('liveToggleText');
+    const liveToggleDot = document.getElementById('liveToggleDot');
+    const logStreamStatusText = document.getElementById('logStreamStatusText');
+    const logStreamBadge = document.getElementById('logStreamBadge');
+
+    const refreshLogsBtn = document.getElementById('refreshLogsBtn');
+    const clearLogsBtn = document.getElementById('clearLogsBtn');
+    const exportLogsBtn = document.getElementById('exportLogsBtn');
+    const logLevelSelect = document.getElementById('logLevelSelect');
+    const logSearchInput = document.getElementById('logSearchInput');
+    const channelFilterBtns = document.querySelectorAll('.log-filter-btn');
+
+    const logsState = {
+      logs: [],
+      activeChannel: 'all',
+      activeLevel: 'all',
+      search: '',
+      isStreaming: true,
+      timer: null,
+      searchDebounceTimer: null
+    };
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatLogTimestamp(isoStr) {
+      if (!isoStr) return '--:--:--';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return isoStr;
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const seconds = String(d.getSeconds()).padStart(2, '0');
+      const ms = String(d.getMilliseconds()).padStart(3, '0');
+      return `${hours}:${minutes}:${seconds}.${ms}`;
+    }
+
+    function formatTimeAgo(isoStr) {
+      if (!isoStr) return 'No events';
+      const diffSec = Math.max(0, Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000));
+      if (diffSec < 5) return 'Just now';
+      if (diffSec < 60) return `${diffSec}s ago`;
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      return `${diffHr}h ago`;
+    }
+
+    function renderLogEntry(entry) {
+      const level = (entry.level || 'info').toLowerCase();
+      const channel = (entry.channel || 'system').toLowerCase();
+      const timeStr = formatLogTimestamp(entry.timestamp);
+      const safeMsg = escapeHtml(entry.message || entry.event || 'Operation completed');
+
+      let detailsHtml = '';
+      if (entry.details && typeof entry.details === 'object' && Object.keys(entry.details).length > 0) {
+        detailsHtml = `
+          <details style="margin-top: 4px; font-size: 11px;">
+            <summary style="cursor: pointer; color: #38bdf8; user-select: none;">
+              <span>▸ Payload Metadata</span>
+            </summary>
+            <pre class="log-details-block">${escapeHtml(JSON.stringify(entry.details, null, 2))}</pre>
+          </details>
+        `;
+      }
+
+      return `
+        <div class="log-row">
+          <div class="log-row-header">
+            <span class="log-time" title="${escapeHtml(entry.timestamp)}">[${timeStr}]</span>
+            <span class="log-badge-channel ${channel}">[${channel.toUpperCase()}]</span>
+            <span class="log-badge-level ${level}">[${level.toUpperCase()}]</span>
+            <span class="log-msg">${safeMsg}</span>
+          </div>
+          ${detailsHtml}
+        </div>
+      `;
+    }
+
+    async function fetchRuntimeLogs(showLoading = false) {
+      if (!token) return;
+
+      const params = new URLSearchParams();
+      params.set('limit', '100');
+      if (logsState.activeChannel && logsState.activeChannel !== 'all') {
+        params.set('channel', logsState.activeChannel);
+      }
+      if (logsState.activeLevel && logsState.activeLevel !== 'all') {
+        params.set('level', logsState.activeLevel);
+      }
+      if (logsState.search) {
+        params.set('search', logsState.search);
+      }
+
+      try {
+        const res = await fetch(`/api/v1/tenants/logs?${params.toString()}`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        if (res.status === 401) {
+          handleSignOut();
+          return;
+        }
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const logs = Array.isArray(data.logs) ? data.logs : [];
+        logsState.logs = logs;
+
+        // Update stats
+        if (statTotalEvents) {
+          statTotalEvents.textContent = String(data.total !== undefined ? data.total : logs.length);
+        }
+
+        const errorCount = logs.filter(l => l.level === 'error' || l.level === 'warn').length;
+        if (statErrorsCount) {
+          statErrorsCount.textContent = String(errorCount);
+          statErrorsCount.style.color = errorCount > 0 ? '#f43f5e' : 'var(--color-emerald)';
+        }
+
+        if (statLastActivity) {
+          if (logs.length > 0 && logs[0].timestamp) {
+            statLastActivity.textContent = formatTimeAgo(logs[0].timestamp);
+          } else {
+            statLastActivity.textContent = 'Listening...';
+          }
+        }
+
+        if (logCountIndicator) {
+          logCountIndicator.textContent = `${logs.length} entries displayed`;
+        }
+
+        // Render terminal rows
+        if (logsTerminalBody) {
+          if (logs.length === 0) {
+            logsTerminalBody.innerHTML = `
+              <div style="padding: 40px 20px; text-align: center; color: #64748b;">
+                <div style="font-size: 28px; margin-bottom: 8px;">📡</div>
+                <div style="font-weight: 600; color: #94a3b8; margin-bottom: 4px;">No Telemetry Events Found</div>
+                <div style="font-size: 11.5px; max-width: 440px; margin: 0 auto;">
+                  ${logsState.search || logsState.activeChannel !== 'all' || logsState.activeLevel !== 'all'
+                    ? 'No entries match your active filters. Try clearing the search or channel filter.'
+                    : 'Perform operations via Telegram bot, WhatsApp support line, or live website widget to stream operational logs.'}
+                </div>
+              </div>
+            `;
+          } else {
+            logsTerminalBody.innerHTML = logs.map(renderLogEntry).join('');
+          }
+        }
+      } catch (err) {
+        console.warn('Telemetry polling error:', err);
+      }
+    }
+
+    function startLogPolling() {
+      if (logsState.timer) clearInterval(logsState.timer);
+      if (logsState.isStreaming) {
+        logsState.timer = setInterval(() => {
+          if (viewRuntimeLogs.style.display !== 'none' && logsState.isStreaming) {
+            fetchRuntimeLogs(false);
+          }
+        }, 3000);
+      }
+    }
+
+    function stopLogPolling() {
+      if (logsState.timer) {
+        clearInterval(logsState.timer);
+        logsState.timer = null;
+      }
+    }
+
+    // View Switching Logic
+    function switchView(targetView) {
+      if (targetView === 'logs') {
+        if (navRuntimeLogs) navRuntimeLogs.classList.add('active');
+        if (navDeployment) navDeployment.classList.remove('active');
+        if (viewDeployment) viewDeployment.style.display = 'none';
+        if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'block';
+        if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Runtime Logs & Telemetry';
+        fetchRuntimeLogs(true);
+        startLogPolling();
+      } else {
+        if (navDeployment) navDeployment.classList.add('active');
+        if (navRuntimeLogs) navRuntimeLogs.classList.remove('active');
+        if (viewDeployment) viewDeployment.style.display = 'block';
+        if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'none';
+        if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Control Panel';
+        stopLogPolling();
+      }
+    }
+
+    if (navDeployment) {
+      navDeployment.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.hash = '#deployment';
+        switchView('deployment');
+      });
+    }
+
+    if (navRuntimeLogs) {
+      navRuntimeLogs.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.hash = '#logs';
+        switchView('logs');
+      });
+    }
+
+    window.addEventListener('hashchange', () => {
+      if (window.location.hash === '#logs') {
+        switchView('logs');
+      } else {
+        switchView('deployment');
+      }
+    });
+
+    // Check initial hash
+    if (window.location.hash === '#logs') {
+      switchView('logs');
+    }
+
+    // Stream Pause/Resume Toggle
+    if (toggleLiveStreamBtn) {
+      toggleLiveStreamBtn.addEventListener('click', () => {
+        logsState.isStreaming = !logsState.isStreaming;
+        if (logsState.isStreaming) {
+          liveToggleText.textContent = 'Pause Stream';
+          liveToggleDot.style.backgroundColor = 'var(--color-emerald)';
+          logStreamStatusText.textContent = 'LIVE STREAM';
+          logStreamBadge.className = 'badge badge-active';
+          startLogPolling();
+          fetchRuntimeLogs();
+        } else {
+          liveToggleText.textContent = 'Resume Stream';
+          liveToggleDot.style.backgroundColor = '#94a3b8';
+          logStreamStatusText.textContent = 'STREAM PAUSED';
+          logStreamBadge.className = 'badge badge-inactive';
+          stopLogPolling();
+        }
+      });
+    }
+
+    // Manual Refresh
+    if (refreshLogsBtn) {
+      refreshLogsBtn.addEventListener('click', () => {
+        fetchRuntimeLogs(true);
+      });
+    }
+
+    // Clear Logs
+    if (clearLogsBtn) {
+      clearLogsBtn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to clear runtime telemetry logs? This will reset the live stream.')) return;
+        try {
+          clearLogsBtn.disabled = true;
+          const res = await fetch('/api/v1/tenants/logs', {
+            method: 'DELETE',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to clear logs');
+          logsState.logs = [];
+          showAlert('🧹 Runtime logs buffer cleared successfully.', false);
+          fetchRuntimeLogs(true);
+        } catch (err) {
+          showAlert(err.message || 'Error clearing logs');
+        } finally {
+          clearLogsBtn.disabled = false;
+        }
+      });
+    }
+
+    // Export Logs to JSON
+    if (exportLogsBtn) {
+      exportLogsBtn.addEventListener('click', () => {
+        const payload = JSON.stringify(logsState.logs, null, 2);
+        const blob = new Blob([payload], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `runtime-logs-${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    // Channel Filter Chips
+    channelFilterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        channelFilterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        logsState.activeChannel = btn.getAttribute('data-channel') || 'all';
+        fetchRuntimeLogs(true);
+      });
+    });
+
+    // Level Select Filter
+    if (logLevelSelect) {
+      logLevelSelect.addEventListener('change', (e) => {
+        logsState.activeLevel = e.target.value;
+        fetchRuntimeLogs(true);
+      });
+    }
+
+    // Search Input with Debounce
+    if (logSearchInput) {
+      logSearchInput.addEventListener('input', (e) => {
+        clearTimeout(logsState.searchDebounceTimer);
+        logsState.searchDebounceTimer = setTimeout(() => {
+          logsState.search = e.target.value.trim();
+          fetchRuntimeLogs(true);
+        }, 250);
+      });
+    }
 
     loadTenantData();
     loadWhatsAppStatus();

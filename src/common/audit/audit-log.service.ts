@@ -1,4 +1,5 @@
 import { prisma } from '../database/prisma.js';
+import { RuntimeLogService } from '../logging/runtime-log.service.js';
 
 export interface AuditRecordInput {
   tenantId: string;
@@ -56,6 +57,16 @@ export class AuditLogService {
           metadata: sanitizedMeta ?? undefined
         }
       });
+
+      // Mirror audit action to live runtime logs under system channel
+      RuntimeLogService.record({
+        tenantId: input.tenantId,
+        channel: 'system',
+        level: input.action.includes('ERROR') || input.action.includes('FAILED') ? 'error' : 'info',
+        event: input.action,
+        message: `Admin operation: ${input.action.replace(/_/g, ' ')}`,
+        details: sanitizedMeta
+      }).catch(() => {});
     } catch (err: any) {
       console.error(`[AuditLogService] Failed to record audit log for tenant ${input.tenantId} (${input.action}):`, err);
     }

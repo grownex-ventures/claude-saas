@@ -223,6 +223,35 @@ paths:
         '200':
           description: Current widget settings.
 
+  /tenants/logs:
+    get:
+      summary: Retrieve real-time operational runtime logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: channel
+          in: query
+          schema: { type: string, enum: [all, telegram, whatsapp, widget, system] }
+        - name: level
+          in: query
+          schema: { type: string, enum: [all, info, success, warn, error] }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        '200':
+          description: List of real-time telemetry events.
+    delete:
+      summary: Clear tenant runtime log ring buffer
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Runtime logs cleared.
+
   /widget/config/{tenantId}:
     get:
       summary: Public endpoint to fetch widget UI configuration
