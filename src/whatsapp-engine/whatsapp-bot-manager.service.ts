@@ -5,6 +5,7 @@ import { PanelCrawlerService } from '../crawler/panel-crawler.service.js';
 import { SmmProviderClient } from '../smm-core/smm-client.js';
 import { WhatsAppService } from './whatsapp.service.js';
 import { formatCurrencyAmount, formatWhatsAppServicesList } from './formatter.js';
+import { AiAgentService } from '../ai-engine/ai-agent.service.js';
 
 export function extractMessageText(message: proto.IMessage | null | undefined): string {
   if (!message) return '';
@@ -338,15 +339,19 @@ export class WhatsAppBotManagerService {
       return;
     }
 
-    // 7. General inquiries (Crawler cached reply or AI response)
-    const cachedReply = await PanelCrawlerService.getCachedReply(tenantId, text);
-    if (cachedReply) {
-      await service.sendReply(senderJid, cachedReply);
-      return;
+    // 7. General inquiries (AI Support Agent)
+    try {
+      const reply = await AiAgentService.getInstance().generateReply({
+        tenantId,
+        message: text,
+        channel: 'whatsapp',
+        userId: senderJid
+      });
+      await service.sendReply(senderJid, reply);
+    } catch (err: any) {
+      console.warn(`[WhatsAppBotManager] AI reply error for tenant ${tenantId}:`, err?.message || err);
+      const fallback = `Thank you for your message. An agent is reviewing your query. You can check order status with /status <order_id> or view services with /services.`;
+      await service.sendReply(senderJid, fallback);
     }
-
-    const keyNotice = session ? 'Linked Customer' : 'Guest';
-    const fallback = `[${panelApiUrl} | ${keyNotice}] Thank you for messaging us about: "${text}". A support agent will assist you shortly.`;
-    await service.sendReply(senderJid, fallback);
   }
 }

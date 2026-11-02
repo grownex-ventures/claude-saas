@@ -6,6 +6,7 @@ import { PanelCrawlerService } from '../crawler/panel-crawler.service.js';
 import { encrypt, decrypt } from '../common/crypto/encryption.js';
 import { validateSafeUrl } from '../common/security/url-validator.js';
 import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
+import { AiAgentService } from '../ai-engine/ai-agent.service.js';
 
 function resolveBotToken(token: string): string {
   if (!token) return '';
@@ -264,34 +265,26 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
       }
     });
 
-    // General incoming text message handler
+    // General incoming text message handler (AI Support Agent)
     bot.on('message:text', async (ctx) => {
       const telegramUserId = String(ctx.from?.id);
       const userText = ctx.message.text.trim();
 
       if (userText.startsWith('/')) return;
 
-      // Check pre-generated AI cached reply first
-      const cachedReply = await PanelCrawlerService.getCachedReply(tenantId, userText);
-      if (cachedReply) {
-        await ctx.reply(cachedReply);
-        return;
+      try {
+        const reply = await AiAgentService.getInstance().generateReply({
+          tenantId,
+          message: userText,
+          channel: 'telegram',
+          userId: telegramUserId
+        });
+        await ctx.reply(reply);
+      } catch (err: any) {
+        console.warn(`[BotManager] Telegram AI reply error for tenant ${tenantId}:`, err?.message || err);
+        const fallback = `Thank you for your message. An agent is reviewing your query. You can check order status with /status <order_id> or view services with /services.`;
+        await ctx.reply(fallback);
       }
-
-      const session = await prisma.botUserSession.findUnique({
-        where: {
-          tenantId_telegramUserId: {
-            tenantId,
-            telegramUserId
-          }
-        }
-      });
-
-      const keyNotice = session ? 'Linked customer' : 'Guest user';
-      const aiResponse = `[${panelApiUrl} | ${keyNotice}] Thank you for your question: "${userText}". An agent will assist you soon.`;
-
-      await PanelCrawlerService.setCachedReply(tenantId, userText, aiResponse);
-      await ctx.reply(aiResponse);
     });
 
     return bot;

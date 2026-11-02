@@ -4,6 +4,7 @@ import { decrypt } from '../common/crypto/encryption.js';
 import { SmmProviderClient, SmmService } from '../smm-core/smm-client.js';
 import { PanelCrawlerService } from '../crawler/panel-crawler.service.js';
 import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
+import { AiAgentService } from '../ai-engine/ai-agent.service.js';
 
 export interface WidgetPublicConfig {
   enabled: boolean;
@@ -179,14 +180,39 @@ export class WidgetService {
 
     let reply = '';
 
-    // 4. Intent Detection:
-    const lower = message.toLowerCase();
+    // 4. AI-Powered Generation (with catalog grounding, tool calling, and Redis caching)
+    try {
+      const recentMessages = await prisma.webChatMessage.findMany({
+        where: { sessionId },
+        orderBy: { createdAt: 'desc' },
+        take: 6
+      });
 
-    // Intent A: Order Tracking (/status 12345, order 12345, #12345)
+      const history = recentMessages.reverse().map((m) => ({
+        role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+        content: m.content
+      }));
+
+      reply = await AiAgentService.getInstance().generateReply({
+        tenantId,
+        message,
+        channel: 'widget',
+        sessionId,
+        history,
+        tenant
+      });
+    } catch (err: any) {
+      console.warn(`[WidgetService] AI generation error, falling back to deterministic matching:`, err?.message || err);
+    }
+
+    const lower = message.toLowerCase();
     const orderMatch =
       message.match(/(?:(?:order|status|track)\s*#?\s*(\d+))/i) ||
       message.match(/^\/status\s*(\d+)/i) ||
       (message.startsWith('#') && message.substring(1).match(/^(\d+)$/));
+
+    // 5. Fallback rule-based matching if AI returned empty
+    if (!reply) {
 
     if (orderMatch && orderMatch[1]) {
       const orderId = orderMatch[1];
@@ -286,8 +312,9 @@ export class WidgetService {
           `or track an existing order with **status <order_id>**.`;
       }
     }
+  }
 
-    // 5. Persist Assistant Reply
+    // 6. Persist Assistant Reply
     await prisma.webChatMessage.create({
       data: {
         sessionId,
