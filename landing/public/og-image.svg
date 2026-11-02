@@ -1,0 +1,77 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with dark sleek gradient -->
+  <rect width="1200" height="630" fill="#0A0F1D"/>
+  
+  <!-- Ambient Gradients -->
+  <circle cx="200" cy="150" r="350" fill="#3B82F6" fill-opacity="0.22" filter="blur(140px)"/>
+  <circle cx="1000" cy="450" r="400" fill="#8B5CF6" fill-opacity="0.25" filter="blur(160px)"/>
+  <circle cx="600" cy="300" r="280" fill="#06B6D4" fill-opacity="0.15" filter="blur(120px)"/>
+
+  <!-- Subtle Grid Pattern -->
+  <g opacity="0.1" stroke="#ffffff" stroke-width="1">
+    <line x1="100" y1="0" x2="100" y2="630"/>
+    <line x1="300" y1="0" x2="300" y2="630"/>
+    <line x1="500" y1="0" x2="500" y2="630"/>
+    <line x1="700" y1="0" x2="700" y2="630"/>
+    <line x1="900" y1="0" x2="900" y2="630"/>
+    <line x1="1100" y1="0" x2="1100" y2="630"/>
+    <line x1="0" y1="150" x2="1200" y2="150"/>
+    <line x1="0" y1="315" x2="1200" y2="315"/>
+    <line x1="0" y1="480" x2="1200" y2="480"/>
+  </g>
+
+  <!-- Card Container Border Frame -->
+  <rect x="60" y="50" width="1080" height="530" rx="24" stroke="rgba(255, 255, 255, 0.12)" stroke-width="1.5" fill="rgba(15, 23, 42, 0.45)"/>
+
+  <!-- Brand Pill / Badge -->
+  <g transform="translate(120, 110)">
+    <rect width="320" height="42" rx="21" fill="rgba(59, 130, 246, 0.15)" stroke="rgba(96, 165, 250, 0.4)" stroke-width="1"/>
+    <circle cx="24" cy="21" r="5" fill="#38BDF8"/>
+    <text x="38" y="26" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="600" fill="#93C5FD" letter-spacing="1">NEXT-GEN AI SUPPORT</text>
+  </g>
+
+  <!-- Main Headline -->
+  <text x="120" y="240" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="64" font-weight="800" fill="#FFFFFF" letter-spacing="-1">
+    AI Customer Support,
+  </text>
+  <text x="120" y="320" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="64" font-weight="800" fill="url(#title_grad)" letter-spacing="-1">
+    Built for SMM Panels.
+  </text>
+
+  <!-- Tagline / Subtitle -->
+  <text x="120" y="380" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="22" font-weight="400" fill="#94A3B8">
+    Automate Telegram bots, WhatsApp chats &amp; web widget queries with live panel API sync.
+  </text>
+
+  <!-- Feature Pills -->
+  <g transform="translate(120, 440)">
+    <!-- Telegram Pill -->
+    <rect x="0" y="0" width="190" height="48" rx="12" fill="rgba(30, 41, 59, 0.8)" stroke="rgba(255, 255, 255, 0.1)"/>
+    <text x="24" y="30" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#E2E8F0">⚡ Telegram Bot</text>
+
+    <!-- WhatsApp Pill -->
+    <rect x="210" y="0" width="195" height="48" rx="12" fill="rgba(30, 41, 59, 0.8)" stroke="rgba(255, 255, 255, 0.1)"/>
+    <text x="234" y="30" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#E2E8F0">💬 WhatsApp AI</text>
+
+    <!-- Website Widget Pill -->
+    <rect x="425" y="0" width="195" height="48" rx="12" fill="rgba(30, 41, 59, 0.8)" stroke="rgba(255, 255, 255, 0.1)"/>
+    <text x="449" y="30" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#E2E8F0">🌐 Website Widget</text>
+
+    <!-- API Connected Pill -->
+    <rect x="640" y="0" width="190" height="48" rx="12" fill="rgba(30, 41, 59, 0.8)" stroke="rgba(255, 255, 255, 0.1)"/>
+    <text x="664" y="30" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#E2E8F0">🔌 Live Panel API</text>
+  </g>
+
+  <!-- Domain watermark in bottom right -->
+  <text x="1040" y="525" text-anchor="end" font-family="Inter, sans-serif" font-size="18" font-weight="600" fill="#64748B" letter-spacing="0.5">
+    yoursmmagent.com
+  </text>
+
+  <defs>
+    <linearGradient id="title_grad" x1="120" y1="280" x2="700" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="50%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+  </defs>
+</svg>

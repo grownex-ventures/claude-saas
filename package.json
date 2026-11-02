@@ -7,6 +7,11 @@
     "build": "tsc",
     "start": "node dist/src/server.js",
     "dev": "tsx watch src/server.ts",
+    "landing:dev": "npm --prefix landing run dev",
+    "landing:build": "npm --prefix landing run build",
+    "landing:preview": "npm --prefix landing run preview",
+    "dev:landing": "npm --prefix landing run dev",
+    "start:landing": "npm --prefix landing run dev",
     "test": "vitest",
     "test:e2e": "playwright test"
   },

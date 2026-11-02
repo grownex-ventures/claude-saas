@@ -4,15 +4,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SupportBot — Automated Telegram Support for SMM Panels</title>
-  <meta name="description" content="Dedicated 24/7 automated Telegram customer support bots for SMM reseller and provider panels. Instant balance checks, service catalog cache, and zero polling conflicts." />
-  <link rel="canonical" href="https://supportbot.com/" />
+  <title>YourSMMagent — AI Customer Support for SMM Panels</title>
+  <meta name="description" content="AI-powered customer support for SMM panels. Explore website chat, Telegram, WhatsApp and API-connected support workflows with YourSMMagent." />
+  <link rel="canonical" href="https://yoursmmagent.com/" />
   
   <!-- Open Graph / Social Sharing -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="SupportBot — Automated Telegram Support for SMM Panels" />
-  <meta property="og:description" content="Dedicated 24/7 automated Telegram customer support bots for SMM reseller and provider panels. Instant balance checks, service catalog cache, and zero polling conflicts." />
-  <meta property="og:url" content="https://supportbot.com/" />
+  <meta property="og:title" content="YourSMMagent — AI Customer Support for SMM Panels" />
+  <meta property="og:description" content="AI-powered customer support for SMM panels. Explore website chat, Telegram, WhatsApp and API-connected support workflows with YourSMMagent." />
+  <meta property="og:url" content="https://yoursmmagent.com/" />
   <meta property="og:image" content="https://supportbot.com/images/hero-robot.jpg" />
 
   <!-- Twitter Card -->
@@ -229,18 +229,21 @@
   <div id="mobileDrawerOverlay" class="mobile-drawer-overlay" aria-hidden="true"></div>
   <aside id="mobileDrawer" class="mobile-drawer" aria-label="Mobile navigation">
     <div class="mobile-drawer-header">
-      <div class="brand-logo">
-        <div class="brand-icon-box">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="6" width="18" height="14" rx="4" fill="#ffffff" />
-            <circle cx="8.5" cy="12" r="1.5" fill="#ea580c" />
-            <circle cx="15.5" cy="12" r="1.5" fill="#ea580c" />
-            <path d="M9 16C10 17 14 17 15 16" stroke="#ea580c" stroke-width="1.5" stroke-linecap="round" />
-            <path d="M12 2V6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
-            <circle cx="12" cy="2" r="1" fill="#ffffff" />
-          </svg>
-        </div>
-        <span>SupportBot</span>
+      <div class="brand-logo" style="display: inline-flex; align-items: center; gap: 0.65rem;">
+        <svg viewBox="0 0 64 64" width="30" height="30" aria-hidden="true" style="border-radius: 8px; flex-shrink: 0;">
+          <defs>
+            <linearGradient id="ysmm-drawer-g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#4F46E5" />
+              <stop offset="1" stop-color="#2563EB" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#ysmm-drawer-g)" />
+          <path d="M18 22.5C18 19.46 20.46 17 23.5 17h17C43.54 17 46 19.46 46 22.5v11c0 3.04-2.46 5.5-5.5 5.5H27l-6.2 5.43A1.4 1.4 0 0 1 18 43.36V22.5z" fill="#ffffff" />
+          <circle cx="25.5" cy="28" r="2.4" fill="#4F46E5" />
+          <circle cx="32.5" cy="28" r="2.4" fill="#2563EB" />
+          <circle cx="39.5" cy="28" r="2.4" fill="#4F46E5" opacity="0.55" />
+        </svg>
+        <span style="font-weight: 800; letter-spacing: -0.02em; color: var(--color-text-main);">Your<span style="color: var(--color-accent);">SMM</span>agent</span>
       </div>
       <button type="button" id="mobileDrawerClose" class="btn btn-icon btn-ghost" aria-label="Close menu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -265,18 +268,21 @@
   <!-- Sticky Header -->
   <header class="header-sticky">
     <div class="container nav-container">
-      <a href="/" class="brand-logo" aria-label="SupportBot Home">
-        <div class="brand-icon-box">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="6" width="18" height="14" rx="4" fill="#ffffff" />
-            <circle cx="8.5" cy="12" r="1.5" fill="#ea580c" />
-            <circle cx="15.5" cy="12" r="1.5" fill="#ea580c" />
-            <path d="M9 16C10 17 14 17 15 16" stroke="#ea580c" stroke-width="1.5" stroke-linecap="round" />
-            <path d="M12 2V6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
-            <circle cx="12" cy="2" r="1" fill="#ffffff" />
-          </svg>
-        </div>
-        <span>SupportBot</span>
+      <a href="/" class="brand-logo" aria-label="YourSMMagent Home" style="display: inline-flex; align-items: center; gap: 0.65rem; text-decoration: none;">
+        <svg viewBox="0 0 64 64" width="32" height="32" aria-hidden="true" style="border-radius: 8px; flex-shrink: 0;">
+          <defs>
+            <linearGradient id="ysmm-nav-g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#4F46E5" />
+              <stop offset="1" stop-color="#2563EB" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#ysmm-nav-g)" />
+          <path d="M18 22.5C18 19.46 20.46 17 23.5 17h17C43.54 17 46 19.46 46 22.5v11c0 3.04-2.46 5.5-5.5 5.5H27l-6.2 5.43A1.4 1.4 0 0 1 18 43.36V22.5z" fill="#ffffff" />
+          <circle cx="25.5" cy="28" r="2.4" fill="#4F46E5" />
+          <circle cx="32.5" cy="28" r="2.4" fill="#2563EB" />
+          <circle cx="39.5" cy="28" r="2.4" fill="#4F46E5" opacity="0.55" />
+        </svg>
+        <span style="font-weight: 800; letter-spacing: -0.02em; color: var(--color-text-main);">Your<span style="color: var(--color-accent);">SMM</span>agent</span>
       </a>
 
       <!-- Desktop Nav -->

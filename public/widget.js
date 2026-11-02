@@ -27,7 +27,7 @@
     return;
   }
 
-  var accentColor = (currentScript && currentScript.getAttribute('data-accent')) || '#ea580c';
+  var accentColor = (currentScript && currentScript.getAttribute('data-accent')) || '#4f46e5';
   var customTitle = (currentScript && currentScript.getAttribute('data-title')) || 'Customer Support';
   var customWelcome =
     (currentScript && currentScript.getAttribute('data-welcome')) ||
@@ -116,76 +116,135 @@
       position: relative;
     }
 
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    /* Circular Floating Widget Launcher */
     .widget-launcher {
       position: fixed;
       bottom: 24px;
       right: 24px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
       background: var(--smm-accent);
       color: #ffffff;
       border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 12px 18px;
-      border-radius: 9999px;
-      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.3);
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      justify-content: center;
+      padding: 0;
+      box-shadow: 0 10px 25px -4px rgba(79, 70, 229, 0.45), 0 8px 16px -6px rgba(0, 0, 0, 0.35);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, background 0.2s ease;
       z-index: 2147483647;
     }
 
     .widget-launcher:focus-visible {
       outline: 2px solid #ffffff;
-      outline-offset: 2px;
+      outline-offset: 3px;
       box-shadow: 0 0 0 4px var(--smm-accent);
     }
 
     .widget-launcher:hover {
-      transform: translateY(-2px) scale(1.02);
-      box-shadow: 0 16px 32px -4px rgba(0,0,0,0.5);
+      transform: scale(1.08);
+      box-shadow: 0 16px 32px -4px rgba(79, 70, 229, 0.55), 0 10px 20px -4px rgba(0, 0, 0, 0.4);
     }
 
-    .launcher-label {
-      font-weight: 700;
-      font-size: 14px;
-      display: flex;
-      flex-direction: column;
-      text-align: left;
+    .widget-launcher:active {
+      transform: scale(0.94);
     }
 
-    .launcher-label small {
-      font-size: 11px;
-      font-weight: 500;
-      opacity: 0.9;
-    }
-
-    .launcher-icon {
-      width: 24px;
-      height: 24px;
+    .launcher-icon-chat,
+    .launcher-icon-close {
+      position: absolute;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .launcher-icon svg {
-      width: 22px;
-      height: 22px;
+    .launcher-icon-chat svg,
+    .launcher-icon-close svg {
+      width: 28px;
+      height: 28px;
       fill: none;
-      stroke: currentColor;
+      stroke: #ffffff;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
 
+    .launcher-icon-close {
+      opacity: 0;
+      transform: rotate(-90deg) scale(0.7);
+      pointer-events: none;
+    }
+
+    .widget-launcher[aria-expanded="true"] .launcher-icon-chat {
+      opacity: 0;
+      transform: rotate(90deg) scale(0.7);
+      pointer-events: none;
+    }
+
+    .widget-launcher[aria-expanded="true"] .launcher-icon-close {
+      opacity: 1;
+      transform: rotate(0) scale(1);
+      pointer-events: auto;
+    }
+
+    /* Online status indicator dot */
+    .launcher-badge {
+      position: absolute;
+      top: 1px;
+      right: 1px;
+      width: 14px;
+      height: 14px;
+      background: #10b981;
+      border: 2.5px solid var(--smm-bg);
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+    }
+
+    .launcher-badge::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(16, 185, 129, 0.6);
+      animation: launcherPulse 2.4s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    }
+
+    @keyframes launcherPulse {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.4); opacity: 0; }
+    }
+
+    .widget-launcher[aria-expanded="true"] .launcher-badge {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+
     /* Chat Window Dialog */
     .widget-dialog {
       position: fixed;
-      bottom: 84px;
+      bottom: 96px;
       right: 24px;
       width: 380px;
       max-width: calc(100vw - 32px);
       height: 580px;
-      max-height: calc(100vh - 100px);
+      max-height: calc(100vh - 120px);
       background: var(--smm-bg);
       border: 1px solid var(--smm-border);
       border-radius: var(--smm-radius);
@@ -506,12 +565,32 @@
       stroke-linejoin: round;
     }
 
+    @media (max-width: 480px) {
+      .widget-launcher {
+        bottom: 16px;
+        right: 16px;
+        width: 56px;
+        height: 56px;
+      }
+      .widget-dialog {
+        bottom: 84px;
+        right: 16px;
+        left: 16px;
+        width: auto;
+        max-width: none;
+        height: calc(100vh - 100px);
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .widget-launcher,
       .widget-dialog,
       .chip-btn,
       .send-btn,
-      .close-btn {
+      .close-btn,
+      .launcher-icon-chat,
+      .launcher-icon-close,
+      .launcher-badge::after {
         transition: none !important;
         animation: none !important;
         transform: none !important;
@@ -531,17 +610,24 @@
   // Shell structure
   var shell = document.createElement('div');
   shell.innerHTML = `
-    <!-- Launcher Button -->
+    <!-- Circular Launcher Button -->
     <button type="button" class="widget-launcher" id="smmLauncher" aria-label="Open support chat" aria-expanded="false">
-      <span class="launcher-label">
+      <span class="sr-only">
         <strong id="launcherTitle">${escapeHtml(customTitle)}</strong>
         <small>24/7 Live Support</small>
       </span>
-      <span class="launcher-icon">
-        <svg viewBox="0 0 24 24" id="launcherSvg">
+      <span class="launcher-icon-chat" id="launcherSvg">
+        <svg viewBox="0 0 24 24">
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
         </svg>
       </span>
+      <span class="launcher-icon-close">
+        <svg viewBox="0 0 24 24">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </span>
+      <span class="launcher-badge" aria-hidden="true"></span>
     </button>
 
     <!-- Dialog Modal -->
