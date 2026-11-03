@@ -57,7 +57,8 @@ export class AiProviderClient {
     const rawProvider = (customConfig?.provider || process.env.AI_PROVIDER || 'openrouter').toLowerCase().trim();
     const apiKey = customConfig?.apiKey ?? process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.GEMINI_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? '';
     const baseUrl = customConfig?.baseUrl || process.env.AI_BASE_URL || '';
-    const model = customConfig?.model || process.env.AI_MODEL || this.getDefaultModel(rawProvider);
+    const model = customConfig?.model
+      || (customConfig?.provider ? this.getDefaultModel(rawProvider) : (process.env.AI_MODEL || this.getDefaultModel(rawProvider)));
     const temperature = customConfig?.temperature ?? (process.env.AI_TEMPERATURE ? parseFloat(process.env.AI_TEMPERATURE) : 0.3);
     const maxTokens = customConfig?.maxTokens ?? (process.env.AI_MAX_TOKENS ? parseInt(process.env.AI_MAX_TOKENS, 10) : 600);
 
