@@ -1,7 +1,7 @@
 {
   "name": "cloud-saas",
   "version": "1.0.0",
-  "description": "Multi-Tenant Telegram SMM Support Bot SaaS",
+  "description": "Multi-Tenant AI Customer Support Platform for SMM Panels (Telegram, WhatsApp, Web Widget)",
   "type": "module",
   "scripts": {
     "build": "tsc",

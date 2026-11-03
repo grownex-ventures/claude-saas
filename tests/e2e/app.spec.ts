@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { prisma } from '../../src/common/database/prisma.js';
 
-test.describe('SupportBot E2E Test Suite (Item 18)', () => {
+test.describe('YourSMMagent E2E Test Suite (Item 18)', () => {
   const testEmail = `test-e2e-${Date.now()}@example.com`;
   const testPassword = 'Password123!';
 

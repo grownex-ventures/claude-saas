@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: Cloud-SaaS Multi-Tenant API
-  description: Multi-tenant Telegram & WhatsApp SMM reseller bot platform with embeddable live customer chat widget.
+  title: YourSMMagent Multi-Tenant API
+  description: Multi-tenant AI Customer Support Platform for SMM Panels (Telegram, WhatsApp, Web Widget).
   version: 1.0.0
 servers:
   - url: /api/v1

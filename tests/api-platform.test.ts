@@ -16,7 +16,7 @@ describe('API Platform Suite (API-01 & API-02)', () => {
     expect(spec).toBeDefined();
     expect(spec.openapi).toMatch(/^3\.1\./);
     expect(spec.info).toBeDefined();
-    expect(spec.info.title).toBe('Cloud-SaaS Multi-Tenant API');
+    expect(spec.info.title).toBe('YourSMMagent Multi-Tenant API');
     expect(spec.info.version).toBe('1.0.0');
 
     // Assert paths

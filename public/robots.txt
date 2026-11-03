@@ -1,4 +1,4 @@
-# robots.txt for SupportBot (https://supportbot.com)
+# robots.txt for YourSMMagent (https://yoursmmagent.com)
 User-agent: *
 Allow: /
 Allow: /css/
@@ -8,4 +8,4 @@ Disallow: /login
 Disallow: /signup
 Disallow: /api/
 
-Sitemap: https://supportbot.com/sitemap.xml
+Sitemap: https://yoursmmagent.com/sitemap.xml
