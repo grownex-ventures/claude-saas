@@ -596,11 +596,12 @@
     const reqSubmitBtn = document.getElementById('reqSubmitBtn');
 
     if (requestForm) {
-      requestForm.addEventListener('submit', (e) => {
+      requestForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('reqEmail').value.trim();
         const panelLink = document.getElementById('reqPanelLink').value.trim();
         const contact = document.getElementById('reqContactNumber').value.trim();
+        const message = document.getElementById('reqMessage') ? document.getElementById('reqMessage').value.trim() : '';
 
         if (!email || !panelLink || !contact) {
           alert('Please fill in your Email, SMM Panel Link, and Contact Number.');
@@ -615,9 +616,24 @@
           Submitting...
         `;
 
-        setTimeout(() => {
+        try {
+          const res = await fetch('/api/v1/leads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, panelUrl: panelLink, contactNumber: contact, message })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to submit request.');
+          }
+
+          formSuccessBanner.textContent = '✓ ' + (data.message || 'Thank you! Your setup request has been recorded.');
           formSuccessBanner.style.display = 'block';
           requestForm.reset();
+          formSuccessBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (err) {
+          alert('Error: ' + (err.message || 'Could not submit request. Please try again.'));
+        } finally {
           reqSubmitBtn.disabled = false;
           reqSubmitBtn.innerHTML = `
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -625,8 +641,7 @@
             </svg>
             Submit Request
           `;
-          formSuccessBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 350);
+        }
       });
     }
 

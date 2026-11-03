@@ -49,6 +49,8 @@ export class AuthController {
     this.router.post('/signup', this.signup.bind(this));
     this.router.post('/login', this.login.bind(this));
     this.router.post('/logout', this.logout.bind(this));
+    this.router.post('/forgot-password', this.forgotPassword.bind(this));
+    this.router.post('/reset-password', this.resetPassword.bind(this));
     this.router.get('/csrf', this.getCsrf.bind(this));
     this.router.get('/me', tenantAccessMiddleware, this.getMe.bind(this));
   }
@@ -139,6 +141,36 @@ export class AuthController {
         success: false,
         error: err.message || 'Authentication failed'
       });
+    }
+  }
+
+  /**
+   * POST /api/auth/forgot-password
+   * Dispatches password recovery instructions and returns generic confirmation
+   */
+  async forgotPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const { email } = req.body || {};
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const result = await authService.forgotPassword(email, baseUrl);
+      res.status(200).json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || 'Failed to process password recovery request' });
+    }
+  }
+
+  /**
+   * POST /api/auth/reset-password
+   * Resets tenant password using a valid, unexpired reset token
+   */
+  async resetPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const { token, newPassword } = req.body || {};
+      const result = await authService.resetPassword(token, newPassword);
+      res.status(200).json(result);
+    } catch (err: any) {
+      const statusCode = err.statusCode || 400;
+      res.status(statusCode).json({ success: false, error: err.message || 'Failed to reset password' });
     }
   }
 

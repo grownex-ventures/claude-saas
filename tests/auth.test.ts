@@ -416,3 +416,108 @@ describe('Auth Rate Limiter Startup Guard & Bypass Rules (Item 3)', () => {
   });
 });
 
+describe('Password Reset Flow (Component 2)', () => {
+  let authService: AuthService;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    authService = new AuthService();
+  });
+
+  it('forgotPassword returns generic message and does not create token if email not found', async () => {
+    vi.spyOn(prisma.tenant, 'findUnique').mockResolvedValueOnce(null);
+    const createSpy = vi.spyOn(prisma.passwordResetToken, 'create');
+
+    const result = await authService.forgotPassword('nonexistent@example.com');
+
+    expect(result.message).toMatch(/If an account matches this email/i);
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it('forgotPassword creates hashed reset token when tenant exists', async () => {
+    vi.spyOn(prisma.tenant, 'findUnique').mockResolvedValueOnce({
+      id: 'tenant-reset-1',
+      email: 'owner@example.com'
+    } as any);
+
+    const createSpy = vi.spyOn(prisma.passwordResetToken, 'create').mockResolvedValueOnce({
+      id: 'token-rec-1',
+      tokenHash: 'hashed-token-value',
+      tenantId: 'tenant-reset-1',
+      expiresAt: new Date(Date.now() + 3600000),
+      used: false,
+      createdAt: new Date()
+    } as any);
+
+    const result = await authService.forgotPassword('owner@example.com');
+
+    expect(result.message).toMatch(/If an account matches this email/i);
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tenantId: 'tenant-reset-1',
+          used: false
+        })
+      })
+    );
+  });
+
+  it('resetPassword rejects short password under 8 characters', async () => {
+    await expect(authService.resetPassword('some-token', 'short')).rejects.toThrow(
+      /at least 8 characters/i
+    );
+  });
+
+  it('resetPassword throws error if token is not found or already used', async () => {
+    vi.spyOn(prisma.passwordResetToken, 'findUnique').mockResolvedValueOnce(null);
+
+    await expect(authService.resetPassword('invalid-or-used-token', 'NewValidPass123!')).rejects.toThrow(
+      'Password reset token is invalid, used, or has expired.'
+    );
+  });
+
+  it('resetPassword throws error if token is expired', async () => {
+    vi.spyOn(prisma.passwordResetToken, 'findUnique').mockResolvedValueOnce({
+      id: 'expired-token-id',
+      tenantId: 'tenant-123',
+      expiresAt: new Date(Date.now() - 60000), // expired 1 minute ago
+      used: false
+    } as any);
+
+    await expect(authService.resetPassword('expired-token', 'NewValidPass123!')).rejects.toThrow(
+      'Password reset token is invalid, used, or has expired.'
+    );
+  });
+
+  it('resetPassword successfully updates tenant password with Argon2id and marks token used', async () => {
+    vi.spyOn(prisma.passwordResetToken, 'findUnique').mockResolvedValueOnce({
+      id: 'valid-token-id',
+      tenantId: 'tenant-123',
+      expiresAt: new Date(Date.now() + 1800000), // valid for 30 more minutes
+      used: false
+    } as any);
+
+    vi.spyOn(prisma, '$transaction').mockResolvedValueOnce([{}, {}] as any);
+    const tenantUpdateSpy = vi.spyOn(prisma.tenant, 'update');
+    const tokenUpdateSpy = vi.spyOn(prisma.passwordResetToken, 'update');
+
+    const result = await authService.resetPassword('valid-raw-token', 'BrandNewPassword123!');
+
+    expect(result.message).toContain('Password has been reset successfully');
+    expect(tenantUpdateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'tenant-123' },
+        data: expect.objectContaining({
+          passwordHash: expect.stringMatching(/^\$argon2id\$/)
+        })
+      })
+    );
+    expect(tokenUpdateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'valid-token-id' },
+        data: { used: true }
+      })
+    );
+  });
+});
+

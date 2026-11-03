@@ -1,5 +1,6 @@
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { prisma } from '../common/database/prisma.js';
 
 export interface SignupDto {
@@ -144,6 +145,108 @@ export class AuthService {
     return {
       token,
       tenant: this.sanitizeTenant(tenant)
+    };
+  }
+
+  /**
+   * Initiates password recovery. Generates a 1-hour secure token and returns constant-time confirmation.
+   */
+  async forgotPassword(email: string, baseUrl?: string): Promise<{ success: boolean; message: string; resetToken?: string }> {
+    const cleanEmail = email?.trim().toLowerCase();
+    const genericResponse = {
+      success: true,
+      message: 'If an account matches this email, reset instructions have been dispatched.'
+    };
+
+    if (!cleanEmail || !this.isValidEmail(cleanEmail)) {
+      return genericResponse;
+    }
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { email: cleanEmail }
+    });
+
+    if (!tenant) {
+      // Dummy verify to equalize response time
+      await this.verifyPassword(DUMMY_HASH, 'dummy_password');
+      return genericResponse;
+    }
+
+    // Generate 32-byte secure random token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // Invalidate existing unused tokens for this tenant
+    await prisma.passwordResetToken.updateMany({
+      where: { tenantId: tenant.id, used: false },
+      data: { used: true }
+    });
+
+    // Create 1-hour valid token
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    await prisma.passwordResetToken.create({
+      data: {
+        tenantId: tenant.id,
+        tokenHash,
+        expiresAt,
+        used: false
+      }
+    });
+
+    const resetUrl = `${baseUrl || ''}/reset-password?token=${rawToken}`;
+    console.log(`[AuthService] Password reset token generated for ${cleanEmail}: ${resetUrl}`);
+
+    return {
+      ...genericResponse,
+      ...(process.env.NODE_ENV !== 'production' ? { resetToken: rawToken } : {})
+    };
+  }
+
+  /**
+   * Resets tenant password using a valid, unexpired reset token.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    if (!token || typeof token !== 'string') {
+      const error: any = new Error('Password reset token is required.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      const error: any = new Error('New password must be at least 8 characters long.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
+    const resetRecord = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash }
+    });
+
+    if (!resetRecord || resetRecord.used || resetRecord.expiresAt < new Date()) {
+      const error: any = new Error('Password reset token is invalid, used, or has expired.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const passwordHash = await this.hashPassword(newPassword);
+
+    // Atomically update password and mark token as used
+    await prisma.$transaction([
+      prisma.tenant.update({
+        where: { id: resetRecord.tenantId },
+        data: { passwordHash }
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: resetRecord.id },
+        data: { used: true }
+      })
+    ]);
+
+    return {
+      success: true,
+      message: 'Password has been reset successfully. You may now log in.'
     };
   }
 

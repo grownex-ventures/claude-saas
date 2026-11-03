@@ -373,6 +373,118 @@ export class WidgetService {
       }))
     };
   }
+
+  /**
+   * Retrieves all visitor chat sessions for a tenant (dashboard operator view).
+   */
+  async getAdminSessions(tenantId: string) {
+    const sessions = await prisma.webChatSession.findMany({
+      where: { tenantId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        },
+        _count: {
+          select: { messages: true }
+        }
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 50
+    });
+
+    return sessions.map((s) => ({
+      sessionId: s.sessionId,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      messageCount: s._count.messages,
+      lastMessage: s.messages[0]?.content || null
+    }));
+  }
+
+  /**
+   * Retrieves full transcript for a specific visitor session belonging to tenant.
+   */
+  async getAdminSessionTranscript(tenantId: string, sessionId: string) {
+    const session = await prisma.webChatSession.findUnique({
+      where: {
+        tenantId_sessionId: { tenantId, sessionId }
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+
+    if (!session) {
+      throw new Error('Session not found or belongs to another tenant');
+    }
+
+    return {
+      sessionId: session.sessionId,
+      createdAt: session.createdAt,
+      messages: session.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        message: m.content,
+        content: m.content,
+        createdAt: m.createdAt
+      }))
+    };
+  }
+
+  /**
+   * Sends a manual reply from the tenant operator into a visitor's session.
+   */
+  async sendAdminReply(tenantId: string, sessionId: string, rawContent: string) {
+    const content = (rawContent || '').trim();
+    if (!content) {
+      throw new Error('Reply message cannot be empty');
+    }
+
+    const session = await prisma.webChatSession.findUnique({
+      where: {
+        tenantId_sessionId: { tenantId, sessionId }
+      }
+    });
+
+    if (!session) {
+      throw new Error('Session not found or belongs to another tenant');
+    }
+
+    const message = await prisma.webChatMessage.create({
+      data: {
+        sessionId,
+        role: 'assistant',
+        content
+      }
+    });
+
+    await prisma.webChatSession.update({
+      where: { id: session.id },
+      data: { updatedAt: new Date() }
+    });
+
+    RuntimeLogService.record({
+      tenantId,
+      channel: 'widget',
+      level: 'info',
+      event: 'OPERATOR_CHAT_REPLY',
+      message: `Tenant operator replied to session ${sessionId}: "${content.slice(0, 40)}"`,
+      details: { sessionId, replyId: message.id }
+    }).catch(() => {});
+
+    return {
+      id: message.id,
+      sessionId: message.sessionId,
+      role: message.role,
+      message: message.content,
+      content: message.content,
+      isOperator: true,
+      createdAt: message.createdAt
+    };
+  }
 }
 
 /**

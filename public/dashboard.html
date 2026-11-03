@@ -397,6 +397,12 @@
           </svg>
           Bot Deployment
         </a>
+        <a href="#inbox" id="navInbox" class="sidebar-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          Live Inbox
+        </a>
         <a href="#logs" id="navRuntimeLogs" class="sidebar-link">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -999,6 +1005,70 @@
           </div>
         </div>
       </div> <!-- /viewRuntimeLogs -->
+
+      <!-- View 3: Live Support Inbox -->
+      <div id="viewInbox" style="display: none;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-6);">
+          <div>
+            <h1 style="font-size: var(--font-h1); font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.25rem 0;">Live Support Inbox</h1>
+            <p style="font-size: var(--font-body); color: var(--color-text-muted); margin: 0;">Real-time visitor chat sessions from your website widget. Reply to customers directly.</p>
+          </div>
+          <button type="button" id="refreshInboxBtn" class="btn btn-secondary" style="min-height: 38px; font-size: var(--font-xs); display: inline-flex; align-items: center; gap: 6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            Refresh Chats
+          </button>
+        </div>
+
+        <!-- Two-Pane Inbox Layout -->
+        <div class="card card-glass" style="display: grid; grid-template-columns: 340px 1fr; min-height: 600px; padding: 0; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
+          <!-- Left: Session List -->
+          <div style="border-right: 1px solid var(--color-border); display: flex; flex-direction: column; background: var(--color-bg-alt);">
+            <div style="padding: 14px 16px; border-bottom: 1px solid var(--color-border); font-weight: 700; font-size: var(--font-sm); display: flex; justify-content: space-between; align-items: center;">
+              <span>Active Sessions</span>
+              <span class="badge badge-accent" id="inboxSessionCount">0</span>
+            </div>
+            <div id="inboxSessionList" style="flex: 1; overflow-y: auto; max-height: 550px;">
+              <div style="padding: 24px; text-align: center; color: var(--color-text-muted); font-size: var(--font-xs);">
+                No active website visitor chats yet.
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Chat Transcript & Reply Pane -->
+          <div style="display: flex; flex-direction: column; background: var(--color-bg);">
+            <!-- Active Chat Header -->
+            <div id="inboxChatHeader" style="padding: 14px 20px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-surface);">
+              <div>
+                <div id="inboxActiveSessionTitle" style="font-weight: 700; font-size: var(--font-sm); color: var(--color-text-main);">Select a conversation</div>
+                <div id="inboxActiveSessionSub" style="font-size: var(--font-xs); color: var(--color-text-muted);">Click on a visitor session on the left to view transcript</div>
+              </div>
+            </div>
+
+            <!-- Messages Transcript -->
+            <div id="inboxMessagesContainer" style="flex: 1; padding: 20px; overflow-y: auto; max-height: 460px; display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--color-text-muted); font-size: var(--font-sm);">
+                👈 Choose a visitor session from the left to view messages
+              </div>
+            </div>
+
+            <!-- Operator Reply Form -->
+            <form id="inboxReplyForm" style="display: none; padding: 12px 16px; border-top: 1px solid var(--color-border); background: var(--color-surface); gap: 10px; align-items: center;">
+              <input type="text" id="inboxReplyInput" class="form-control" placeholder="Type a message as operator to visitor..." style="flex: 1; min-height: 42px;" required autocomplete="off" />
+              <button type="submit" id="inboxSendBtn" class="btn btn-primary" style="min-height: 42px; display: inline-flex; align-items: center; gap: 6px;">
+                <span>Reply</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </form>
+          </div>
+        </div>
+      </div> <!-- /viewInbox -->
     </main>
   </div>
 
@@ -2010,23 +2080,304 @@
       }
     }
 
+    // ==========================================
+    // LIVE CHAT INBOX CONTROLLER
+    // ==========================================
+    const navInbox = document.getElementById('navInbox');
+    const viewInbox = document.getElementById('viewInbox');
+    const refreshInboxBtn = document.getElementById('refreshInboxBtn');
+    const inboxSessionCount = document.getElementById('inboxSessionCount');
+    const inboxSessionList = document.getElementById('inboxSessionList');
+    const inboxActiveSessionTitle = document.getElementById('inboxActiveSessionTitle');
+    const inboxActiveSessionSub = document.getElementById('inboxActiveSessionSub');
+    const inboxMessagesContainer = document.getElementById('inboxMessagesContainer');
+    const inboxReplyForm = document.getElementById('inboxReplyForm');
+    const inboxReplyInput = document.getElementById('inboxReplyInput');
+    const inboxSendBtn = document.getElementById('inboxSendBtn');
+
+    const inboxState = {
+      sessions: [],
+      activeSessionId: null,
+      timer: null
+    };
+
+    function escapeInboxHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatInboxTime(dateStr) {
+      if (!dateStr) return '';
+      const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
+      if (seconds < 60) return `${Math.max(1, seconds)}s ago`;
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      return `${Math.floor(hours / 24)}d ago`;
+    }
+
+    async function fetchInboxSessions(silent = false) {
+      if (!token) return;
+      try {
+        const res = await fetch('/api/v1/widget/admin/sessions', {
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) {
+          if (res.status === 401) {
+            window.location.href = '/login.html';
+            return;
+          }
+          throw new Error('Failed to load chat sessions');
+        }
+        const data = await res.json();
+        const sessions = data.sessions || [];
+        inboxState.sessions = sessions;
+
+        if (inboxSessionCount) {
+          inboxSessionCount.textContent = sessions.length;
+        }
+
+        renderInboxSessions();
+
+        if (inboxState.activeSessionId) {
+          fetchActiveSessionMessages(inboxState.activeSessionId, true);
+        }
+      } catch (err) {
+        if (!silent) {
+          console.error('[Inbox Error]', err);
+        }
+      }
+    }
+
+    function renderInboxSessions() {
+      if (!inboxSessionList) return;
+      if (inboxState.sessions.length === 0) {
+        inboxSessionList.innerHTML = `
+          <div style="padding: 32px 16px; text-align: center; color: var(--color-text-muted); font-size: var(--font-xs);">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 8px; opacity: 0.5;">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <div>No visitor chats yet</div>
+            <div style="font-size: 11px; margin-top: 4px;">Website widget sessions will appear here in real-time.</div>
+          </div>
+        `;
+        return;
+      }
+
+      inboxSessionList.innerHTML = inboxState.sessions.map(s => {
+        const isActive = s.sessionId === inboxState.activeSessionId;
+        const timeAgo = formatInboxTime(s.lastTimestamp);
+        const snippet = escapeInboxHtml(s.lastMessage || 'New conversation');
+        const shortId = escapeInboxHtml(s.sessionId.slice(0, 8));
+
+        return `
+          <div class="inbox-session-item ${isActive ? 'active' : ''}" 
+               data-session-id="${escapeInboxHtml(s.sessionId)}"
+               style="padding: 12px 16px; border-bottom: 1px solid var(--color-border); cursor: pointer; transition: background 0.15s ease; ${isActive ? 'background: rgba(79, 70, 229, 0.12); border-left: 3px solid var(--color-accent);' : ''}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 700; font-size: var(--font-xs); color: var(--color-text-main); display: flex; align-items: center; gap: 6px;">
+                <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--color-emerald); display: inline-block;"></span>
+                Visitor #${shortId}
+              </span>
+              <span style="font-size: 11px; color: var(--color-text-muted);">${timeAgo}</span>
+            </div>
+            <div style="font-size: var(--font-xs); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;">
+              ${snippet}
+            </div>
+            <div style="font-size: 10px; color: var(--color-text-muted); margin-top: 4px;">
+              ${s.messageCount || 1} msg${(s.messageCount || 1) === 1 ? '' : 's'}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      inboxSessionList.querySelectorAll('.inbox-session-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const sid = item.getAttribute('data-session-id');
+          if (sid) selectInboxSession(sid);
+        });
+      });
+    }
+
+    async function selectInboxSession(sessionId) {
+      inboxState.activeSessionId = sessionId;
+      renderInboxSessions();
+
+      if (inboxActiveSessionTitle) {
+        inboxActiveSessionTitle.textContent = `Visitor #${sessionId.slice(0, 8)} (${sessionId})`;
+      }
+      if (inboxActiveSessionSub) {
+        inboxActiveSessionSub.textContent = 'Live Web Chat Session';
+      }
+      if (inboxReplyForm) {
+        inboxReplyForm.style.display = 'flex';
+      }
+
+      await fetchActiveSessionMessages(sessionId, false);
+      if (inboxReplyInput) {
+        inboxReplyInput.focus();
+      }
+    }
+
+    async function fetchActiveSessionMessages(sessionId, silent = false) {
+      if (!sessionId || !token) return;
+      try {
+        const res = await fetch(`/api/v1/widget/admin/session/${encodeURIComponent(sessionId)}`, {
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) throw new Error('Failed to load session transcript');
+        const data = await res.json();
+        const messages = data.messages || [];
+
+        renderInboxMessages(messages);
+      } catch (err) {
+        if (!silent) {
+          console.error('[Session Error]', err);
+        }
+      }
+    }
+
+    function renderInboxMessages(messages) {
+      if (!inboxMessagesContainer) return;
+      if (messages.length === 0) {
+        inboxMessagesContainer.innerHTML = `
+          <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--color-text-muted); font-size: var(--font-sm);">
+            No messages in this chat session yet.
+          </div>
+        `;
+        return;
+      }
+
+      inboxMessagesContainer.innerHTML = messages.map(m => {
+        const isUser = m.role === 'user';
+        const isOperator = m.role === 'assistant' && m.isOperator;
+        const timeStr = m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        const roleBadge = isUser ? 'Visitor' : (isOperator ? 'Support Agent (You)' : 'AI Assistant');
+        const alignStyle = isUser ? 'align-self: flex-start;' : 'align-self: flex-end;';
+        const bubbleBg = isUser ? 'background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-text-main);' : 'background: #4f46e5; color: #ffffff;';
+
+        return `
+          <div style="${alignStyle} max-width: 78%; display: flex; flex-direction: column; gap: 3px;">
+            <div style="font-size: 10px; color: var(--color-text-muted); ${isUser ? '' : 'text-align: right;'}">
+              ${roleBadge} &bull; ${timeStr}
+            </div>
+            <div style="${bubbleBg} padding: 10px 14px; border-radius: 12px; font-size: var(--font-xs); line-height: 1.5; word-break: break-word; white-space: pre-wrap;">
+              ${escapeInboxHtml(m.message)}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      inboxMessagesContainer.scrollTop = inboxMessagesContainer.scrollHeight;
+    }
+
+    async function handleInboxReply(e) {
+      e.preventDefault();
+      if (!inboxState.activeSessionId) return;
+      const text = inboxReplyInput ? inboxReplyInput.value.trim() : '';
+      if (!text) return;
+
+      try {
+        if (inboxSendBtn) inboxSendBtn.disabled = true;
+        if (inboxReplyInput) inboxReplyInput.disabled = true;
+
+        const res = await fetch('/api/v1/widget/admin/reply', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            sessionId: inboxState.activeSessionId,
+            message: text
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to send reply');
+        }
+
+        if (inboxReplyInput) {
+          inboxReplyInput.value = '';
+        }
+
+        await fetchActiveSessionMessages(inboxState.activeSessionId, false);
+        fetchInboxSessions(true);
+      } catch (err) {
+        showAlert(err.message || 'Error sending reply');
+      } finally {
+        if (inboxSendBtn) inboxSendBtn.disabled = false;
+        if (inboxReplyInput) {
+          inboxReplyInput.disabled = false;
+          inboxReplyInput.focus();
+        }
+      }
+    }
+
+    function startInboxPolling() {
+      stopInboxPolling();
+      inboxState.timer = setInterval(() => {
+        if (viewInbox && viewInbox.style.display !== 'none') {
+          fetchInboxSessions(true);
+        }
+      }, 4000);
+    }
+
+    function stopInboxPolling() {
+      if (inboxState.timer) {
+        clearInterval(inboxState.timer);
+        inboxState.timer = null;
+      }
+    }
+
+    if (refreshInboxBtn) {
+      refreshInboxBtn.addEventListener('click', () => {
+        fetchInboxSessions(false);
+      });
+    }
+
+    if (inboxReplyForm) {
+      inboxReplyForm.addEventListener('submit', handleInboxReply);
+    }
+
     // View Switching Logic
     function switchView(targetView) {
       if (targetView === 'logs') {
         if (navRuntimeLogs) navRuntimeLogs.classList.add('active');
         if (navDeployment) navDeployment.classList.remove('active');
+        if (navInbox) navInbox.classList.remove('active');
         if (viewDeployment) viewDeployment.style.display = 'none';
+        if (viewInbox) viewInbox.style.display = 'none';
         if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'block';
         if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Runtime Logs & Telemetry';
+        stopInboxPolling();
         fetchRuntimeLogs(true);
         startLogPolling();
+      } else if (targetView === 'inbox') {
+        if (navInbox) navInbox.classList.add('active');
+        if (navDeployment) navDeployment.classList.remove('active');
+        if (navRuntimeLogs) navRuntimeLogs.classList.remove('active');
+        if (viewDeployment) viewDeployment.style.display = 'none';
+        if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'none';
+        if (viewInbox) viewInbox.style.display = 'block';
+        if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Live Support Inbox';
+        stopLogPolling();
+        fetchInboxSessions(false);
+        startInboxPolling();
       } else {
         if (navDeployment) navDeployment.classList.add('active');
         if (navRuntimeLogs) navRuntimeLogs.classList.remove('active');
+        if (navInbox) navInbox.classList.remove('active');
         if (viewDeployment) viewDeployment.style.display = 'block';
         if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'none';
+        if (viewInbox) viewInbox.style.display = 'none';
         if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Control Panel';
         stopLogPolling();
+        stopInboxPolling();
       }
     }
 
@@ -2046,9 +2397,19 @@
       });
     }
 
+    if (navInbox) {
+      navInbox.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.hash = '#inbox';
+        switchView('inbox');
+      });
+    }
+
     window.addEventListener('hashchange', () => {
       if (window.location.hash === '#logs') {
         switchView('logs');
+      } else if (window.location.hash === '#inbox') {
+        switchView('inbox');
       } else {
         switchView('deployment');
       }
@@ -2057,6 +2418,8 @@
     // Check initial hash
     if (window.location.hash === '#logs') {
       switchView('logs');
+    } else if (window.location.hash === '#inbox') {
+      switchView('inbox');
     }
 
     // Stream Pause/Resume Toggle

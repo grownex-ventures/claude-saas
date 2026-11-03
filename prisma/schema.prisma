@@ -29,10 +29,11 @@ model Tenant {
   widgetApiKey       String?            // AES-256 encrypted catalog API key for public visitor queries
   widgetTitle        String?            @default("Customer Support")
   widgetWelcomeMessage String?          @default("Hello! How can we help you today? Ask about our services, pricing, or order tracking.")
-  widgetAccentColor  String?            @default("#ea580c")
+  widgetAccentColor  String?            @default("#4f46e5")
   widgetEnabled      Boolean            @default(true)
   webChatSessions    WebChatSession[]
   auditLogs          AuditLog[]
+  passwordResetTokens PasswordResetToken[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
@@ -100,4 +101,31 @@ model AuditLog {
 
   @@index([tenantId, createdAt])
 }
+
+model LeadRequest {
+  id            String   @id @default(uuid())
+  email         String
+  panelUrl      String
+  contactNumber String
+  message       String?
+  status        String   @default("NEW") // 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'DISMISSED'
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  used       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([tokenHash, expiresAt])
+}
+
 

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { WidgetService, widgetService } from './widget.service.js';
+import { tenantAccessMiddleware, AuthenticatedRequest } from '../common/middleware/tenant-access.middleware.js';
 
 export const widgetChatLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -108,6 +109,51 @@ export class WidgetController {
         res.status(200).json(history);
       } catch (err: any) {
         res.status(500).json({ error: err.message || 'Failed to load chat history' });
+      }
+    });
+
+    // ---------------------------------------------------------------------
+    // Tenant Operator Live Chat Inbox Endpoints (Authenticated)
+    // ---------------------------------------------------------------------
+    // GET /api/widget/admin/sessions
+    this.router.get('/admin/sessions', tenantAccessMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const sessions = await this.service.getAdminSessions(tenantId);
+        res.status(200).json({ success: true, sessions });
+      } catch (err: any) {
+        res.status(500).json({ success: false, error: err.message || 'Failed to fetch chat sessions' });
+      }
+    });
+
+    // GET /api/widget/admin/session/:sessionId
+    this.router.get('/admin/session/:sessionId', tenantAccessMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { sessionId } = req.params;
+        const transcript = await this.service.getAdminSessionTranscript(tenantId, sessionId);
+        res.status(200).json({ success: true, ...transcript });
+      } catch (err: any) {
+        const status = err.message?.includes('not found') ? 404 : 500;
+        res.status(status).json({ success: false, error: err.message || 'Failed to fetch session transcript' });
+      }
+    });
+
+    // POST /api/widget/admin/reply
+    this.router.post('/admin/reply', tenantAccessMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { sessionId, message } = req.body || {};
+        if (!sessionId || !message) {
+          res.status(400).json({ success: false, error: 'sessionId and message are required' });
+          return;
+        }
+
+        const reply = await this.service.sendAdminReply(tenantId, sessionId, message);
+        res.status(201).json({ success: true, message: reply });
+      } catch (err: any) {
+        const status = err.message?.includes('not found') ? 404 : 400;
+        res.status(status).json({ success: false, error: err.message || 'Failed to send reply' });
       }
     });
   }

@@ -1,0 +1,9 @@
+node_modules
+landing/node_modules
+dist
+landing/dist
+.git
+.env
+tests
+*.log
+.DS_Store

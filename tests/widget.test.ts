@@ -147,7 +147,7 @@ describe('Public SMM Website Widget Suite', () => {
     vi.spyOn(prisma.webChatMessage, 'create').mockResolvedValue({} as any);
 
     vi.spyOn(SmmProviderClient.prototype, 'getOrderStatus').mockResolvedValueOnce({
-      charge: 0,
+      charge: '0',
       start_count: 0,
       status: 'Completed',
       remains: 0,
@@ -240,5 +240,127 @@ describe('Public SMM Website Widget Suite', () => {
     const delSpy = vi.spyOn(redis, 'del').mockResolvedValueOnce(1);
     await service.invalidateCatalogCache(testTenantId);
     expect(delSpy).toHaveBeenCalledWith(`tenant:${testTenantId}:catalog:services`);
+  });
+});
+
+describe('Tenant Live Support Operator Inbox (Component 3)', () => {
+  const service = new WidgetService();
+  const testTenantId = 'tenant-operator-test';
+  const testSessionId = 'sess-visitor-999';
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('getAdminSessions groups and returns active sessions for tenant', async () => {
+    const rawSessions = [
+      {
+        sessionId: 'sess-2',
+        createdAt: new Date('2026-11-03T11:00:00Z'),
+        updatedAt: new Date('2026-11-03T11:05:00Z'),
+        messages: [{ content: 'Do you offer bulk discounts?' }],
+        _count: { messages: 1 }
+      },
+      {
+        sessionId: 'sess-1',
+        createdAt: new Date('2026-11-03T10:00:00Z'),
+        updatedAt: new Date('2026-11-03T10:02:00Z'),
+        messages: [{ content: 'Your order is currently in progress.' }],
+        _count: { messages: 2 }
+      }
+    ];
+
+    vi.spyOn(prisma.webChatSession, 'findMany').mockResolvedValueOnce(rawSessions as any);
+
+    const sessions = await service.getAdminSessions(testTenantId);
+
+    expect(sessions.length).toBe(2);
+    expect(sessions[0].sessionId).toBe('sess-2');
+    expect(sessions[0].lastMessage).toBe('Do you offer bulk discounts?');
+    expect(sessions[0].messageCount).toBe(1);
+
+    expect(sessions[1].sessionId).toBe('sess-1');
+    expect(sessions[1].lastMessage).toBe('Your order is currently in progress.');
+    expect(sessions[1].messageCount).toBe(2);
+  });
+
+  it('getAdminSessionTranscript throws 404 if session does not exist for tenant', async () => {
+    vi.spyOn(prisma.webChatSession, 'findUnique').mockResolvedValueOnce(null);
+
+    await expect(service.getAdminSessionTranscript(testTenantId, 'unknown-sess')).rejects.toThrow(
+      'Session not found or belongs to another tenant'
+    );
+  });
+
+  it('getAdminSessionTranscript returns messages ordered chronologically', async () => {
+    const sessionObj = {
+      sessionId: testSessionId,
+      createdAt: new Date(),
+      messages: [
+        { id: 'm1', role: 'user', content: 'Hello', createdAt: new Date() },
+        { id: 'm2', role: 'assistant', content: 'Hi there!', createdAt: new Date() }
+      ]
+    };
+
+    vi.spyOn(prisma.webChatSession, 'findUnique').mockResolvedValueOnce(sessionObj as any);
+
+    const transcript = await service.getAdminSessionTranscript(testTenantId, testSessionId);
+
+    expect(transcript.sessionId).toBe(testSessionId);
+    expect(transcript.messages).toHaveLength(2);
+    expect(transcript.messages[0].message).toBe('Hello');
+  });
+
+  it('sendAdminReply rejects empty reply message', async () => {
+    await expect(service.sendAdminReply(testTenantId, testSessionId, '   ')).rejects.toThrow(
+      'Reply message cannot be empty'
+    );
+  });
+
+  it('sendAdminReply throws 404 if tenant has no messages for that session', async () => {
+    vi.spyOn(prisma.webChatSession, 'findUnique').mockResolvedValueOnce(null);
+
+    await expect(service.sendAdminReply(testTenantId, testSessionId, 'Hello visitor!')).rejects.toThrow(
+      'Session not found or belongs to another tenant'
+    );
+  });
+
+  it('sendAdminReply successfully persists assistant operator reply', async () => {
+    vi.spyOn(prisma.webChatSession, 'findUnique').mockResolvedValueOnce({
+      id: 'session-id-1',
+      tenantId: testTenantId,
+      sessionId: testSessionId
+    } as any);
+
+    vi.spyOn(prisma.webChatSession, 'update').mockResolvedValueOnce({} as any);
+
+    const createdReply = {
+      id: 'reply-msg-1',
+      sessionId: testSessionId,
+      role: 'assistant',
+      content: 'Hello! I am a human agent assisting you now.',
+      createdAt: new Date()
+    };
+
+    const createSpy = vi.spyOn(prisma.webChatMessage, 'create').mockResolvedValueOnce(createdReply as any);
+
+    const result = await service.sendAdminReply(
+      testTenantId,
+      testSessionId,
+      'Hello! I am a human agent assisting you now.'
+    );
+
+    expect(result.id).toBe('reply-msg-1');
+    expect(result.role).toBe('assistant');
+    expect(result.message).toBe('Hello! I am a human agent assisting you now.');
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sessionId: testSessionId,
+          role: 'assistant',
+          content: 'Hello! I am a human agent assisting you now.'
+        })
+      })
+    );
   });
 });

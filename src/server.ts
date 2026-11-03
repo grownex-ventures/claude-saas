@@ -8,6 +8,7 @@ import swaggerUi from 'swagger-ui-express';
 import { tenantsController } from './tenants/tenants.controller.js';
 import { widgetController } from './widget/widget.controller.js';
 import { authController } from './auth/auth.controller.js';
+import { leadsRouter } from './leads/leads.router.js';
 import { BotManagerService } from './bot-engine/bot-manager.service.js';
 import { WhatsAppBotManagerService } from './whatsapp-engine/whatsapp-bot-manager.service.js';
 import { prisma } from './common/database/prisma.js';
@@ -97,6 +98,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// Serve modern React 18 landing page when compiled in landing/dist
+const landingDist = path.join(process.cwd(), 'landing', 'dist');
+if (fs.existsSync(landingDist)) {
+  app.use(express.static(landingDist));
+  app.get('/', (_req, res) => {
+    res.sendFile(path.join(landingDist, 'index.html'));
+  });
+}
+
 // Separate page slugs for UI
 app.get('/login', (_req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'login.html'));
@@ -110,9 +120,42 @@ app.get('/dashboard', (_req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'dashboard.html'));
 });
 
-// Liveness / health endpoint
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+app.get('/reset-password', (_req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'reset-password.html'));
+});
+
+// Deep Health Check endpoint (checks Postgres and Redis connections)
+app.get('/health', async (_req, res) => {
+  let dbStatus = 'healthy';
+  let redisStatus = 'healthy';
+  let isHealthy = true;
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (_err) {
+    dbStatus = 'unhealthy';
+    isHealthy = false;
+  }
+
+  try {
+    const pong = await redis.ping();
+    if (pong !== 'PONG') {
+      redisStatus = 'unhealthy';
+      isHealthy = false;
+    }
+  } catch (_err) {
+    redisStatus = 'unhealthy';
+    isHealthy = false;
+  }
+
+  const statusCode = isHealthy ? 200 : 503;
+  res.status(statusCode).json({
+    status: isHealthy ? 'ok' : 'degraded',
+    database: dbStatus,
+    redis: redisStatus,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Swagger UI OpenAPI 3.1 Documentation (API-01)
@@ -140,6 +183,7 @@ app.use('/api/v1/auth/signup', authLimiter);
 app.use('/api/v1/auth', authController.router);
 app.use('/api/v1/tenants', tenantsController.router);
 app.use('/api/v1/widget', widgetController.router);
+app.use('/api/v1/leads', leadsRouter);
 app.post('/api/v1/telegram/webhook/:tenantId', async (req, res) => {
   const tenantId = req.params.tenantId;
   const secretHeader = req.headers['x-telegram-bot-api-secret-token'] as string;
@@ -162,6 +206,7 @@ app.use('/api/auth/signup', authLimiter);
 app.use('/api/auth', authController.router);
 app.use('/api/tenants', tenantsController.router);
 app.use('/api/widget', widgetController.router);
+app.use('/api/leads', leadsRouter);
 app.post('/api/telegram/webhook/:tenantId', async (req, res) => {
   const tenantId = req.params.tenantId;
   const secretHeader = req.headers['x-telegram-bot-api-secret-token'] as string;

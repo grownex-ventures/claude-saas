@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "build:all": "tsc && npm run landing:build",
     "start": "node dist/src/server.js",
     "dev": "tsx watch --env-file=.env src/server.ts",
     "landing:dev": "npm --prefix landing run dev",
