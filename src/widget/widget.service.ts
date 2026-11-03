@@ -55,7 +55,7 @@ export class WidgetService {
       welcome:
         tenant.widgetWelcomeMessage ||
         'Hello! How can we help you today? Ask about our services, pricing, or order tracking.',
-      accent: tenant.widgetAccentColor || '#ea580c',
+      accent: tenant.widgetAccentColor || '#4f46e5',
       hasCatalogKey: Boolean(tenant.widgetApiKey)
     };
   }
@@ -188,7 +188,7 @@ export class WidgetService {
         take: 6
       });
 
-      const history = recentMessages.reverse().map((m) => ({
+      const history = [...recentMessages].reverse().map((m) => ({
         role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
         content: m.content
       }));
@@ -225,7 +225,7 @@ export class WidgetService {
             `• **Status:** ${order.status || 'Pending'}\n` +
             `• **Start Count:** ${order.start_count ?? 'N/A'}\n` +
             `• **Remains:** ${order.remains ?? 'N/A'}\n` +
-            `• **Charge:** ${order.charge ? `${order.charge} ${order.currency || ''}` : 'N/A'}`;
+            `• **Charge:** ${order.charge !== undefined && order.charge !== null ? `${order.charge} ${order.currency || ''}`.trim() : 'N/A'}`;
         } catch (err: any) {
           reply = `❌ Could not retrieve status for Order #${orderId}: ${err.message || 'Please check order number.'}`;
         }
@@ -355,14 +355,17 @@ export class WidgetService {
         }
       },
       orderBy: {
-        createdAt: 'asc'
+        createdAt: 'desc'
       },
       take: limit
     });
 
+    // Reverse to return chronological order (oldest to newest) to the visitor
+    const chronological = [...messages].reverse();
+
     return {
       sessionId,
-      history: messages.map((m) => ({
+      history: chronological.map((m) => ({
         id: m.id,
         role: m.role,
         content: m.content,

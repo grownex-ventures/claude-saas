@@ -783,7 +783,18 @@
 
   closeBtn.addEventListener('click', function () {
     toggleChat(false);
+    launcher.focus();
   });
+
+  // Dismiss dialog on Escape key (W3C WAI-ARIA modal dialog pattern)
+  function handleKeyDown(e) {
+    if (isChatOpen && (e.key === 'Escape' || e.key === 'Esc')) {
+      toggleChat(false);
+      launcher.focus();
+    }
+  }
+  document.addEventListener('keydown', handleKeyDown);
+  shadow.addEventListener('keydown', handleKeyDown);
 
   // Quick Action Chips
   var chips = shadow.querySelectorAll('.chip-btn');

@@ -82,8 +82,8 @@ export class WidgetController {
           res.status(400).json({ error: 'Invalid input: Null bytes are not permitted' });
           return;
         }
-        if (message.length > 4096) {
-          res.status(400).json({ error: 'Message payload too large (maximum 4096 characters)' });
+        if (message.length > 2000) {
+          res.status(400).json({ error: 'Message payload too large (maximum 2000 characters)' });
           return;
         }
 

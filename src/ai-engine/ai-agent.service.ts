@@ -352,7 +352,7 @@ When a user asks to track an order, search services, or check balance, use the a
             `• **Status:** ${order.status || 'Pending'}\n` +
             `• **Start Count:** ${order.start_count ?? 'N/A'}\n` +
             `• **Remains:** ${order.remains ?? 'N/A'}\n` +
-            `• **Charge:** ${order.charge ? `${order.charge} ${order.currency || ''}` : 'N/A'}`
+            `• **Charge:** ${order.charge !== undefined && order.charge !== null ? `${order.charge} ${order.currency || ''}`.trim() : 'N/A'}`
           );
         } catch (err: any) {
           return `❌ Could not retrieve status for Order #${orderId}: ${err.message || 'Please check order number.'}`;

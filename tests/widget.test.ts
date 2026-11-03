@@ -39,6 +39,20 @@ describe('Public SMM Website Widget Suite', () => {
     expect((cfg as any).widgetApiKey).toBeUndefined();
   });
 
+  it('getTenantWidgetConfig falls back to YourSMMagent indigo #4f46e5 when accent is not configured', async () => {
+    vi.spyOn(prisma.tenant, 'findUnique').mockResolvedValueOnce({
+      id: testTenantId,
+      subscriptionStatus: 'ACTIVE',
+      widgetEnabled: true,
+      widgetAccentColor: null,
+      panelApiUrl: 'https://panel.example.com/api/v2'
+    } as any);
+
+    const cfg = await service.getTenantWidgetConfig(testTenantId);
+    expect(cfg.enabled).toBe(true);
+    expect(cfg.accent).toBe('#4f46e5');
+  });
+
   it('rejects empty messages with validation error', async () => {
     await expect(service.handleChatMessage(testTenantId, 'sess_12345678', '   ')).rejects.toThrow(
       'Message cannot be empty.'
@@ -114,23 +128,53 @@ describe('Public SMM Website Widget Suite', () => {
     expect(result.reply).toContain('Order #99881 Details:');
     expect(result.reply).toContain('In progress');
     expect(result.reply).toContain('**Remains:** 80');
+    expect(result.reply).toContain('**Charge:** 1.70 USD');
+  });
+
+  it('handles zero charge on order status without showing N/A', async () => {
+    const rawKey = 'admin_demo_catalog_key';
+    const encKey = encrypt(rawKey);
+
+    vi.spyOn(prisma.tenant, 'findUnique').mockResolvedValueOnce({
+      id: testTenantId,
+      subscriptionStatus: 'ACTIVE',
+      widgetEnabled: true,
+      widgetApiKey: encKey,
+      panelApiUrl: 'https://mypanel.example.com/api/v2'
+    } as any);
+
+    vi.spyOn(prisma.webChatSession, 'upsert').mockResolvedValueOnce({} as any);
+    vi.spyOn(prisma.webChatMessage, 'create').mockResolvedValue({} as any);
+
+    vi.spyOn(SmmProviderClient.prototype, 'getOrderStatus').mockResolvedValueOnce({
+      charge: 0,
+      start_count: 0,
+      status: 'Completed',
+      remains: 0,
+      currency: 'USD'
+    });
+
+    const result = await service.handleChatMessage(testTenantId, 'sess_visitor_zero', 'status 10001');
+    expect(result.reply).toContain('Order #10001 Details:');
+    expect(result.reply).toContain('**Charge:** 0 USD');
   });
 
   it('retrieves ordered conversation history for a session', async () => {
+    // findMany queries with orderBy: { createdAt: 'desc' }, so newest message is first in DB result
     vi.spyOn(prisma.webChatMessage, 'findMany').mockResolvedValueOnce([
-      {
-        id: '1',
-        sessionId: 'sess_1',
-        role: 'user',
-        content: 'Hi',
-        createdAt: new Date('2026-11-01T10:00:00Z')
-      },
       {
         id: '2',
         sessionId: 'sess_1',
         role: 'assistant',
         content: 'Hello! How can we help?',
         createdAt: new Date('2026-11-01T10:00:01Z')
+      },
+      {
+        id: '1',
+        sessionId: 'sess_1',
+        role: 'user',
+        content: 'Hi',
+        createdAt: new Date('2026-11-01T10:00:00Z')
       }
     ] as any);
 
