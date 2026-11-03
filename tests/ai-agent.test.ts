@@ -11,15 +11,21 @@ describe('AI Customer Support Agent Engine', () => {
 
   describe('Universal Multi-Provider Client', () => {
     it('initializes with default OpenRouter config when no provider specified', () => {
-      const client = new AiProviderClient();
-      const cfg = client.getConfig();
-      expect(cfg.provider).toBe('openrouter');
-      expect(cfg.model).toContain('gemini');
+      const origProvider = process.env.AI_PROVIDER;
+      delete process.env.AI_PROVIDER;
+      try {
+        const client = new AiProviderClient();
+        const cfg = client.getConfig();
+        expect(cfg.provider).toBe('openrouter');
+        expect(cfg.model).toContain('gemini');
+      } finally {
+        if (origProvider) process.env.AI_PROVIDER = origProvider;
+      }
     });
 
     it('correctly maps default models for each supported AI provider without restriction', () => {
       const providers = [
-        { name: 'gemini', expectedModel: 'gemini-2.0-flash' },
+        { name: 'gemini', expectedModel: 'gemini-flash-lite-latest' },
         { name: 'openai', expectedModel: 'gpt-4o-mini' },
         { name: 'anthropic', expectedModel: 'claude-3-5-haiku-20241022' },
         { name: 'nvidia', expectedModel: 'meta/llama-3.1-70b-instruct' },
@@ -49,6 +55,7 @@ describe('AI Customer Support Agent Engine', () => {
 
   describe('AiAgentService', () => {
     const mockTenantId = 'tenant-ai-test-123';
+    const testAiClient = new AiProviderClient({ apiKey: '' });
     const mockServices = [
       { service: 101, name: 'Instagram Real Active Followers [30D Refill]', category: 'Instagram Followers', rate: '1.50', min: '100', max: '50000' },
       { service: 202, name: 'YouTube 4K High Retention Views', category: 'YouTube Views', rate: '2.80', min: '500', max: '1000000' },
@@ -71,7 +78,7 @@ describe('AI Customer Support Agent Engine', () => {
       vi.spyOn(redis, 'get').mockResolvedValue(null);
       vi.spyOn(redis, 'setex').mockResolvedValue('OK');
 
-      const agent = new AiAgentService();
+      const agent = new AiAgentService(testAiClient);
       const reply = await agent.generateReply({
         tenantId: mockTenantId,
         message: 'What are your Instagram follower options?',
@@ -93,7 +100,7 @@ describe('AI Customer Support Agent Engine', () => {
       const cachedResponse = '⚡ Instant Cached Reply: Instagram followers start at $1.50/1k with 30-day refill.';
       vi.spyOn(redis, 'get').mockResolvedValue(cachedResponse);
 
-      const agent = new AiAgentService();
+      const agent = new AiAgentService(testAiClient);
       const reply = await agent.generateReply({
         tenantId: mockTenantId,
         message: 'What are your Instagram follower options?',
@@ -115,7 +122,7 @@ describe('AI Customer Support Agent Engine', () => {
       vi.spyOn(redis, 'get').mockResolvedValue(null);
       vi.spyOn(redis, 'setex').mockResolvedValue('OK');
 
-      const agent = new AiAgentService();
+      const agent = new AiAgentService(testAiClient);
       const reply = await agent.generateReply({
         tenantId: mockTenantId,
         message: 'Can you track status for order 987654?',
@@ -137,7 +144,7 @@ describe('AI Customer Support Agent Engine', () => {
       vi.spyOn(redis, 'get').mockResolvedValue(null);
       vi.spyOn(redis, 'setex').mockResolvedValue('OK');
 
-      const agent = new AiAgentService();
+      const agent = new AiAgentService(testAiClient);
       const reply = await agent.generateReply({
         tenantId: mockTenantId,
         message: 'Hello!',

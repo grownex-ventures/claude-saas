@@ -9,11 +9,17 @@ const IV_LENGTH = 12; // 12 bytes recommended for GCM
  */
 function getMasterKey(): Buffer {
   const envKey = process.env.ENCRYPTION_KEY;
-  if (envKey && envKey.length === 64) {
+  if (envKey && envKey.length === 64 && /^[0-9a-fA-F]{64}$/.test(envKey)) {
     return Buffer.from(envKey, 'hex');
   }
-  const secret = process.env.JWT_SECRET || 'prashant_cloud_super_secret_jwt_key_2026_xyz987';
-  return crypto.createHash('sha256').update(secret).digest();
+  const secret = process.env.JWT_SECRET;
+  if (secret && secret.length >= 32) {
+    return crypto.createHash('sha256').update(secret).digest();
+  }
+  if (process.env.NODE_ENV === 'test') {
+    return crypto.createHash('sha256').update('test_deterministic_secret_key_for_unit_tests').digest();
+  }
+  throw new Error('ENCRYPTION_KEY (64-character hex string / 32 bytes) or JWT_SECRET (minimum 32 characters) must be configured in environment.');
 }
 
 /**

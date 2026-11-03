@@ -47,14 +47,24 @@ export class TenantsService {
 
     // Validate bot token with Telegram getMe API
     let getMeData: any = null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     try {
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+      const response = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, {
+        signal: controller.signal
+      });
       getMeData = await response.json();
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.warn(`[TenantsService] Telegram getMe validation timed out after 8s for token: ${botToken.slice(0, 10)}...`);
+      }
       // In offline / testing environments without Telegram connectivity, pass if token follows format
       if (!botToken.includes(':') && !process.env.TEST_MODE) {
         throw new Error(`Telegram getMe validation failed: ${err.message}`);
       }
+    } finally {
+      clearTimeout(timeout);
     }
 
     if (getMeData && !getMeData.ok) {

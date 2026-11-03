@@ -84,7 +84,7 @@ export class AiProviderClient {
   private getDefaultModel(provider: string): string {
     switch (provider) {
       case 'gemini':
-        return 'gemini-2.0-flash';
+        return 'gemini-flash-lite-latest';
       case 'openai':
         return 'gpt-4o-mini';
       case 'anthropic':
@@ -164,7 +164,7 @@ export class AiProviderClient {
    * Generates a chat completion using the configured provider.
    */
   async generateCompletion(request: AiCompletionRequest): Promise<AiCompletionResponse> {
-    if (!this.isConfigured()) {
+    if (!this.isConfigured() || process.env.NODE_ENV === 'test') {
       return this.fallbackCompletion(request);
     }
 

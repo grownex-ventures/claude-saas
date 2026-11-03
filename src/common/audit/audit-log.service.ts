@@ -68,6 +68,13 @@ export class AuditLogService {
         details: sanitizedMeta
       }).catch(() => {});
     } catch (err: any) {
+      if (err?.code === 'P2003') {
+        // Foreign key constraint: tenant record does not exist in PostgreSQL (e.g. mock test tenant or already deleted)
+        if (process.env.NODE_ENV !== 'test') {
+          console.warn(`[AuditLogService] Skipped audit log for non-existent tenant ${input.tenantId} (${input.action})`);
+        }
+        return;
+      }
       console.error(`[AuditLogService] Failed to record audit log for tenant ${input.tenantId} (${input.action}):`, err);
     }
   }

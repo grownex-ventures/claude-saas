@@ -1,3 +1,4 @@
+import './common/env.js';
 import express, { Express } from 'express';
 import type { Server } from 'http';
 import path from 'path';
