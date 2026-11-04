@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/global.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     .alert {
       display: none;
@@ -318,10 +319,81 @@
     const eyeConfirmIcon = document.getElementById('eyeConfirmIcon');
     const googleSignupBtn = document.getElementById('googleSignupBtn');
 
+    // Google Sign-In Integration
+    async function submitGoogleCredential(credential) {
+      alertBox.style.display = 'none';
+      try {
+        const res = await fetch('/api/v1/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Google sign-up failed');
+        }
+
+        if (data.token) {
+          localStorage.setItem('supportbot_token', data.token);
+        }
+        if (data.tenant) {
+          localStorage.setItem('supportbot_user', JSON.stringify(data.tenant));
+        }
+        if (data.csrfToken) {
+          localStorage.setItem('supportbot_csrf', data.csrfToken);
+        }
+
+        alertBox.textContent = '🎉 Account created with Google! Redirecting...';
+        alertBox.className = 'alert alert-success';
+        alertBox.style.display = 'block';
+
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 800);
+      } catch (err) {
+        alertBox.textContent = err.message || 'Google sign-up failed.';
+        alertBox.className = 'alert alert-error';
+        alertBox.style.display = 'block';
+      }
+    }
+
+    let dynamicGoogleClientId = '';
+    async function initAuthConfig() {
+      try {
+        const res = await fetch('/api/auth/config');
+        if (res.ok) {
+          const cfg = await res.json();
+          dynamicGoogleClientId = cfg.googleClientId || '';
+          if (dynamicGoogleClientId && window.google?.accounts?.id) {
+            window.google.accounts.id.initialize({
+              client_id: dynamicGoogleClientId,
+              callback: (response) => submitGoogleCredential(response.credential)
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Could not fetch public auth config:', e);
+      }
+    }
+
+    window.onload = function() {
+      initAuthConfig();
+    };
+
     googleSignupBtn.addEventListener('click', () => {
-      alertBox.textContent = 'Google sign-up is enabled in production. Please create your account with work email below.';
-      alertBox.className = 'alert alert-error';
-      alertBox.style.display = 'block';
+      if (dynamicGoogleClientId && window.google?.accounts?.id && window.google.accounts.id.prompt) {
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            alertBox.textContent = 'Google One-Tap dialog prompt was closed or not displayed. Please check your browser third-party sign-in settings.';
+            alertBox.className = 'alert alert-error';
+            alertBox.style.display = 'block';
+          }
+        });
+      } else {
+        alertBox.textContent = 'Google Sign-In is not configured yet. Configure GOOGLE_CLIENT_ID in the Super Admin dashboard.';
+        alertBox.className = 'alert alert-error';
+        alertBox.style.display = 'block';
+      }
     });
 
     function setupToggle(btn, input, icon) {
@@ -429,13 +501,13 @@
           localStorage.setItem('supportbot_csrf', data.csrfToken);
         }
 
-        alertBox.textContent = '🎉 Account created! Redirecting to your dashboard...';
+        alertBox.textContent = '🎉 Account created! We have sent a verification email to your inbox. Redirecting to your dashboard...';
         alertBox.className = 'alert alert-success';
         alertBox.style.display = 'block';
 
         setTimeout(() => {
           window.location.href = '/dashboard';
-        }, 800);
+        }, 1200);
       } catch (err) {
         alertBox.textContent = err.message || 'Signup failed. Please try again.';
         alertBox.className = 'alert alert-error';

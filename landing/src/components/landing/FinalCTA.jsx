@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { APP_URL } from "@/lib/site";
+import { SIGNUP_URL } from "@/lib/site";
 import Reveal from "./Reveal";
 
 export default function FinalCTA() {
@@ -30,9 +30,8 @@ export default function FinalCTA() {
                             </p>
                             <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
                                 <a
-                                    href={APP_URL}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    href={SIGNUP_URL}
+                                    target="_self"
                                     data-testid="final-cta-get-started-button"
                                     className="group inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-3.5 text-base font-semibold text-indigo-700 shadow-[0_14px_36px_-12px_rgba(0,0,0,0.35)] transition-all duration-200 hover:bg-indigo-50 active:scale-[0.98]"
                                 >

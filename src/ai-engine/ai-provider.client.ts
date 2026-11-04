@@ -161,6 +161,23 @@ export class AiProviderClient {
   }
 
   /**
+   * Reload configuration at runtime without server restart.
+   */
+  reloadConfig(newConfig: Partial<AiProviderConfig>) {
+    const rawProvider = (newConfig.provider || this.config.provider).toLowerCase().trim();
+    this.config = {
+      ...this.config,
+      ...newConfig,
+      provider: rawProvider,
+      model: newConfig.model || (newConfig.provider ? this.getDefaultModel(rawProvider) : this.config.model)
+    };
+    this.anthropicClient = null;
+    this.openaiClient = null;
+    this.initClients();
+    console.log(`[AiProviderClient] Dynamic config reloaded: provider=${this.config.provider}, model=${this.config.model}, apiKey=${this.config.apiKey ? 'configured' : 'none'}`);
+  }
+
+  /**
    * Generates a chat completion using the configured provider.
    */
   async generateCompletion(request: AiCompletionRequest): Promise<AiCompletionResponse> {

@@ -1,0 +1,89 @@
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../common/database/prisma.js';
+
+export interface AdminPayload {
+  id: string;
+  email: string;
+  name: string;
+  role: 'superadmin';
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      admin?: AdminPayload;
+    }
+  }
+}
+
+export function getAdminJwtSecret(): string {
+  const secret = process.env.ADMIN_JWT_SECRET || (process.env.JWT_SECRET ? `${process.env.JWT_SECRET}_admin` : '');
+  if (!secret || secret.length < 32) {
+    if (process.env.NODE_ENV === 'test') {
+      return 'super_admin_test_secret_key_minimum_32_chars';
+    }
+    throw new Error('ADMIN_JWT_SECRET or JWT_SECRET must be configured with at least 32 characters');
+  }
+  return secret;
+}
+
+/**
+ * Super Admin Authentication Guard
+ * Validates admin JWT from HTTP-only cookie 'admin_token' or 'Authorization: Bearer <token>'
+ */
+export async function adminAuthGuard(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    let token: string | undefined;
+
+    // 1. Check HTTP-only cookie
+    if (req.cookies && req.cookies.admin_token) {
+      token = req.cookies.admin_token;
+    }
+
+    // 2. Check Authorization header
+    if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      token = req.headers.authorization.slice(7).trim();
+    }
+
+    if (!token) {
+      res.status(401).json({ error: 'Super Admin authentication required', code: 'ADMIN_UNAUTHORIZED' });
+      return;
+    }
+
+    const secret = getAdminJwtSecret();
+    const decoded = jwt.verify(token, secret) as AdminPayload;
+
+    if (!decoded || !decoded.id || decoded.role !== 'superadmin') {
+      res.status(401).json({ error: 'Invalid admin token claims', code: 'ADMIN_INVALID_TOKEN' });
+      return;
+    }
+
+    // Verify admin still exists in database
+    const adminUser = await prisma.adminUser.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, email: true, name: true }
+    });
+
+    if (!adminUser) {
+      res.status(401).json({ error: 'Admin account not found', code: 'ADMIN_NOT_FOUND' });
+      return;
+    }
+
+    req.admin = {
+      id: adminUser.id,
+      email: adminUser.email,
+      name: adminUser.name,
+      role: 'superadmin'
+    };
+
+    next();
+  } catch (err: any) {
+    if (err.name === 'TokenExpiredError') {
+      res.status(401).json({ error: 'Admin session expired, please log in again', code: 'ADMIN_TOKEN_EXPIRED' });
+      return;
+    }
+    res.status(401).json({ error: 'Invalid admin session', code: 'ADMIN_UNAUTHORIZED' });
+  }
+}
+

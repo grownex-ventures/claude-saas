@@ -8,6 +8,8 @@ import swaggerUi from 'swagger-ui-express';
 import { tenantsController } from './tenants/tenants.controller.js';
 import { widgetController } from './widget/widget.controller.js';
 import { authController } from './auth/auth.controller.js';
+import { adminController } from './admin/admin.controller.js';
+import { billingController } from './billing/billing.controller.js';
 import { leadsRouter } from './leads/leads.router.js';
 import { BotManagerService } from './bot-engine/bot-manager.service.js';
 import { WhatsAppBotManagerService } from './whatsapp-engine/whatsapp-bot-manager.service.js';
@@ -35,11 +37,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/client"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com/gsi/style"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
+        frameSrc: ["'self'", "https://accounts.google.com/gsi/"],
+        connectSrc: ["'self'", "https://accounts.google.com/gsi/"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],
       },
@@ -96,16 +99,31 @@ app.use(compression());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
 
-// Serve modern React 18 landing page when compiled in landing/dist
+// Subdomain-aware root handler: app.yoursmmagent.com -> /login, yoursmmagent.com -> landing page
 const landingDist = path.join(process.cwd(), 'landing', 'dist');
+
+app.get('/', (req, res) => {
+  const host = (req.headers.host || '').toLowerCase();
+  if (host.startsWith('app.') || host.includes('app.yoursmmagent.com')) {
+    if (req.cookies && req.cookies.auth_token) {
+      return res.redirect('/dashboard');
+    }
+    return res.redirect('/login');
+  }
+
+  if (fs.existsSync(landingDist)) {
+    return res.sendFile(path.join(landingDist, 'index.html'));
+  }
+  return res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+});
+
 if (fs.existsSync(landingDist)) {
   app.use(express.static(landingDist));
-  app.get('/', (_req, res) => {
-    res.sendFile(path.join(landingDist, 'index.html'));
-  });
 }
+
+// Serve public static assets (disabling automatic index.html)
+app.use(express.static('public', { index: false }));
 
 // Separate page slugs for UI
 app.get('/login', (_req, res) => {
@@ -122,6 +140,14 @@ app.get('/dashboard', (_req, res) => {
 
 app.get('/reset-password', (_req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'reset-password.html'));
+});
+
+app.get('/verify-email', (_req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'verify-email.html'));
+});
+
+app.get('/admin', (_req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'admin.html'));
 });
 
 // Deep Health Check endpoint (checks Postgres and Redis connections)
@@ -180,10 +206,16 @@ if (process.env.SWAGGER_ENABLED !== 'false') {
 app.use('/api/v1', apiLimiter);
 app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/signup', authLimiter);
+app.use('/api/v1/auth/google', authLimiter);
+app.use('/api/v1/auth/mfa/verify-login', authLimiter);
+app.use('/api/v1/auth/resend-verification', authLimiter);
+app.use('/api/v1/auth/forgot-password', authLimiter);
 app.use('/api/v1/auth', authController.router);
 app.use('/api/v1/tenants', tenantsController.router);
 app.use('/api/v1/widget', widgetController.router);
 app.use('/api/v1/leads', leadsRouter);
+app.use('/api/v1/admin', adminController.router);
+app.use('/api/v1/billing', billingController.router);
 app.post('/api/v1/telegram/webhook/:tenantId', async (req, res) => {
   const tenantId = req.params.tenantId;
   const secretHeader = req.headers['x-telegram-bot-api-secret-token'] as string;
@@ -203,10 +235,16 @@ app.post('/api/v1/telegram/webhook/:tenantId', async (req, res) => {
 app.use('/api', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/signup', authLimiter);
+app.use('/api/auth/google', authLimiter);
+app.use('/api/auth/mfa/verify-login', authLimiter);
+app.use('/api/auth/resend-verification', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth', authController.router);
 app.use('/api/tenants', tenantsController.router);
 app.use('/api/widget', widgetController.router);
 app.use('/api/leads', leadsRouter);
+app.use('/api/admin', adminController.router);
+app.use('/api/billing', billingController.router);
 app.post('/api/telegram/webhook/:tenantId', async (req, res) => {
   const tenantId = req.params.tenantId;
   const secretHeader = req.headers['x-telegram-bot-api-secret-token'] as string;
@@ -225,8 +263,8 @@ export async function bootstrap(): Promise<{
   botManager: BotManagerService;
   whatsAppBotManager: WhatsAppBotManagerService;
 }> {
-  const botManager = new BotManagerService();
-  const whatsAppBotManager = new WhatsAppBotManagerService();
+  const botManager = BotManagerService.getInstance();
+  const whatsAppBotManager = WhatsAppBotManagerService.getInstance();
 
   // Initialize all active tenant Telegram and WhatsApp bots
   try {

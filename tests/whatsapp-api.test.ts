@@ -28,6 +28,11 @@ describe('WhatsApp API Integration Suite', () => {
   });
 
   it('POST /api/tenants/whatsapp/configure updates tenant phone and enabled flag', async () => {
+    vi.spyOn(prisma.tenant, 'findUnique').mockResolvedValueOnce({
+      id: tenantId,
+      hasWhatsapp: true
+    } as any);
+
     vi.spyOn(prisma.tenant, 'update').mockResolvedValueOnce({
       id: tenantId,
       whatsAppPhoneNumber: '919876543210',

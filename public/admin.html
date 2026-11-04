@@ -1,0 +1,1807 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Super Admin Control Center — YourSMMagent</title>
+  <meta name="description" content="Master administrative control center for YourSMMagent. Manage AI models, SMTP settings, Google OAuth, tenants, subscriptions, and telemetry." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/global.css" />
+  <style>
+    /* Admin Design System Enhancements matching Dashboard */
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: var(--space-6);
+    }
+
+    .sidebar-menu {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      flex: 1;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 0.65rem 0.85rem;
+      border-radius: var(--radius-md);
+      font-size: var(--font-sm);
+      font-weight: 600;
+      color: var(--color-text-muted);
+      min-height: var(--touch-target-min);
+      transition: all var(--transition-fast);
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+    }
+
+    .sidebar-link:hover, .sidebar-link.active {
+      color: var(--color-accent);
+      background-color: var(--color-accent-muted);
+      border-left: 3px solid var(--color-accent);
+    }
+
+    .sidebar-footer {
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--font-xs);
+      color: var(--color-text-subtle);
+      background: var(--color-bg-alt);
+      padding: 0.45rem 0.75rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Channel / Tab Bar matching dashboard.html */
+    .channel-tabs {
+      display: flex;
+      gap: var(--space-3);
+      margin-bottom: var(--space-6);
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: var(--space-2);
+      overflow-x: auto;
+    }
+
+    .channel-tab-btn {
+      background: none;
+      border: none;
+      padding: 0.65rem 1.25rem;
+      font-size: var(--font-sm);
+      font-weight: 700;
+      color: var(--color-text-muted);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      transition: all var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .channel-tab-btn:hover {
+      color: var(--color-text-main);
+      background-color: var(--color-bg-alt);
+    }
+
+    .channel-tab-btn.active {
+      color: var(--color-accent);
+      background-color: var(--color-accent-muted);
+      border-bottom: 2px solid var(--color-accent);
+    }
+
+    /* Stats Grid */
+    .stat-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    .stat-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .stat-card-label {
+      font-size: var(--font-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+    }
+
+    .stat-card-val {
+      font-size: var(--font-h2);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--color-text-main);
+    }
+
+    .stat-card-desc {
+      font-size: var(--font-xs);
+      color: var(--color-text-subtle);
+    }
+
+    /* Form Fields & Password Wrap */
+    .input-password-wrap {
+      position: relative;
+      display: flex;
+    }
+
+    .input-password-wrap .input {
+      padding-right: 2.75rem;
+    }
+
+    .input-toggle-btn {
+      position: absolute;
+      right: 0.65rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .model-presets-wrap {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      margin-top: 0.4rem;
+      font-size: var(--font-xs);
+    }
+
+    .preset-pill {
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xs);
+      padding: 0.15rem 0.5rem;
+      color: var(--color-accent);
+      cursor: pointer;
+      text-decoration: none;
+      font-family: var(--font-family-mono);
+      font-size: 0.8rem;
+      transition: all var(--transition-fast);
+    }
+
+    .preset-pill:hover {
+      background: var(--color-accent-muted);
+      border-color: var(--color-accent);
+    }
+
+    /* Output Console */
+    .output-console {
+      background: #000000;
+      color: #34d399;
+      font-family: var(--font-family-mono);
+      font-size: 0.825rem;
+      padding: var(--space-4);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      overflow-x: auto;
+      max-height: 200px;
+      margin-top: var(--space-4);
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    /* Tables */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+    }
+
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--font-sm);
+      text-align: left;
+    }
+
+    .admin-table th {
+      background: var(--color-bg-alt);
+      color: var(--color-text-muted);
+      font-weight: 700;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--color-border);
+      font-size: var(--font-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .admin-table td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--color-border);
+      vertical-align: middle;
+      color: var(--color-text-main);
+    }
+
+    .admin-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .admin-table tr:hover td {
+      background: var(--color-bg-alt);
+    }
+
+    /* Toast Notification */
+    .toast-stack {
+      position: fixed;
+      bottom: var(--space-6);
+      right: var(--space-6);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      pointer-events: none;
+    }
+
+    .toast-item {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      color: var(--color-text-main);
+      padding: 0.85rem 1.25rem;
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      font-size: var(--font-sm);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      max-width: 400px;
+      pointer-events: auto;
+      animation: toastSlideIn 0.25s ease-out;
+    }
+
+    @keyframes toastSlideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast-item.success { border-left: 4px solid var(--color-emerald); }
+    .toast-item.error { border-left: 4px solid var(--color-rose); }
+    .toast-item.info { border-left: 4px solid var(--color-accent); }
+
+    /* Centered Auth Overlay matching login.html */
+    .admin-auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--color-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-4);
+      z-index: 500;
+    }
+
+    .admin-auth-box {
+      max-width: 440px;
+      width: 100%;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-8);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    /* Modal Backdrop */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-4);
+      z-index: 600;
+    }
+
+    .modal-box {
+      max-width: 480px;
+      width: 100%;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.25);
+    }
+  </style>
+</head>
+
+<body>
+  <a href="#main-dashboard" class="skip-link">Skip to dashboard content</a>
+
+  <!-- Mobile Sidebar Drawer Overlay -->
+  <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
+
+  <!-- AUTH OVERLAY (Initial Setup Wizard or Admin Login) -->
+  <div class="admin-auth-overlay" id="authOverlay" style="display: none;">
+    <!-- Setup Card -->
+    <div class="admin-auth-box" id="setupCard" style="display: none;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: var(--space-6);">
+        <svg viewBox="0 0 64 64" width="36" height="36" aria-hidden="true" style="border-radius: 8px; flex-shrink: 0;">
+          <defs>
+            <linearGradient id="ysmm-setup-g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#4F46E5" />
+              <stop offset="1" stop-color="#2563EB" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#ysmm-setup-g)" />
+          <path d="M18 22.5C18 19.46 20.46 17 23.5 17h17C43.54 17 46 19.46 46 22.5v11c0 3.04-2.46 5.5-5.5 5.5H27l-6.2 5.43A1.4 1.4 0 0 1 18 43.36V22.5z" fill="#ffffff" />
+          <circle cx="25.5" cy="28" r="2.4" fill="#4F46E5" />
+          <circle cx="32.5" cy="28" r="2.4" fill="#2563EB" />
+          <circle cx="39.5" cy="28" r="2.4" fill="#4F46E5" opacity="0.55" />
+        </svg>
+        <div>
+          <h1 style="font-size: var(--font-h3); font-weight: 800; margin: 0; color: var(--color-text-main);">Super Admin Setup</h1>
+          <span style="font-size: var(--font-xs); color: var(--color-accent); font-weight: 700;">First-Time System Initialization</span>
+        </div>
+      </div>
+      <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); line-height: var(--lh-normal);">
+        Create your master administrator account to unlock direct browser control over AI models, Google OAuth, SMTP, and customer subscriptions.
+      </p>
+      <div id="setupAlert" class="alert alert-error" style="display: none;" role="alert"></div>
+      <form id="setupForm">
+        <div class="form-group">
+          <label class="form-label" for="setupName">Admin Full Name</label>
+          <input type="text" class="input" id="setupName" value="Super Admin" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="setupEmail">Master Admin Email</label>
+          <input type="email" class="input" id="setupEmail" placeholder="admin@yoursmmagent.com" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="setupPassword">Master Password</label>
+          <input type="password" class="input" id="setupPassword" placeholder="Minimum 8 characters" minlength="8" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" style="min-height: 44px; margin-top: var(--space-4);">
+          Initialize Master Admin
+        </button>
+      </form>
+    </div>
+
+    <!-- Login Card -->
+    <div class="admin-auth-box" id="loginCard" style="display: none;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: var(--space-6);">
+        <svg viewBox="0 0 64 64" width="36" height="36" aria-hidden="true" style="border-radius: 8px; flex-shrink: 0;">
+          <defs>
+            <linearGradient id="ysmm-login-g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#4F46E5" />
+              <stop offset="1" stop-color="#2563EB" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#ysmm-login-g)" />
+          <path d="M18 22.5C18 19.46 20.46 17 23.5 17h17C43.54 17 46 19.46 46 22.5v11c0 3.04-2.46 5.5-5.5 5.5H27l-6.2 5.43A1.4 1.4 0 0 1 18 43.36V22.5z" fill="#ffffff" />
+          <circle cx="25.5" cy="28" r="2.4" fill="#4F46E5" />
+          <circle cx="32.5" cy="28" r="2.4" fill="#2563EB" />
+          <circle cx="39.5" cy="28" r="2.4" fill="#4F46E5" opacity="0.55" />
+        </svg>
+        <div>
+          <h1 style="font-size: var(--font-h3); font-weight: 800; margin: 0; color: var(--color-text-main);">Super Admin Login</h1>
+          <span style="font-size: var(--font-xs); color: var(--color-accent); font-weight: 700;">Platform Control Center</span>
+        </div>
+      </div>
+      <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-6); line-height: var(--lh-normal);">
+        Sign in to configure AI engines, manage tenant accounts, update credentials, and inspect live telemetry.
+      </p>
+      <div id="loginAlert" class="alert alert-error" style="display: none;" role="alert"></div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="loginEmail">Admin Email</label>
+          <input type="email" class="input" id="loginEmail" placeholder="admin@yoursmmagent.com" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="loginPassword">Password</label>
+          <input type="password" class="input" id="loginPassword" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" style="min-height: 44px; margin-top: var(--space-4);">
+          Sign In as Super Admin
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- APPLICATION SHELL (DASHBOARD LAYOUT) -->
+  <div class="dashboard-layout" id="adminAppLayout" style="display: none;">
+
+    <!-- APP SIDEBAR -->
+    <aside id="dashboardSidebar" class="dashboard-sidebar" aria-label="Admin Navigation">
+      <div class="sidebar-brand">
+        <svg viewBox="0 0 64 64" width="32" height="32" aria-hidden="true" style="border-radius: 8px; flex-shrink: 0;">
+          <defs>
+            <linearGradient id="ysmm-side-g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#4F46E5" />
+              <stop offset="1" stop-color="#2563EB" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#ysmm-side-g)" />
+          <path d="M18 22.5C18 19.46 20.46 17 23.5 17h17C43.54 17 46 19.46 46 22.5v11c0 3.04-2.46 5.5-5.5 5.5H27l-6.2 5.43A1.4 1.4 0 0 1 18 43.36V22.5z" fill="#ffffff" />
+          <circle cx="25.5" cy="28" r="2.4" fill="#4F46E5" />
+          <circle cx="32.5" cy="28" r="2.4" fill="#2563EB" />
+          <circle cx="39.5" cy="28" r="2.4" fill="#4F46E5" opacity="0.55" />
+        </svg>
+        <div>
+          <div style="font-size: var(--font-h4); font-weight: 800; letter-spacing: -0.02em; color: var(--color-text-main); line-height: 1.1;">
+            Your<span style="color: var(--color-accent);">SMM</span>agent
+          </div>
+          <span class="badge badge-accent" style="font-size: 10px; padding: 1px 6px;">SUPER ADMIN</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-menu">
+        <button type="button" class="sidebar-link active" data-tab="tab-overview">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Overview & Ops
+        </button>
+
+        <button type="button" class="sidebar-link" data-tab="tab-ai">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"></path>
+            <rect x="4" y="8" width="16" height="12" rx="2"></rect>
+            <circle cx="9" cy="13" r="1.5"></circle>
+            <circle cx="15" cy="13" r="1.5"></circle>
+            <line x1="9" y1="17" x2="15" y2="17"></line>
+          </svg>
+          AI Engine
+        </button>
+
+        <button type="button" class="sidebar-link" data-tab="tab-integrations">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Integrations & OAuth
+        </button>
+
+        <button type="button" class="sidebar-link" data-tab="tab-tenants">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          Tenants & Users
+        </button>
+
+        <button type="button" class="sidebar-link" data-tab="tab-leads">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          Landing Leads
+        </button>
+
+        <button type="button" class="sidebar-link" data-tab="tab-invoices">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+            <line x1="2" y1="10" x2="22" y2="10"></line>
+          </svg>
+          Crypto Invoices
+        </button>
+
+        <a href="/dashboard" class="sidebar-link" target="_blank" rel="noopener noreferrer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+          Tenant Dashboard ↗
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-pill">
+          <span class="badge-dot pulse" style="background-color: var(--color-emerald);"></span>
+          <span id="sidebarAdminEmail">admin@yoursmmagent.com</span>
+        </div>
+        <button type="button" id="sidebarSignOutBtn" class="btn btn-outline btn-block" style="min-height: 38px; font-size: var(--font-xs);">
+          Sign out
+        </button>
+      </div>
+    </aside>
+
+    <!-- TOPBAR -->
+    <header class="dashboard-topbar">
+      <div style="display: flex; align-items: center; gap: var(--space-4);">
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn btn btn-icon btn-secondary" aria-label="Toggle navigation sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <span id="topbarHeaderTitle" style="font-size: var(--font-h4); font-weight: 700;">Super Admin Control Center</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: var(--space-4);">
+        <!-- Theme Toggle Button matching dashboard.html -->
+        <button type="button" id="themeToggleBtn" class="btn btn-icon btn-ghost" aria-label="Toggle dark/light theme" title="Toggle theme" style="min-height: 36px; width: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+          <svg id="themeIconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="themeIconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <span class="badge badge-emerald" id="topbarEnvBadge">PRODUCTION READY</span>
+        <button type="button" id="topbarSignOutBtn" class="btn btn-ghost" style="font-size: var(--font-xs); min-height: 36px;">
+          Sign out
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <main class="dashboard-main" id="main-dashboard">
+      <div class="container" style="max-width: 100%; padding: 0;">
+
+        <!-- Page Header -->
+        <div style="margin-bottom: var(--space-6);">
+          <h1 style="font-size: var(--font-h1); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.25rem;">Platform Super Admin</h1>
+          <p style="font-size: var(--font-body); color: var(--color-text-muted);">Configure runtime AI models, manage tenant subscriptions, update SMTP credentials, and inspect telemetry without touching the terminal.</p>
+        </div>
+
+        <!-- Horizontal Tabs matching dashboard.html -->
+        <div class="channel-tabs" role="tablist" aria-label="Admin Navigation Tabs">
+          <button type="button" class="channel-tab-btn active" data-tab="tab-overview" role="tab" aria-selected="true">
+            📊 Overview & Ops
+          </button>
+          <button type="button" class="channel-tab-btn" data-tab="tab-ai" role="tab" aria-selected="false">
+            🤖 AI Engine
+          </button>
+          <button type="button" class="channel-tab-btn" data-tab="tab-integrations" role="tab" aria-selected="false">
+            🔌 Integrations (Google / SMTP)
+          </button>
+          <button type="button" class="channel-tab-btn" data-tab="tab-tenants" role="tab" aria-selected="false">
+            👥 Tenants & Users
+          </button>
+          <button type="button" class="channel-tab-btn" data-tab="tab-leads" role="tab" aria-selected="false">
+            📬 Landing Leads
+          </button>
+        </div>
+
+        <!-- TAB 1: OVERVIEW & OPS -->
+        <div class="admin-tab-view active" id="tab-overview">
+          <!-- Metric Stat Cards -->
+          <div class="stat-cards-grid">
+            <div class="stat-card">
+              <span class="stat-card-label">Total Tenants</span>
+              <span class="stat-card-val" id="metricTenants">--</span>
+              <span class="stat-card-desc">Registered SaaS users</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-card-label">Active Subscriptions</span>
+              <span class="stat-card-val" id="metricActiveSubs" style="color: var(--color-emerald);">--</span>
+              <span class="stat-card-desc">Paying / Enabled panels</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-card-label">Landing Leads</span>
+              <span class="stat-card-val" id="metricLeads" style="color: var(--color-accent);">--</span>
+              <span class="stat-card-desc"><strong id="metricNewLeads">0</strong> pending contact</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-card-label">Active Bot Sessions</span>
+              <span class="stat-card-val" id="metricSessions">--</span>
+              <span class="stat-card-desc">Telegram + WhatsApp + Web</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-6);">
+            <!-- System Telemetry & Health -->
+            <section class="card card-glass">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
+                <div>
+                  <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">🩺 Microservice Health</h2>
+                  <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">Live connectivity check</p>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="refreshHealthBtn">🔄 Refresh</button>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: var(--space-3); font-size: var(--font-sm);">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--color-border);">
+                  <span style="font-weight: 600;">PostgreSQL Database</span>
+                  <span class="badge badge-emerald" id="dbHealthBadge"><span class="badge-dot"></span> CONNECTED</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--color-border);">
+                  <span style="font-weight: 600;">Redis Cache & PubSub</span>
+                  <span class="badge badge-emerald" id="redisHealthBadge"><span class="badge-dot"></span> PONG ONLINE</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--color-border);">
+                  <span style="font-weight: 600;">Process Uptime</span>
+                  <span class="code-pill" id="systemUptime">--</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0;">
+                  <span style="font-weight: 600;">Running Environment</span>
+                  <span class="badge badge-sky" id="nodeEnvBadge">development</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- Quick Operational Actions -->
+            <section class="card card-glass">
+              <div style="margin-bottom: var(--space-4);">
+                <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">⚡ Fast Actions</h2>
+                <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">Jump to frequently used control areas</p>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <button type="button" class="btn btn-secondary btn-block" onclick="switchTab('tab-ai')">
+                  🤖 Switch AI Model & Provider
+                </button>
+                <button type="button" class="btn btn-secondary btn-block" onclick="switchTab('tab-integrations')">
+                  📧 Send SMTP Test Email
+                </button>
+                <button type="button" class="btn btn-secondary btn-block" onclick="switchTab('tab-tenants')">
+                  👥 Manage Tenant Subscriptions
+                </button>
+                <button type="button" class="btn btn-secondary btn-block" onclick="switchTab('tab-leads')">
+                  📬 Review Landing Page Leads
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- TAB 2: AI ENGINE MANAGEMENT -->
+        <div class="admin-tab-view" id="tab-ai" style="display: none;">
+          <section class="card card-glass" style="max-width: 860px; margin: 0 auto;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-4);">
+              <div>
+                <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">AI Engine Configuration</h2>
+                <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">
+                  Runtime updates hot-reload across Telegram, WhatsApp, and Website chat immediately with zero server restart.
+                </p>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" id="testAiBtn">⚡ Test AI Connection</button>
+            </div>
+
+            <form id="aiSettingsForm">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4);">
+                <div class="form-group">
+                  <label class="form-label" for="setting_AI_PROVIDER">Active Provider</label>
+                  <select class="select" id="setting_AI_PROVIDER">
+                    <option value="openrouter">OpenRouter (Universal Model Access)</option>
+                    <option value="openai">OpenAI (Direct Official)</option>
+                    <option value="anthropic">Anthropic Claude</option>
+                    <option value="groq">Groq (Ultra-Fast LPU)</option>
+                    <option value="deepseek">DeepSeek AI</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="nvidia">Nvidia NIM</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="setting_AI_MODEL">Model Name</label>
+                  <input type="text" class="input input-mono" id="setting_AI_MODEL" placeholder="e.g. gpt-4o-mini" required />
+                  <div class="model-presets-wrap">
+                    <span style="color: var(--color-text-subtle);">Presets:</span>
+                    <a href="#" class="preset-pill" data-val="gpt-4o-mini">gpt-4o-mini</a>
+                    <a href="#" class="preset-pill" data-val="google/gemini-2.0-flash-001">gemini-2.0-flash</a>
+                    <a href="#" class="preset-pill" data-val="claude-3-5-sonnet-20241022">claude-3-5-sonnet</a>
+                    <a href="#" class="preset-pill" data-val="deepseek-chat">deepseek-chat</a>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top: var(--space-4);">
+                <label class="form-label" for="setting_AI_API_KEY">AI API Key (AES-256 Encrypted in Database)</label>
+                <div class="input-password-wrap">
+                  <input type="password" class="input input-mono" id="setting_AI_API_KEY" placeholder="Paste your API key here" />
+                  <button type="button" class="input-toggle-btn" onclick="togglePasswordInput('setting_AI_API_KEY')" aria-label="Toggle password visibility">👁️</button>
+                </div>
+                <div class="form-hint" style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.35rem;">
+                  Leave unchanged to preserve current key. Keys are encrypted with AES-256-GCM before storage.
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); margin-top: var(--space-4);">
+                <div class="form-group">
+                  <label class="form-label" for="setting_AI_BASE_URL">Custom Base URL (Optional)</label>
+                  <input type="text" class="input input-mono" id="setting_AI_BASE_URL" placeholder="https://api.openai.com/v1" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="setting_AI_TEMPERATURE">Temperature: <strong id="tempDisplay">0.3</strong></label>
+                  <input type="range" min="0" max="1" step="0.05" value="0.3" id="setting_AI_TEMPERATURE" style="width: 100%; margin-top: 0.6rem;" oninput="document.getElementById('tempDisplay').textContent=this.value" />
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top: var(--space-4);">
+                <label class="form-label" for="setting_AI_SYSTEM_PROMPT">Global SMM Assistant System Prompt</label>
+                <textarea class="textarea" rows="4" id="setting_AI_SYSTEM_PROMPT" placeholder="Default persona instructions guiding the bot on assisting SMM customers..."></textarea>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; margin-top: var(--space-6);">
+                <button type="submit" class="btn btn-primary" style="min-height: 42px; padding: 0 1.5rem;">
+                  💾 Save AI Configuration
+                </button>
+              </div>
+            </form>
+
+            <div id="aiTestOutput" class="output-console" style="display: none;"></div>
+          </section>
+        </div>
+
+        <!-- TAB 3: INTEGRATIONS (GOOGLE OAUTH & SMTP) -->
+        <div class="admin-tab-view" id="tab-integrations" style="display: none;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--space-6);">
+
+            <!-- Google OAuth Card -->
+            <section class="card card-glass">
+              <div style="margin-bottom: var(--space-4); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-3);">
+                <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">🔐 Google OAuth (Single Sign-On)</h2>
+                <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">Enable Google 1-Tap on signup & login</p>
+              </div>
+              <form id="googleSettingsForm">
+                <div class="form-group">
+                  <label class="form-label" for="setting_GOOGLE_CLIENT_ID">Google Client ID</label>
+                  <input type="text" class="input input-mono" id="setting_GOOGLE_CLIENT_ID" placeholder="xxxxx.apps.googleusercontent.com" />
+                  <div class="form-hint" style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.35rem;">From Google Cloud Console -> Credentials.</div>
+                </div>
+                <div class="form-group" style="margin-top: var(--space-4);">
+                  <label class="form-label" for="setting_GOOGLE_AUTH_ENABLED">Google Login Availability</label>
+                  <select class="select" id="setting_GOOGLE_AUTH_ENABLED">
+                    <option value="true">Enabled (Show Google buttons)</option>
+                    <option value="false">Disabled (Hide Google buttons)</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top: var(--space-4);">Save Google OAuth</button>
+              </form>
+            </section>
+
+            <!-- SMTP Email Card -->
+            <section class="card card-glass">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-3);">
+                <div>
+                  <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">📧 Transactional SMTP Email</h2>
+                  <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">Password resets & email verification</p>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="openTestEmailModalBtn">✉️ Send Test Email</button>
+              </div>
+              <form id="smtpSettingsForm">
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-3);">
+                  <div class="form-group">
+                    <label class="form-label" for="setting_SMTP_HOST">SMTP Host</label>
+                    <input type="text" class="input input-mono" id="setting_SMTP_HOST" placeholder="smtp.gmail.com" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="setting_SMTP_PORT">Port</label>
+                    <input type="number" class="input input-mono" id="setting_SMTP_PORT" placeholder="587" />
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-3);">
+                  <div class="form-group">
+                    <label class="form-label" for="setting_SMTP_USER">Username</label>
+                    <input type="text" class="input" id="setting_SMTP_USER" placeholder="apikey or email" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="setting_SMTP_PASS">Password</label>
+                    <div class="input-password-wrap">
+                      <input type="password" class="input" id="setting_SMTP_PASS" placeholder="••••••••" />
+                      <button type="button" class="input-toggle-btn" onclick="togglePasswordInput('setting_SMTP_PASS')" aria-label="Toggle password visibility">👁️</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-top: var(--space-3);">
+                  <label class="form-label" for="setting_SMTP_FROM">From Header</label>
+                  <input type="text" class="input" id="setting_SMTP_FROM" placeholder="YourSMMagent &lt;no-reply@yoursmmagent.com&gt;" />
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="margin-top: var(--space-4);">Save SMTP Credentials</button>
+              </form>
+            </section>
+          </div>
+
+          <!-- Registration & Verification Policies -->
+          <section class="card card-glass" style="margin-top: var(--space-6);">
+            <div style="margin-bottom: var(--space-4); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-3);">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">🛡️ Registration & Verification Policies</h2>
+              <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">Platform-wide security settings</p>
+            </div>
+            <form id="systemFlagsForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4);">
+              <div class="form-group">
+                <label class="form-label" for="setting_ALLOW_PUBLIC_SIGNUP">Allow Public Signups</label>
+                <select class="select" id="setting_ALLOW_PUBLIC_SIGNUP">
+                  <option value="true">Open (Anyone can register)</option>
+                  <option value="false">Closed (Invite / Admin created only)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="setting_REQUIRE_EMAIL_VERIFICATION">Require Verified Email</label>
+                <select class="select" id="setting_REQUIRE_EMAIL_VERIFICATION">
+                  <option value="true">Required (Block unverified tenants)</option>
+                  <option value="false">Optional (Bypass verification block)</option>
+                </select>
+              </div>
+              <div style="grid-column: 1 / -1; display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn btn-primary">Save Security Flags</button>
+              </div>
+            </form>
+          </section>
+        </div>
+
+        <!-- TAB 4: TENANTS & USERS -->
+        <div class="admin-tab-view" id="tab-tenants" style="display: none;">
+          <section class="card card-glass">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-3);">
+              <div>
+                <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Registered Tenants</h2>
+                <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">1-click subscription management & customer impersonation</p>
+              </div>
+              <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+                <input type="text" class="input" id="tenantSearchInput" placeholder="Search email or panel..." style="width: 240px; min-height: 38px; font-size: var(--font-sm);" />
+                <select class="select" id="tenantStatusFilter" style="width: 140px; min-height: 38px; font-size: var(--font-sm);">
+                  <option value="">All Statuses</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                  <option value="EXPIRED">Expired</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Tenant Email</th>
+                    <th scope="col">Panel URL</th>
+                    <th scope="col">Subscription</th>
+                    <th scope="col">Verified</th>
+                    <th scope="col">Sessions</th>
+                    <th scope="col">Registered</th>
+                    <th scope="col" style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tenantsTableBody">
+                  <tr><td colspan="7" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">Loading tenants...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <!-- TAB 5: LANDING LEADS -->
+        <div class="admin-tab-view" id="tab-leads" style="display: none;">
+          <section class="card card-glass">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-3);">
+              <div>
+                <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Landing Page Setup Inquiries</h2>
+                <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">Potential customers who submitted bot setup requests on yoursmmagent.com</p>
+              </div>
+              <select class="select" id="leadsStatusFilter" style="width: 150px; min-height: 38px; font-size: var(--font-sm);">
+                <option value="">All Statuses</option>
+                <option value="NEW">New</option>
+                <option value="CONTACTED">Contacted</option>
+                <option value="QUALIFIED">Qualified</option>
+                <option value="DISMISSED">Dismissed</option>
+              </select>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Panel URL</th>
+                    <th scope="col">Contact</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Follow-Up Notes</th>
+                    <th scope="col" style="text-align: right;">Delete</th>
+                  </tr>
+                </thead>
+                <tbody id="leadsTableBody">
+                  <tr><td colspan="7" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">Loading inquiries...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <!-- TAB 6: CRYPTO INVOICES -->
+        <div class="admin-tab-view" id="tab-invoices" style="display: none;">
+          <section class="card card-glass">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-3);">
+              <div>
+                <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Platform Crypto Invoices</h2>
+                <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-top: 0.2rem;">All automated Cryptomus payment transactions and tenant subscriptions</p>
+              </div>
+              <button type="button" class="btn btn-secondary" id="refreshInvoicesBtn" style="min-height: 38px; font-size: var(--font-xs);">Refresh Invoices</button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Order ID</th>
+                    <th scope="col">Tenant Email</th>
+                    <th scope="col">Channels</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col">Amount</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="invoicesTableBody">
+                  <tr><td colspan="8" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">Loading invoices...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL: SEND TEST EMAIL -->
+  <div class="modal-backdrop" id="testEmailModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="testEmailModalTitle">
+    <div class="modal-box">
+      <h3 id="testEmailModalTitle" style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">Send SMTP Test Email</h3>
+      <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4); line-height: var(--lh-normal);">
+        Dispatch a real transactional message using your saved SMTP server credentials to verify deliverability.
+      </p>
+      <div class="form-group">
+        <label class="form-label" for="testEmailRecipient">Recipient Email</label>
+        <input type="email" class="input" id="testEmailRecipient" placeholder="you@domain.com" required />
+      </div>
+      <div style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-6);">
+        <button type="button" class="btn btn-secondary" onclick="closeTestEmailModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmSendTestEmailBtn">Send Email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script>
+    // State
+    let currentAdmin = null;
+
+    // Elements
+    const authOverlay = document.getElementById('authOverlay');
+    const setupCard = document.getElementById('setupCard');
+    const loginCard = document.getElementById('loginCard');
+    const adminAppLayout = document.getElementById('adminAppLayout');
+    const toastStack = document.getElementById('toastStack');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const dashboardSidebar = document.getElementById('dashboardSidebar');
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+
+    // Toast helper matching global styling
+    function showToast(msg, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast-item ${type}`;
+      toast.textContent = msg;
+      toastStack.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        toast.style.transition = 'all 0.25s ease';
+        setTimeout(() => toast.remove(), 250);
+      }, 3500);
+    }
+
+    // Toggle password inputs
+    function togglePasswordInput(id) {
+      const el = document.getElementById(id);
+      if (el) el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    // Theme Switcher matching dashboard.html 100%
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIconSun = document.getElementById('themeIconSun');
+    const themeIconMoon = document.getElementById('themeIconMoon');
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      if (theme === 'dark') {
+        if (themeIconSun) themeIconSun.style.display = 'none';
+        if (themeIconMoon) themeIconMoon.style.display = 'block';
+      } else {
+        if (themeIconSun) themeIconSun.style.display = 'block';
+        if (themeIconMoon) themeIconMoon.style.display = 'none';
+      }
+    }
+
+    const savedTheme = localStorage.getItem('supportbot_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(savedTheme);
+
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('supportbot_theme', newTheme);
+        applyTheme(newTheme);
+      });
+    }
+
+    // Mobile Sidebar Drawer Toggle
+    if (sidebarToggleBtn && dashboardSidebar && sidebarOverlay) {
+      sidebarToggleBtn.addEventListener('click', () => {
+        const isOpen = dashboardSidebar.classList.contains('open');
+        if (isOpen) {
+          dashboardSidebar.classList.remove('open');
+          sidebarOverlay.classList.remove('active');
+        } else {
+          dashboardSidebar.classList.add('open');
+          sidebarOverlay.classList.add('active');
+        }
+      });
+      sidebarOverlay.addEventListener('click', () => {
+        dashboardSidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+      });
+    }
+
+    // Tab Navigation Switcher
+    function switchTab(targetTabId) {
+      document.querySelectorAll('.sidebar-link').forEach(btn => {
+        if (btn.getAttribute('data-tab') === targetTabId) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
+      document.querySelectorAll('.channel-tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-tab') === targetTabId) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-selected', 'true');
+        } else {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-selected', 'false');
+        }
+      });
+
+      document.querySelectorAll('.admin-tab-view').forEach(panel => {
+        if (panel.id === targetTabId) {
+          panel.style.display = 'block';
+        } else {
+          panel.style.display = 'none';
+        }
+      });
+
+      // Close mobile drawer if open
+      if (dashboardSidebar) dashboardSidebar.classList.remove('open');
+      if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+
+      // Refresh data for active tab
+      if (targetTabId === 'tab-overview') loadTelemetry();
+      if (targetTabId === 'tab-tenants') loadTenants();
+      if (targetTabId === 'tab-leads') loadLeads();
+      if (targetTabId === 'tab-invoices') loadInvoices();
+    }
+
+    document.querySelectorAll('[data-tab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.getAttribute('data-tab');
+        if (target) switchTab(target);
+      });
+    });
+
+    // Model Presets
+    document.querySelectorAll('.preset-pill').forEach(pill => {
+      pill.addEventListener('click', (e) => {
+        e.preventDefault();
+        const val = pill.getAttribute('data-val');
+        if (val) document.getElementById('setting_AI_MODEL').value = val;
+      });
+    });
+
+    // Check Setup & Authentication on Load
+    async function initApp() {
+      try {
+        const statusRes = await fetch('/api/admin/status');
+        const status = await statusRes.json();
+
+        if (!status.hasAdmin) {
+          authOverlay.style.display = 'flex';
+          setupCard.style.display = 'block';
+          loginCard.style.display = 'none';
+          return;
+        }
+
+        const meRes = await fetch('/api/admin/me');
+        if (meRes.ok) {
+          const data = await meRes.json();
+          currentAdmin = data.admin;
+          showDashboard();
+        } else {
+          authOverlay.style.display = 'flex';
+          setupCard.style.display = 'none';
+          loginCard.style.display = 'block';
+        }
+      } catch (err) {
+        showToast('Connection failed: ' + err.message, 'error');
+      }
+    }
+
+    function showDashboard() {
+      authOverlay.style.display = 'none';
+      adminAppLayout.style.display = 'grid';
+      if (currentAdmin) {
+        document.getElementById('sidebarAdminEmail').textContent = currentAdmin.email;
+      }
+      loadTelemetry();
+      loadSettings();
+      loadTenants();
+      loadLeads();
+    }
+
+    // Setup Form
+    document.getElementById('setupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const setupAlert = document.getElementById('setupAlert');
+      setupAlert.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('setupName').value,
+            email: document.getElementById('setupEmail').value,
+            password: document.getElementById('setupPassword').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Setup failed');
+        currentAdmin = data.admin;
+        showToast('Super Admin initialized successfully', 'success');
+        showDashboard();
+      } catch (err) {
+        setupAlert.textContent = err.message;
+        setupAlert.style.display = 'block';
+      }
+    });
+
+    // Login Form
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const loginAlert = document.getElementById('loginAlert');
+      loginAlert.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('loginEmail').value,
+            password: document.getElementById('loginPassword').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Authentication failed');
+        currentAdmin = data.admin;
+        showToast('Signed in as Super Admin', 'success');
+        showDashboard();
+      } catch (err) {
+        loginAlert.textContent = err.message;
+        loginAlert.style.display = 'block';
+      }
+    });
+
+    // Sign Out Buttons
+    const handleSignOut = async () => {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      showToast('Signed out');
+      setTimeout(() => location.reload(), 200);
+    };
+    document.getElementById('sidebarSignOutBtn').addEventListener('click', handleSignOut);
+    document.getElementById('topbarSignOutBtn').addEventListener('click', handleSignOut);
+
+    // Telemetry Loader
+    async function loadTelemetry() {
+      try {
+        const res = await fetch('/api/admin/telemetry');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Database & Redis Badges
+        const dbBadge = document.getElementById('dbHealthBadge');
+        if (data.health.database === 'healthy') {
+          dbBadge.className = 'badge badge-emerald';
+          dbBadge.innerHTML = '<span class="badge-dot"></span> CONNECTED';
+        } else {
+          dbBadge.className = 'badge badge-rose';
+          dbBadge.innerHTML = '<span class="badge-dot"></span> UNHEALTHY';
+        }
+
+        const redisBadge = document.getElementById('redisHealthBadge');
+        if (data.health.redis === 'healthy') {
+          redisBadge.className = 'badge badge-emerald';
+          redisBadge.innerHTML = '<span class="badge-dot"></span> PONG ONLINE';
+        } else {
+          redisBadge.className = 'badge badge-rose';
+          redisBadge.innerHTML = '<span class="badge-dot"></span> DISCONNECTED';
+        }
+
+        document.getElementById('nodeEnvBadge').textContent = data.health.nodeEnv;
+        document.getElementById('topbarEnvBadge').textContent = (data.health.nodeEnv || 'PRODUCTION').toUpperCase();
+        const uptimeMin = Math.floor(data.health.uptimeSeconds / 60);
+        document.getElementById('systemUptime').textContent = `${uptimeMin} min`;
+
+        // Metric Counts
+        document.getElementById('metricTenants').textContent = data.metrics.totalTenants;
+        document.getElementById('metricActiveSubs').textContent = data.metrics.activeSubscriptions;
+        document.getElementById('metricLeads').textContent = data.metrics.totalLeads;
+        document.getElementById('metricNewLeads').textContent = data.metrics.newLeads;
+        const totalSessions = data.metrics.sessions.telegram + data.metrics.sessions.whatsapp + data.metrics.sessions.webChat;
+        document.getElementById('metricSessions').textContent = totalSessions;
+      } catch (e) {
+        console.warn('Telemetry load failed:', e);
+      }
+    }
+    document.getElementById('refreshHealthBtn').addEventListener('click', loadTelemetry);
+
+    // Settings Loader
+    async function loadSettings() {
+      try {
+        const res = await fetch('/api/admin/settings');
+        if (!res.ok) return;
+        const data = await res.json();
+        const settings = data.settings || {};
+
+        for (const [key, item] of Object.entries(settings)) {
+          const el = document.getElementById(`setting_${key}`);
+          if (el) {
+            el.value = item.value || '';
+            if (key === 'AI_TEMPERATURE') {
+              document.getElementById('tempDisplay').textContent = item.value || '0.3';
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load settings:', e);
+      }
+    }
+
+    // Batch Save Helper
+    async function saveSettings(updates, msg) {
+      try {
+        const res = await fetch('/api/admin/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save settings');
+        showToast(msg, 'success');
+        loadSettings();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    // AI Form Submit
+    document.getElementById('aiSettingsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveSettings({
+        AI_PROVIDER: document.getElementById('setting_AI_PROVIDER').value,
+        AI_MODEL: document.getElementById('setting_AI_MODEL').value,
+        AI_API_KEY: document.getElementById('setting_AI_API_KEY').value,
+        AI_BASE_URL: document.getElementById('setting_AI_BASE_URL').value,
+        AI_TEMPERATURE: document.getElementById('setting_AI_TEMPERATURE').value,
+        AI_SYSTEM_PROMPT: document.getElementById('setting_AI_SYSTEM_PROMPT').value
+      }, 'AI Engine configuration updated & reloaded');
+    });
+
+    // Google Form Submit
+    document.getElementById('googleSettingsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveSettings({
+        GOOGLE_CLIENT_ID: document.getElementById('setting_GOOGLE_CLIENT_ID').value,
+        GOOGLE_AUTH_ENABLED: document.getElementById('setting_GOOGLE_AUTH_ENABLED').value
+      }, 'Google OAuth configuration saved');
+    });
+
+    // SMTP Form Submit
+    document.getElementById('smtpSettingsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveSettings({
+        SMTP_HOST: document.getElementById('setting_SMTP_HOST').value,
+        SMTP_PORT: document.getElementById('setting_SMTP_PORT').value,
+        SMTP_USER: document.getElementById('setting_SMTP_USER').value,
+        SMTP_PASS: document.getElementById('setting_SMTP_PASS').value,
+        SMTP_FROM: document.getElementById('setting_SMTP_FROM').value
+      }, 'SMTP Email configuration updated & reloaded');
+    });
+
+    // System Flags Form Submit
+    document.getElementById('systemFlagsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveSettings({
+        ALLOW_PUBLIC_SIGNUP: document.getElementById('setting_ALLOW_PUBLIC_SIGNUP').value,
+        REQUIRE_EMAIL_VERIFICATION: document.getElementById('setting_REQUIRE_EMAIL_VERIFICATION').value
+      }, 'Security flags saved');
+    });
+
+    // Test AI Connection Button
+    document.getElementById('testAiBtn').addEventListener('click', async () => {
+      const outputBox = document.getElementById('aiTestOutput');
+      outputBox.style.display = 'block';
+      outputBox.textContent = '⏳ Dispatching 1-token test prompt to configured AI provider...';
+
+      try {
+        const res = await fetch('/api/admin/test-ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: document.getElementById('setting_AI_PROVIDER').value,
+            model: document.getElementById('setting_AI_MODEL').value,
+            apiKey: document.getElementById('setting_AI_API_KEY').value,
+            baseUrl: document.getElementById('setting_AI_BASE_URL').value
+          })
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          outputBox.textContent = `✅ AI CONNECTION SUCCESSFUL (${result.latencyMs}ms)\nProvider: ${result.provider}\nModel: ${result.model}\nSample Output: "${result.sampleResponse}"`;
+          showToast(`AI Online: ${result.model} (${result.latencyMs}ms)`, 'success');
+        } else {
+          outputBox.textContent = `❌ AI TEST FAILED (${result.latencyMs}ms)\n${result.sampleResponse}`;
+          showToast('AI Connection failed. Verify key & model.', 'error');
+        }
+      } catch (err) {
+        outputBox.textContent = `❌ Error: ${err.message}`;
+        showToast(err.message, 'error');
+      }
+    });
+
+    // Security Sanitization Helpers (XSS & Protocol Defense)
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function sanitizeUrl(url) {
+      if (!url) return '';
+      const trimmed = String(url).trim();
+      if (/^https?:\/\//i.test(trimmed)) {
+        return escapeHtml(trimmed);
+      }
+      return '#';
+    }
+
+    // Test Email Modal Focus & Accessibility
+    const testEmailModal = document.getElementById('testEmailModal');
+    const openTestEmailModalBtn = document.getElementById('openTestEmailModalBtn');
+    if (openTestEmailModalBtn) {
+      openTestEmailModalBtn.addEventListener('click', () => {
+        testEmailModal.style.display = 'flex';
+        document.getElementById('testEmailRecipient').focus();
+      });
+    }
+
+    function closeTestEmailModal() {
+      testEmailModal.style.display = 'none';
+      if (openTestEmailModalBtn) openTestEmailModalBtn.focus();
+    }
+
+    // Dismiss modal on Escape key (WCAG 2.1.2)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && testEmailModal.style.display === 'flex') {
+        closeTestEmailModal();
+      }
+    });
+
+    document.getElementById('confirmSendTestEmailBtn').addEventListener('click', async () => {
+      const to = document.getElementById('testEmailRecipient').value;
+      if (!to) return showToast('Please enter an email address', 'error');
+
+      const btn = document.getElementById('confirmSendTestEmailBtn');
+      btn.textContent = 'Sending...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/admin/test-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Test email dispatched to ${to}`, 'success');
+          closeTestEmailModal();
+        } else {
+          showToast(data.message || 'Email delivery failed', 'error');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.textContent = 'Send Email';
+        btn.disabled = false;
+      }
+    });
+
+    // Tenants Loader
+    async function loadTenants() {
+      const tbody = document.getElementById('tenantsTableBody');
+      const search = document.getElementById('tenantSearchInput').value;
+      const status = document.getElementById('tenantStatusFilter').value;
+
+      try {
+        const res = await fetch(`/api/admin/tenants?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.tenants.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">No tenants found.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.tenants.map(t => {
+          const statusBadge = t.subscriptionStatus === 'ACTIVE'
+            ? '<span class="badge badge-emerald"><span class="badge-dot"></span> ACTIVE</span>'
+            : (t.subscriptionStatus === 'EXPIRED'
+              ? '<span class="badge badge-rose"><span class="badge-dot"></span> EXPIRED</span>'
+              : '<span class="badge badge-amber"><span class="badge-dot"></span> INACTIVE</span>');
+
+          const verifiedBadge = t.emailVerified
+            ? '<span style="color: var(--color-emerald); font-weight: 700;">✓ Verified</span>'
+            : '<span style="color: var(--color-text-muted);">Unverified</span>';
+
+          const sessionsTotal = (t._count?.endUserSessions || 0) + (t._count?.whatsAppSessions || 0);
+          const safeEmail = escapeHtml(t.email);
+          const safeId = escapeHtml(t.id);
+          const safePanelUrl = sanitizeUrl(t.panelApiUrl);
+
+          return `
+            <tr>
+              <td>
+                <div style="font-weight: 700;">${safeEmail}</div>
+                <div style="font-size: var(--font-xs); color: var(--color-text-muted); font-family: var(--font-family-mono);">${safeId.slice(0, 8)}...</div>
+                <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.35rem;">
+                  <button type="button" class="btn btn-xs ${t.hasTelegram ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasTelegram', ${!t.hasTelegram})" title="Toggle Telegram Bot plan entitlement">🤖 TG ${t.hasTelegram ? '✓' : '✗'}</button>
+                  <button type="button" class="btn btn-xs ${t.hasWhatsapp ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasWhatsapp', ${!t.hasWhatsapp})" title="Toggle WhatsApp Support Line plan entitlement">💬 WA ${t.hasWhatsapp ? '✓' : '✗'}</button>
+                  <button type="button" class="btn btn-xs ${t.hasWidget ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasWidget', ${!t.hasWidget})" title="Toggle Website Widget plan entitlement">🌐 Widget ${t.hasWidget ? '✓' : '✗'}</button>
+                </div>
+              </td>
+              <td>
+                ${t.panelApiUrl ? `<a href="${safePanelUrl}" target="_blank" rel="noopener noreferrer" style="color: var(--color-accent); font-weight: 600; text-decoration: none;">${escapeHtml(t.panelApiUrl.slice(0, 30))}...</a>` : '<span style="color: var(--color-text-muted);">None</span>'}
+              </td>
+              <td>${statusBadge}</td>
+              <td>${verifiedBadge}</td>
+              <td>${sessionsTotal} sessions</td>
+              <td>${new Date(t.createdAt).toLocaleDateString()}</td>
+              <td style="text-align: right;">
+                <div style="display: inline-flex; gap: 0.35rem; align-items: center;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="impersonateTenant('${safeId}')" aria-label="Log in as tenant ${safeEmail}" title="Log into tenant dashboard">🚀 Impersonate</button>
+                  <select class="select" style="width: 105px; padding: 0.25rem 0.5rem; font-size: var(--font-xs); min-height: 32px;" aria-label="Subscription status for ${safeEmail}" onchange="updateSubscription('${safeId}', this.value)">
+                    <option value="">Status...</option>
+                    <option value="ACTIVE" ${t.subscriptionStatus === 'ACTIVE' ? 'selected' : ''}>Active</option>
+                    <option value="INACTIVE" ${t.subscriptionStatus === 'INACTIVE' ? 'selected' : ''}>Inactive</option>
+                    <option value="EXPIRED" ${t.subscriptionStatus === 'EXPIRED' ? 'selected' : ''}>Expired</option>
+                  </select>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="toggleVerifyEmail('${safeId}', ${!t.emailVerified})" aria-label="Toggle email verification for ${safeEmail}">${t.emailVerified ? 'Unverify' : 'Verify'}</button>
+                  <button type="button" class="btn btn-outline btn-sm" style="color: var(--color-rose); border-color: rgba(244, 63, 94, 0.3);" onclick="deleteTenant('${safeId}')" aria-label="Delete tenant ${safeEmail}">🗑️</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color: var(--color-rose); text-align: center;">Failed to load tenants: ${e.message}</td></tr>`;
+      }
+    }
+
+    let searchTimer;
+    document.getElementById('tenantSearchInput').addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(loadTenants, 300);
+    });
+    document.getElementById('tenantStatusFilter').addEventListener('change', loadTenants);
+
+    async function updateSubscription(id, status) {
+      if (!status) return;
+      try {
+        const res = await fetch(`/api/admin/tenants/${id}/subscription`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        if (res.ok) {
+          showToast(`Subscription status updated to ${status}`, 'success');
+          loadTenants();
+          loadTelemetry();
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function togglePlan(id, planKey, value) {
+      try {
+        const payload = { [planKey]: value };
+        const res = await fetch(`/api/admin/tenants/${id}/plans`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          showToast(`Plan entitlement updated`, 'success');
+          loadTenants();
+        } else {
+          const data = await res.json();
+          showToast(data.error || 'Failed to update plan', 'error');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function toggleVerifyEmail(id, verified) {
+      try {
+        const res = await fetch(`/api/admin/tenants/${id}/verify-email`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verified })
+        });
+        if (res.ok) {
+          showToast(`Email verification ${verified ? 'marked verified' : 'revoked'}`, 'success');
+          loadTenants();
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function impersonateTenant(id) {
+      try {
+        const res = await fetch(`/api/admin/tenants/${id}/impersonate`, { method: 'POST' });
+        const data = await res.json();
+        if (data.redirectUrl) {
+          showToast('Opening tenant dashboard in new tab...', 'info');
+          window.open(data.redirectUrl, '_blank');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function deleteTenant(id) {
+      if (!confirm('Are you sure you want to permanently delete this tenant? All bots, webchat sessions, and logs will be permanently deleted.')) return;
+      try {
+        const res = await fetch(`/api/admin/tenants/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast('Tenant deleted successfully', 'success');
+          loadTenants();
+          loadTelemetry();
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    // Leads Loader
+    async function loadLeads() {
+      const tbody = document.getElementById('leadsTableBody');
+      const status = document.getElementById('leadsStatusFilter').value;
+
+      try {
+        const res = await fetch(`/api/admin/leads?status=${encodeURIComponent(status)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.leads.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">No inquiries found.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.leads.map(l => {
+          const cleanPhone = (l.contactNumber || '').replace(/[^0-9]/g, '');
+          const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
+          const safeEmail = escapeHtml(l.email);
+          const safeId = escapeHtml(l.id);
+          const safePanelUrl = sanitizeUrl(l.panelUrl);
+          const safeContact = escapeHtml(l.contactNumber);
+          const safeNotes = escapeHtml(l.notes || '');
+
+          return `
+            <tr>
+              <td>${new Date(l.createdAt).toLocaleDateString()}</td>
+              <td><a href="mailto:${safeEmail}" style="color: var(--color-accent); font-weight: 600; text-decoration: none;">${safeEmail}</a></td>
+              <td><a href="${safePanelUrl}" target="_blank" rel="noopener noreferrer" style="color: var(--color-text-main); text-decoration: none;">${safePanelUrl}</a></td>
+              <td>
+                <div>${safeContact}</div>
+                ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" aria-label="Chat with ${safeContact} on WhatsApp" style="font-size: var(--font-xs); color: var(--color-emerald); font-weight: 700; text-decoration: none;">💬 Open WhatsApp</a>` : ''}
+              </td>
+              <td>
+                <select class="select" style="width: 120px; padding: 0.25rem 0.5rem; font-size: var(--font-xs); min-height: 32px;" aria-label="Lead status for ${safeEmail}" onchange="updateLeadStatus('${safeId}', this.value)">
+                  <option value="NEW" ${l.status === 'NEW' ? 'selected' : ''}>New</option>
+                  <option value="CONTACTED" ${l.status === 'CONTACTED' ? 'selected' : ''}>Contacted</option>
+                  <option value="QUALIFIED" ${l.status === 'QUALIFIED' ? 'selected' : ''}>Qualified</option>
+                  <option value="DISMISSED" ${l.status === 'DISMISSED' ? 'selected' : ''}>Dismissed</option>
+                </select>
+              </td>
+              <td>
+                <input type="text" class="input" style="width: 170px; min-height: 32px; font-size: var(--font-xs);" value="${safeNotes}" placeholder="Add follow-up notes..." aria-label="Follow-up notes for ${safeEmail}" onblur="updateLeadNotes('${safeId}', this.value)" />
+              </td>
+              <td style="text-align: right;">
+                <button type="button" class="btn btn-outline btn-sm" style="color: var(--color-rose); border-color: rgba(244, 63, 94, 0.3);" onclick="deleteLead('${safeId}')" aria-label="Delete inquiry from ${safeEmail}">🗑️</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color: var(--color-rose); text-align: center;">Failed to load leads: ${e.message}</td></tr>`;
+      }
+    }
+    document.getElementById('leadsStatusFilter').addEventListener('change', loadLeads);
+
+    async function updateLeadStatus(id, status) {
+      try {
+        await fetch(`/api/admin/leads/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        showToast(`Lead marked as ${status}`, 'success');
+        loadTelemetry();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function updateLeadNotes(id, notes) {
+      try {
+        await fetch(`/api/admin/leads/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes })
+        });
+        showToast('Notes saved', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function deleteLead(id) {
+      if (!confirm('Delete this inquiry?')) return;
+      try {
+        await fetch(`/api/admin/leads/${id}`, { method: 'DELETE' });
+        showToast('Inquiry deleted', 'success');
+        loadLeads();
+        loadTelemetry();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    // Platform Crypto Invoices Controller
+    async function loadInvoices() {
+      const tbody = document.getElementById('invoicesTableBody');
+      if (!tbody) return;
+      try {
+        const res = await fetch('/api/admin/invoices');
+        if (!res.ok) return;
+        const data = await res.json();
+        const invoices = data.invoices || [];
+
+        if (invoices.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--color-text-muted); padding: 2rem;">No crypto invoices found.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = invoices.map(inv => {
+          const email = inv.tenant ? escapeHtml(inv.tenant.email) : 'Unknown';
+          const channelsArr = Array.isArray(inv.selectedChannels) ? inv.selectedChannels : [];
+          const channelsFormatted = channelsArr.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ');
+          const dateStr = new Date(inv.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+          const isPending = inv.status === 'PENDING';
+
+          let statusBadgeClass = 'badge-secondary';
+          if (inv.status === 'PAID') statusBadgeClass = 'badge-emerald';
+          else if (inv.status === 'PENDING') statusBadgeClass = 'badge-accent';
+          else if (inv.status === 'FAILED' || inv.status === 'CANCELLED') statusBadgeClass = 'badge-danger';
+
+          return `
+            <tr>
+              <td>${dateStr}</td>
+              <td style="font-family: var(--font-family-mono); font-weight: 600;">${escapeHtml(inv.orderId)}</td>
+              <td><strong>${email}</strong></td>
+              <td>${escapeHtml(channelsFormatted)}</td>
+              <td>${inv.durationMonths || 1} mo</td>
+              <td style="font-weight: 700; color: var(--color-accent);">$${Number(inv.amount).toFixed(2)} USD</td>
+              <td><span class="badge ${statusBadgeClass}">${inv.status}</span></td>
+              <td style="text-align: right;">
+                ${isPending 
+                  ? `<button type="button" class="btn btn-xs btn-outline" style="color: var(--color-emerald); border-color: var(--color-emerald);" onclick="adminMarkInvoicePaid('${escapeHtml(inv.orderId)}')">Mark Paid</button>` 
+                  : `<span style="color: var(--color-text-muted); font-size: var(--font-xs);">—</span>`}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" style="color: var(--color-rose); text-align: center;">Failed to load invoices: ${e.message}</td></tr>`;
+      }
+    }
+
+    async function adminMarkInvoicePaid(orderId) {
+      if (!confirm(`Manually mark invoice ${orderId} as PAID and activate tenant channels?`)) return;
+      try {
+        const res = await fetch(`/api/admin/invoices/${encodeURIComponent(orderId)}/mark-paid`, {
+          method: 'POST'
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to mark paid');
+        showToast('Invoice marked as PAID and tenant plan activated!', 'success');
+        loadInvoices();
+        loadTenants();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    const refreshInvoicesBtn = document.getElementById('refreshInvoicesBtn');
+    if (refreshInvoicesBtn) {
+      refreshInvoicesBtn.addEventListener('click', () => {
+        loadInvoices();
+        showToast('Invoices refreshed', 'info');
+      });
+    }
+
+    // Run
+    initApp();
+  </script>
+</body>
+</html>

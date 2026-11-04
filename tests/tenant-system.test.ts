@@ -252,7 +252,8 @@ describe('Step 5: Admin Onboarding & Activation Endpoints', () => {
       where: { id: 'tenant-cfg' },
       data: {
         botToken: expect.stringMatching(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/),
-        panelApiUrl: 'https://api.panel.com'
+        panelApiUrl: 'https://api.panel.com',
+        telegramPanelUrl: 'https://api.panel.com'
       }
     });
     expect(result.panelApiUrl).toBe('https://api.panel.com');
@@ -277,7 +278,8 @@ describe('Step 5: Admin Onboarding & Activation Endpoints', () => {
       id: 'tenant-act',
       botToken: '123:abc',
       panelApiUrl: 'https://api.panel.com',
-      subscriptionStatus: 'INACTIVE'
+      subscriptionStatus: 'INACTIVE',
+      hasTelegram: true
     } as any);
 
     vi.spyOn(prisma.tenant, 'update').mockResolvedValueOnce({

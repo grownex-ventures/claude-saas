@@ -19,36 +19,70 @@ model Tenant {
   passwordHash       String
   botToken           String?            @unique
   panelApiUrl        String?
+  telegramPanelUrl   String?
+  whatsappPanelUrl   String?
+  widgetPanelUrl     String?
+  hasTelegram        Boolean            @default(true)
+  hasWhatsapp        Boolean            @default(false)
+  hasWidget          Boolean            @default(false)
   subscriptionStatus SubscriptionStatus @default(INACTIVE)
+  subscriptionExpiresAt DateTime?
+  invoices           PaymentInvoice[]
   crawledData        Json?
   lastCrawledAt      DateTime?
   endUserSessions    BotUserSession[]
   whatsAppPhoneNumber String?
   whatsAppEnabled    Boolean            @default(false)
   whatsAppSessions   WhatsAppSession[]
+  whatsAppChatMessages WhatsAppChatMessage[]
   widgetApiKey       String?            // AES-256 encrypted catalog API key for public visitor queries
   widgetTitle        String?            @default("Customer Support")
   widgetWelcomeMessage String?          @default("Hello! How can we help you today? Ask about our services, pricing, or order tracking.")
   widgetAccentColor  String?            @default("#4f46e5")
   widgetEnabled      Boolean            @default(true)
   webChatSessions    WebChatSession[]
+  telegramChatMessages TelegramChatMessage[]
   auditLogs          AuditLog[]
   passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  googleId           String?            @unique
+  emailVerified      Boolean            @default(false)
+  emailVerifiedAt    DateTime?
+  mfaEnabled         Boolean            @default(false)
+  mfaSecret          String?            // AES-256 encrypted TOTP secret
+  mfaBackupCodes     Json?              // Array of SHA-256 hashed 10-char backup codes
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
 
 model BotUserSession {
-  id             String   @id @default(uuid())
-  tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  telegramUserId String
-  userPanelKey   String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                String   @id @default(uuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  telegramUserId    String
+  telegramUsername  String?
+  telegramFirstName String?
+  userPanelKey      String?  // AES-256 encrypted SMM customer API key (optional until /setkey)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  messages          TelegramChatMessage[]
 
   // CRITICAL: Prevents session collision when one reseller uses two different SMM panels' bots
   @@unique([tenantId, telegramUserId])
+}
+
+model TelegramChatMessage {
+  id             String         @id @default(uuid())
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  telegramUserId String
+  session        BotUserSession @relation(fields: [tenantId, telegramUserId], references: [tenantId, telegramUserId], onDelete: Cascade)
+  role           String         // 'user' | 'assistant'
+  content        String
+  createdAt      DateTime       @default(now())
+
+  @@index([tenantId, telegramUserId, createdAt])
+  @@index([tenantId, createdAt])
 }
 
 model WhatsAppSession {
@@ -57,12 +91,27 @@ model WhatsAppSession {
   tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   whatsappJid  String   // Customer's WhatsApp JID (e.g. "123456789@s.whatsapp.net")
   phoneNumber  String?  // Extracted phone digits
-  userPanelKey String   // AES-256 encrypted SMM customer API key
+  userPanelKey String?  // AES-256 encrypted SMM customer API key (optional until /setkey)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  messages     WhatsAppChatMessage[]
 
   // Prevents cross-tenant session collision
   @@unique([tenantId, whatsappJid])
+}
+
+model WhatsAppChatMessage {
+  id          String          @id @default(uuid())
+  tenantId    String
+  whatsappJid String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session     WhatsAppSession @relation(fields: [tenantId, whatsappJid], references: [tenantId, whatsappJid], onDelete: Cascade)
+  role        String          // 'user' | 'assistant'
+  content     String
+  createdAt   DateTime        @default(now())
+
+  @@index([tenantId, whatsappJid, createdAt])
+  @@index([tenantId, createdAt])
 }
 
 model WebChatSession {
@@ -108,6 +157,7 @@ model LeadRequest {
   panelUrl      String
   contactNumber String
   message       String?
+  notes         String?
   status        String   @default("NEW") // 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'DISMISSED'
   ipAddress     String?
   userAgent     String?
@@ -127,5 +177,70 @@ model PasswordResetToken {
 
   @@index([tokenHash, expiresAt])
 }
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([tokenHash, expiresAt])
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String    @default("Super Admin")
+  mfaEnabled   Boolean   @default(false)
+  mfaSecret    String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  isEncrypted Boolean  @default(false)
+  category    String   // "AI" | "AUTH" | "EMAIL" | "SYSTEM"
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+  FAILED
+}
+
+model PaymentInvoice {
+  id               String        @id @default(uuid())
+  tenantId         String
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orderId          String        @unique // e.g. INV-1741234567-ABCD
+  gateway          String        @default("cryptomus")
+  gatewayPaymentId String?       // Cryptomus payment UUID
+  amount           Float         // USD equivalent
+  currency         String        @default("USD")
+  selectedChannels Json          // e.g. ["telegram", "whatsapp"]
+  durationMonths   Int           @default(1)
+  status           InvoiceStatus @default(PENDING)
+  paymentUrl       String?
+  paidAt           DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([orderId])
+  @@index([status])
+}
+
 
 

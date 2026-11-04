@@ -42,23 +42,15 @@ export class AiAgentService {
     const cleanQuery = message.trim();
     if (!cleanQuery) return 'How can I assist you with your SMM orders or services today?';
 
-    // 1. Check Redis Query Cache for instant (< 15ms) response on identical queries
-    const cacheKey = `tenant:${tenantId}:qcache:${this.hashQuery(cleanQuery)}`;
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-    } catch {
-      // Non-blocking Redis cache read failure
-    }
-
     // 2. Load tenant configuration and crawled catalog
     const tenant = params.tenant || await prisma.tenant.findUnique({
       where: { id: tenantId },
       select: {
         id: true,
         panelApiUrl: true,
+        telegramPanelUrl: true,
+        whatsappPanelUrl: true,
+        widgetPanelUrl: true,
         widgetTitle: true,
         widgetWelcomeMessage: true,
         widgetApiKey: true,
@@ -69,6 +61,33 @@ export class AiAgentService {
 
     if (!tenant) {
       return 'Customer support service is currently unavailable.';
+    }
+
+    // Resolve channel-specific panel API URL with fallback to global panelApiUrl
+    const channelPanelUrl = params.channel === 'whatsapp'
+      ? (tenant.whatsappPanelUrl || tenant.panelApiUrl)
+      : params.channel === 'widget'
+      ? (tenant.widgetPanelUrl || tenant.panelApiUrl)
+      : (tenant.telegramPanelUrl || tenant.panelApiUrl);
+
+    if (channelPanelUrl) {
+      tenant.panelApiUrl = channelPanelUrl;
+    }
+
+    // Strict Competitor & Foreign SMM Panel Rejection Guardrail
+    if (this.isCompetitorQuery(cleanQuery, tenant.panelApiUrl || undefined)) {
+      return 'I am the dedicated AI assistant for this panel only. I cannot discuss or assist with other SMM panels. How can I help you with our services?';
+    }
+
+    // 1. Check Redis Query Cache for instant (< 15ms) response on identical queries
+    const cacheKey = `tenant:${tenantId}:qcache:${this.hashQuery(cleanQuery)}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    } catch {
+      // Non-blocking Redis cache read failure
     }
 
     let catalogKey: string | undefined;
@@ -174,6 +193,41 @@ export class AiAgentService {
     return crypto.createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
   }
 
+  public isCompetitorQuery(text: string, currentPanelUrl?: string): boolean {
+    const lower = text.toLowerCase();
+    const competitorNames = [
+      'justanotherpanel', 'peakerr', 'smmking', 'smmheaven', 'secsers',
+      'smmfollows', 'medyafox', 'smmmain', 'famegrowers', 'bulksmm', 'smmrush',
+      'other panel', 'another panel', 'different panel', 'better panel', 'cheaper panel',
+      'competitor'
+    ];
+
+    // Check for foreign URLs
+    const urlMatches = lower.match(/(?:https?:\/\/)?([a-zA-Z0-9-]+\.(?:com|net|org|io|in|co|biz|agency|store|vip|pro|cc|to))/gi);
+    if (urlMatches) {
+      let currentHost = '';
+      if (currentPanelUrl) {
+        try {
+          currentHost = new URL(currentPanelUrl.startsWith('http') ? currentPanelUrl : `https://${currentPanelUrl}`).hostname.toLowerCase();
+        } catch {}
+      }
+      for (const match of urlMatches) {
+        const cleanHost = match.replace(/^https?:\/\//i, '').toLowerCase();
+        if (currentHost && (cleanHost.includes(currentHost) || currentHost.includes(cleanHost))) {
+          continue;
+        }
+        if (cleanHost.includes('smm') || cleanHost.includes('panel') || competitorNames.some((k) => cleanHost.includes(k))) {
+          return true;
+        }
+      }
+    }
+
+    return competitorNames.some((k) => {
+      if (k.includes(' ')) return lower.includes(k);
+      return new RegExp(`\\b${k}\\b`, 'i').test(lower);
+    });
+  }
+
   private async resolveServicesCatalog(tenantId: string, tenant: any): Promise<SmmService[]> {
     // Check Redis first
     try {
@@ -199,8 +253,8 @@ export class AiAgentService {
     return `You are YourSMMagent, an expert, professional, 24/7 AI Customer Support Representative for the SMM panel at ${tenant.panelApiUrl || 'our panel'}.
 
 Core Identity & Guidelines:
-1. Grounded & Accurate: NEVER hallucinate fake services, non-existent service IDs, or false prices. Only quote real services from the catalog or tools.
-2. Tone: Courteous, knowledgeable, confident, and helpful. Use clean Markdown formatting with bullet points and bold highlights.
+1. Strict Competitor Rejection: You represent ONLY ${tenant.panelApiUrl || 'this panel'}. You MUST NEVER mention, recommend, assist with, or compare any competing SMM panel or external domain. If asked about another panel or competitor, politely decline: "I am the dedicated AI assistant for this panel only. I cannot discuss or assist with other SMM panels. How can I help you with our services?"
+2. Grounded & Accurate: NEVER hallucinate fake services, non-existent service IDs, or false prices. Only quote real services from the catalog or live tools.
 3. Common SMM Policies:
    - Refills: Most guaranteed services offer 30-day automatic or button refills if drops occur.
    - Speed: Start times typically range between 5 minutes to 2 hours depending on current server queue.
@@ -211,7 +265,7 @@ ${categories.join(', ') || 'Instagram, YouTube, Telegram, TikTok, Facebook, Twit
 Sample Featured Services:
 ${serviceSample || 'Wide catalog of social media growth services'}
 
-When a user asks to track an order, search services, or check balance, use the appropriate tools to provide real-time information.`;
+When a user asks to track an order, search services, check balance, or place an order, use the appropriate live tools to provide real-time information.`;
   }
 
   private getTools(): AiToolDefinition[] {
@@ -248,6 +302,19 @@ When a user asks to track an order, search services, or check balance, use the a
         }
       },
       {
+        name: 'place_order',
+        description: 'Places a new social media order on the panel using the linked customer account.',
+        parameters: {
+          type: 'object',
+          properties: {
+            serviceId: { type: 'string', description: 'The numeric SMM service ID' },
+            link: { type: 'string', description: 'The target social media post/profile URL or username' },
+            quantity: { type: 'number', description: 'Number of units to order' }
+          },
+          required: ['serviceId', 'link', 'quantity']
+        }
+      },
+      {
         name: 'escalate_to_human',
         description: 'Escalates an issue to human support staff when the user demands human intervention or has a billing dispute.',
         parameters: {
@@ -270,6 +337,26 @@ When a user asks to track an order, search services, or check balance, use the a
     customerApiKey?: string
   ): Promise<string> {
     switch (name) {
+      case 'place_order': {
+        const serviceId = String(args.serviceId || '').trim();
+        const link = String(args.link || '').trim();
+        const quantity = Number(args.quantity);
+
+        if (!customerApiKey || !tenant.panelApiUrl) {
+          return 'To place an order directly via chat, please link your panel account first using /setkey <YOUR_API_KEY>.';
+        }
+        if (!serviceId || !link || isNaN(quantity) || quantity <= 0) {
+          return 'Please specify the service ID, target link, and quantity to submit an order.';
+        }
+
+        try {
+          const client = new SmmProviderClient(tenant.panelApiUrl, customerApiKey);
+          const res = await client.placeOrder({ service: serviceId, link, quantity });
+          return `Order placed successfully! Order ID: #${res.order}. You can check its progress anytime with /status ${res.order}.`;
+        } catch (err: any) {
+          return `Could not place order: ${err.message || 'Please check your account balance and parameter requirements.'}`;
+        }
+      }
       case 'search_services': {
         const query = (args.query || '').toLowerCase();
         const tokens = query.split(/\s+/).filter((t: string) => t.length > 2);

@@ -1,9 +1,9 @@
-import { APP_URL, NAV_LINKS } from "@/lib/site";
+import { LOGIN_URL, SIGNUP_URL, NAV_LINKS } from "@/lib/site";
 import { Logo } from "./Logo";
 
 const APP_LINKS = [
-    { label: "Get Started", href: APP_URL },
-    { label: "Log In", href: APP_URL },
+    { label: "Get Started", href: SIGNUP_URL },
+    { label: "Log In", href: LOGIN_URL },
 ];
 
 export default function Footer() {
@@ -50,8 +50,7 @@ export default function Footer() {
                                 <li key={link.label}>
                                     <a
                                         href={link.href}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                                        target="_self"
                                         data-testid={`footer-app-link-${link.label.toLowerCase().replace(/\s+/g, "-")}`}
                                         className="text-sm font-medium text-slate-600 transition-colors hover:text-indigo-600"
                                     >

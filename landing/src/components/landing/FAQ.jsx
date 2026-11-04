@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
-import { APP_URL } from "@/lib/site";
+import { SIGNUP_URL } from "@/lib/site";
 import Reveal from "./Reveal";
 
 const FAQS = [
@@ -131,9 +131,8 @@ export default function FAQ() {
                     <p className="text-sm text-slate-500">
                         Ready to see it on your own panel?{" "}
                         <a
-                            href={APP_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href={SIGNUP_URL}
+                            target="_self"
                             data-testid="faq-get-started-link"
                             className="font-semibold text-indigo-600 underline decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-500"
                         >

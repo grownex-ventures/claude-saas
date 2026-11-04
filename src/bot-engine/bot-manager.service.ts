@@ -7,6 +7,7 @@ import { encrypt, decrypt } from '../common/crypto/encryption.js';
 import { validateSafeUrl } from '../common/security/url-validator.js';
 import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
 import { AiAgentService } from '../ai-engine/ai-agent.service.js';
+import { SmmProviderClient, SmmService } from '../smm-core/smm-client.js';
 
 function resolveBotToken(token: string): string {
   if (!token) return '';
@@ -55,6 +56,9 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
   private readonly instanceId = crypto.randomUUID();
 
   constructor(private panelCrawlerService: PanelCrawlerService = new PanelCrawlerService()) {
+    if (BotManagerService.instance) {
+      return BotManagerService.instance;
+    }
     BotManagerService.instance = this;
   }
 
@@ -87,12 +91,16 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
 
     for (const tenant of activeTenants) {
       if (tenant.botToken) {
-        await this.startTenantBot({
-          tenantId: tenant.id,
-          botToken: tenant.botToken,
-          panelApiUrl: tenant.panelApiUrl || '',
-          subscriptionStatus: tenant.subscriptionStatus
-        });
+        try {
+          await this.startTenantBot({
+            tenantId: tenant.id,
+            botToken: tenant.botToken,
+            panelApiUrl: tenant.panelApiUrl || '',
+            subscriptionStatus: tenant.subscriptionStatus
+          });
+        } catch (err: any) {
+          console.warn(`[BotManager] Skipping startup for tenant ${tenant.id} with invalid bot token:`, err?.message || err);
+        }
       }
     }
   }
@@ -127,18 +135,52 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
 
     // Command: /start
     bot.command('start', async (ctx) => {
+      const telegramUserId = String(ctx.from?.id);
+      await this.ensureUserSession(tenantId, ctx.from);
+
       RuntimeLogService.record({
         tenantId,
         channel: 'telegram',
         level: 'info',
         event: 'COMMAND_START',
-        message: `User ${ctx.from?.id} issued /start`,
-        details: { userId: ctx.from?.id, username: ctx.from?.username }
+        message: `User ${telegramUserId} issued /start`,
+        details: { userId: telegramUserId, username: ctx.from?.username }
       }).catch(() => {});
 
-      await ctx.reply(
-        'Welcome! Send /setkey <YOUR_API_KEY> to connect your account, or ask any question about our services.'
-      );
+      const welcomeText =
+        `👋 **Welcome to 24/7 Customer Support!**\n\n` +
+        `I am your dedicated AI assistant. Here is what I can do for you:\n\n` +
+        `• 💰 **/balance** — Check your account balance\n` +
+        `• 📦 **/status <order_id>** — Track live order progress\n` +
+        `• 📋 **/services [keyword]** — Browse our service catalog & pricing\n` +
+        `• 🔑 **/setkey <YOUR_API_KEY>** — Connect your panel account\n` +
+        `• ❓ **/help** — View commands & instructions\n\n` +
+        `💬 *Or simply type any question here to chat with our AI support!*`;
+
+      await this.saveChatMessage(tenantId, telegramUserId, 'user', '/start');
+      await this.saveChatMessage(tenantId, telegramUserId, 'assistant', welcomeText);
+
+      await ctx.reply(welcomeText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(welcomeText));
+    });
+
+    // Command: /help
+    bot.command('help', async (ctx) => {
+      const telegramUserId = String(ctx.from?.id);
+      await this.ensureUserSession(tenantId, ctx.from);
+
+      const helpText =
+        `ℹ️ **Available Bot Commands:**\n\n` +
+        `• **/balance** — Check your remaining balance\n` +
+        `• **/status <order_id>** — Check status of an order (e.g. \`/status 123456\`)\n` +
+        `• **/services <keyword>** — Search services & rates (e.g. \`/services instagram\`)\n` +
+        `• **/setkey <api_key>** — Link your panel API key securely\n` +
+        `• **/help** — Show this guide\n\n` +
+        `💡 *You can also ask questions naturally like "how do refills work?" or "what are your YouTube prices?".*`;
+
+      await this.saveChatMessage(tenantId, telegramUserId, 'user', '/help');
+      await this.saveChatMessage(tenantId, telegramUserId, 'assistant', helpText);
+
+      await ctx.reply(helpText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(helpText));
     });
 
     // Command: /setkey <key> (Tenant isolated upsert with AES-256 encryption)
@@ -165,12 +207,16 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
           }
         },
         update: {
-          userPanelKey: encryptedKey
+          userPanelKey: encryptedKey,
+          telegramUsername: ctx.from?.username || null,
+          telegramFirstName: ctx.from?.first_name || null
         },
         create: {
           tenantId,
           telegramUserId,
-          userPanelKey: encryptedKey
+          userPanelKey: encryptedKey,
+          telegramUsername: ctx.from?.username || null,
+          telegramFirstName: ctx.from?.first_name || null
         }
       });
 
@@ -183,12 +229,19 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
         details: { userId: telegramUserId, username: ctx.from?.username }
       }).catch(() => {});
 
-      await ctx.reply('✓ Your API key has been securely saved and your message was wiped for safety.');
+      const replyText = '✓ Your API key has been securely saved and your message was wiped for safety.';
+      await this.saveChatMessage(tenantId, telegramUserId, 'user', '/setkey [REDACTED]');
+      await this.saveChatMessage(tenantId, telegramUserId, 'assistant', replyText);
+
+      await ctx.reply(replyText);
     });
 
     // Command: /balance (Scoped SMM Panel API call with SSRF defense)
     bot.command('balance', async (ctx) => {
       const telegramUserId = String(ctx.from?.id);
+      await this.ensureUserSession(tenantId, ctx.from);
+      await this.saveChatMessage(tenantId, telegramUserId, 'user', '/balance');
+
       const session = await prisma.botUserSession.findUnique({
         where: {
           tenantId_telegramUserId: {
@@ -198,8 +251,10 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
         }
       });
 
-      if (!session) {
-        await ctx.reply('No API key found. Please link your account first via /setkey <KEY>.');
+      if (!session || !session.userPanelKey) {
+        const noKeyMsg = 'No API key found. Please link your account first via /setkey <KEY>.';
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', noKeyMsg);
+        await ctx.reply(noKeyMsg);
         return;
       }
 
@@ -228,7 +283,9 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
               message: `Balance lookup for user ${telegramUserId} returned error: ${data.error}`,
               details: { userId: telegramUserId }
             }).catch(() => {});
-            await ctx.reply(`Panel error: ${data.error}`);
+            const errMsg = `Panel error: ${data.error}`;
+            await this.saveChatMessage(tenantId, telegramUserId, 'assistant', errMsg);
+            await ctx.reply(errMsg);
           } else {
             RuntimeLogService.record({
               tenantId,
@@ -238,7 +295,9 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
               message: `User ${telegramUserId} checked balance: ${data.balance ?? 0} ${data.currency || 'USD'}`,
               details: { userId: telegramUserId, balance: data.balance, currency: data.currency }
             }).catch(() => {});
-            await ctx.reply(`Your current balance: ${data.balance ?? 0} ${data.currency || 'USD'}`);
+            const balMsg = `💰 **Your current balance:** ${data.balance ?? 0} ${data.currency || 'USD'}`;
+            await this.saveChatMessage(tenantId, telegramUserId, 'assistant', balMsg);
+            await ctx.reply(balMsg, { parse_mode: 'Markdown' }).catch(() => ctx.reply(balMsg));
           }
         } else {
           RuntimeLogService.record({
@@ -249,7 +308,9 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
             message: `Panel returned HTTP ${res.status} for balance lookup`,
             details: { userId: telegramUserId, status: res.status }
           }).catch(() => {});
-          await ctx.reply('Failed to fetch balance from panel. Please verify your API key.');
+          const failMsg = 'Failed to fetch balance from panel. Please verify your API key.';
+          await this.saveChatMessage(tenantId, telegramUserId, 'assistant', failMsg);
+          await ctx.reply(failMsg);
         }
       } catch (e: any) {
         console.error(`Balance error for tenant ${tenantId}:`, e?.message || e);
@@ -261,7 +322,113 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
           message: `Network error connecting to panel for user ${telegramUserId}`,
           details: { userId: telegramUserId, error: e?.message }
         }).catch(() => {});
-        await ctx.reply('Panel server is currently unreachable. Please try again later.');
+        const unreachMsg = 'Panel server is currently unreachable. Please try again later.';
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', unreachMsg);
+        await ctx.reply(unreachMsg);
+      }
+    });
+
+    // Command: /status <order_id> (Live SMM Order Status Lookup)
+    bot.command('status', async (ctx) => {
+      const telegramUserId = String(ctx.from?.id);
+      await this.ensureUserSession(tenantId, ctx.from);
+
+      const parts = ctx.message?.text?.split(/\s+/) || [];
+      const orderId = parts[1]?.trim()?.replace(/[^\d]/g, '');
+
+      if (!orderId) {
+        const usageText = 'Usage: /status <order_id>\nExample: `/status 10245`';
+        await ctx.reply(usageText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(usageText));
+        return;
+      }
+
+      await this.saveChatMessage(tenantId, telegramUserId, 'user', ctx.message?.text || `/status ${orderId}`);
+
+      const session = await prisma.botUserSession.findUnique({
+        where: { tenantId_telegramUserId: { tenantId, telegramUserId } }
+      });
+
+      let rawKey = '';
+      if (session?.userPanelKey) {
+        try {
+          rawKey = decrypt(session.userPanelKey);
+        } catch {}
+      }
+
+      try {
+        const baseUrl = panelApiUrl.replace(/\/+$/, '').replace(/\/api\/v2$/, '');
+        const clientKey = rawKey || (await this.getTenantCatalogKey(tenantId));
+
+        if (!clientKey || !baseUrl) {
+          const promptKey = 'To track orders live, please connect your panel account first with /setkey <YOUR_API_KEY>.';
+          await this.saveChatMessage(tenantId, telegramUserId, 'assistant', promptKey);
+          await ctx.reply(promptKey);
+          return;
+        }
+
+        const client = new SmmProviderClient(baseUrl, clientKey);
+        const order = await client.getOrderStatus(orderId);
+
+        const statusText =
+          `📦 **Order #${orderId} Status Details:**\n\n` +
+          `• **Status:** ${order.status || 'Processing'}\n` +
+          `• **Start Count:** ${order.start_count ?? 'N/A'}\n` +
+          `• **Remains:** ${order.remains ?? 'N/A'}\n` +
+          `• **Charge:** ${order.charge !== undefined && order.charge !== null ? `${order.charge} ${order.currency || 'USD'}`.trim() : 'N/A'}`;
+
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', statusText);
+        await ctx.reply(statusText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(statusText));
+      } catch (err: any) {
+        const errText = `❌ Could not retrieve status for Order #${orderId}: ${err?.message || 'Server unreachable or invalid order ID'}`;
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', errText);
+        await ctx.reply(errText);
+      }
+    });
+
+    // Command: /services [keyword] (Live SMM Services Catalog Lookup)
+    bot.command('services', async (ctx) => {
+      const telegramUserId = String(ctx.from?.id);
+      await this.ensureUserSession(tenantId, ctx.from);
+
+      const parts = ctx.message?.text?.split(/\s+/) || [];
+      const query = parts.slice(1).join(' ').trim().toLowerCase();
+
+      await this.saveChatMessage(tenantId, telegramUserId, 'user', ctx.message?.text || '/services');
+
+      try {
+        const services = await this.resolveTenantServices(tenantId, panelApiUrl);
+        let matches = services;
+
+        if (query) {
+          matches = services.filter((s) => {
+            const name = (s.name || '').toLowerCase();
+            const cat = (s.category || '').toLowerCase();
+            return name.includes(query) || cat.includes(query);
+          });
+        }
+
+        const top = matches.slice(0, 8);
+        if (top.length === 0) {
+          const noMatchText = `No services found matching "${query}". Try searching for "instagram", "youtube", "views", or "followers".`;
+          await this.saveChatMessage(tenantId, telegramUserId, 'assistant', noMatchText);
+          await ctx.reply(noMatchText);
+          return;
+        }
+
+        const formatted = top
+          .map((s) => `• ID ${s.service}: **${s.name}** | Rate: $${s.rate}/1k | Min: ${s.min} | Max: ${s.max}`)
+          .join('\n');
+
+        const replyText =
+          `⚡ **Matching Services (${matches.length} found):**\n\n${formatted}\n\n` +
+          `💡 *To search specifically, use:* \`/services <keyword>\``;
+
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', replyText);
+        await ctx.reply(replyText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(replyText));
+      } catch (err: any) {
+        const errText = `Could not load services catalog: ${err?.message || 'Catalog unavailable'}`;
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', errText);
+        await ctx.reply(errText);
       }
     });
 
@@ -272,17 +439,42 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
 
       if (userText.startsWith('/')) return;
 
+      await this.ensureUserSession(tenantId, ctx.from);
+
+      // 1. Save user message to database
+      await this.saveChatMessage(tenantId, telegramUserId, 'user', userText);
+
+      // 2. Fetch last 6 message turns from database for this specific user
+      let history: { role: 'user' | 'assistant'; content: string }[] = [];
+      try {
+        const recentMessages = await prisma.telegramChatMessage.findMany({
+          where: { tenantId, telegramUserId },
+          orderBy: { createdAt: 'desc' },
+          take: 6
+        });
+        history = [...recentMessages].reverse().map((m) => ({
+          role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+          content: m.content
+        }));
+      } catch {}
+
       try {
         const reply = await AiAgentService.getInstance().generateReply({
           tenantId,
           message: userText,
           channel: 'telegram',
-          userId: telegramUserId
+          userId: telegramUserId,
+          history
         });
+
+        // 3. Save bot response to database
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', reply);
+
         await ctx.reply(reply);
       } catch (err: any) {
         console.warn(`[BotManager] Telegram AI reply error for tenant ${tenantId}:`, err?.message || err);
         const fallback = `Thank you for your message. An agent is reviewing your query. You can check order status with /status <order_id> or view services with /services.`;
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', fallback);
         await ctx.reply(fallback);
       }
     });
@@ -380,8 +572,12 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
         err?.message?.includes('Aborted delay') ||
         err?.name === 'AbortError' ||
         err?.message?.includes('409') ||
-        err?.message?.includes('Conflict')
+        err?.message?.includes('Conflict') ||
+        err?.error_code === 401 ||
+        err?.description?.includes('Unauthorized')
       ) {
+        console.warn(`[BotManager] Telegram polling for tenant ${tenantId} ended (${err?.description || err?.message || 'Conflict/Auth error'})`);
+        this.stopTenantBot(tenantId).catch(() => {});
         return;
       }
       console.error(`Failed to run bot for tenant ${tenantId}:`, err);
@@ -478,6 +674,98 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
       this.activeBots.delete(tenantId);
       this.activePolling.delete(tenantId);
     }
+  }
+
+  async saveChatMessage(
+    tenantId: string,
+    telegramUserId: string,
+    role: 'user' | 'assistant',
+    content: string
+  ): Promise<void> {
+    try {
+      await prisma.telegramChatMessage.create({
+        data: {
+          tenantId,
+          telegramUserId,
+          role,
+          content
+        }
+      });
+    } catch (err: any) {
+      console.warn(`[BotManager] Failed to persist Telegram chat turn for tenant ${tenantId}, user ${telegramUserId}:`, err?.message || err);
+    }
+  }
+
+  async ensureUserSession(
+    tenantId: string,
+    from?: { id: number | string; username?: string; first_name?: string }
+  ): Promise<void> {
+    if (!from || !from.id) return;
+    const telegramUserId = String(from.id);
+    try {
+      await prisma.botUserSession.upsert({
+        where: {
+          tenantId_telegramUserId: {
+            tenantId,
+            telegramUserId
+          }
+        },
+        update: {
+          telegramUsername: from.username || null,
+          telegramFirstName: from.first_name || null
+        },
+        create: {
+          tenantId,
+          telegramUserId,
+          telegramUsername: from.username || null,
+          telegramFirstName: from.first_name || null
+        }
+      });
+    } catch (err: any) {
+      console.warn(`[BotManager] Failed to upsert BotUserSession for user ${telegramUserId}:`, err?.message || err);
+    }
+  }
+
+  private async getTenantCatalogKey(tenantId: string): Promise<string> {
+    try {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { widgetApiKey: true }
+      });
+      if (tenant?.widgetApiKey) {
+        return decrypt(tenant.widgetApiKey);
+      }
+    } catch {}
+    return '';
+  }
+
+  private async resolveTenantServices(tenantId: string, panelApiUrl: string): Promise<SmmService[]> {
+    try {
+      const cached = await redis.get(`tenant:${tenantId}:crawl:services`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { crawledData: true, widgetApiKey: true }
+    });
+
+    if (tenant?.crawledData && Array.isArray(tenant.crawledData) && tenant.crawledData.length > 0) {
+      return tenant.crawledData as unknown as SmmService[];
+    }
+
+    if (tenant?.widgetApiKey && panelApiUrl) {
+      try {
+        const key = decrypt(tenant.widgetApiKey);
+        const client = new SmmProviderClient(panelApiUrl, key);
+        return await client.getServices();
+      } catch {}
+    }
+
+    return [];
   }
 
   getActiveBotCount(): number {

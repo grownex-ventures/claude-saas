@@ -68,14 +68,26 @@ export class TenantsController {
       }
     });
 
+    // GET /api/tenants/telegram/test
+    this.router.get('/telegram/test', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await this.tenantsService.testTelegramBot(tenantId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Telegram test failed' });
+      }
+    });
+
     // POST /api/tenants/whatsapp/configure
     this.router.post('/whatsapp/configure', async (req: AuthenticatedRequest, res: Response) => {
       try {
         const tenantId = req.tenantId!;
-        const { phoneNumber, enabled } = req.body || {};
+        const { phoneNumber, enabled, panelApiUrl } = req.body || {};
         const result = await this.tenantsService.configureWhatsApp(tenantId, {
           phoneNumber: phoneNumber || null,
-          enabled: typeof enabled === 'boolean' ? enabled : true
+          enabled: typeof enabled === 'boolean' ? enabled : true,
+          panelApiUrl
         });
         res.status(200).json({
           message: 'WhatsApp settings configured successfully',
@@ -90,11 +102,12 @@ export class TenantsController {
     this.router.post('/whatsapp/start', async (req: AuthenticatedRequest, res: Response) => {
       try {
         const tenantId = req.tenantId!;
-        const { mode, phoneNumber, forceRestart } = req.body || {};
+        const { mode, phoneNumber, forceRestart, panelApiUrl } = req.body || {};
         const result = await this.tenantsService.startWhatsApp(tenantId, {
           mode: mode || 'qr',
           phoneNumber,
-          forceRestart: Boolean(forceRestart)
+          forceRestart: Boolean(forceRestart),
+          panelApiUrl
         });
         res.status(200).json({
           message: 'WhatsApp initialization triggered',
@@ -109,12 +122,12 @@ export class TenantsController {
     this.router.post('/whatsapp/pairing-code', async (req: AuthenticatedRequest, res: Response) => {
       try {
         const tenantId = req.tenantId!;
-        const { phoneNumber } = req.body || {};
+        const { phoneNumber, panelApiUrl } = req.body || {};
         if (!phoneNumber) {
           res.status(400).json({ error: 'phoneNumber is required' });
           return;
         }
-        const result = await this.tenantsService.requestPairingCode(tenantId, phoneNumber);
+        const result = await this.tenantsService.requestPairingCode(tenantId, phoneNumber, panelApiUrl);
         res.status(200).json(result);
       } catch (error: any) {
         res.status(400).json({ error: error.message || 'Pairing code generation failed' });
@@ -163,8 +176,8 @@ export class TenantsController {
           res.write(`data: ${JSON.stringify({ type: 'pairingCode', pairingCode: service.pairingCode })}\n\n`);
         }
 
-        const onQR = (qr: string, dataUrl?: string) => {
-          res.write(`data: ${JSON.stringify({ type: 'qr', qr, qrDataUrl: dataUrl || service?.lastQRDataUrl })}\n\n`);
+        const onQR = (payload: any) => {
+          res.write(`data: ${JSON.stringify({ type: 'qr', qr: payload.qr, qrDataUrl: payload.qrDataUrl || service?.lastQRDataUrl })}\n\n`);
         };
 
         const onConn = (update: any) => {
@@ -177,12 +190,14 @@ export class TenantsController {
           }
         };
 
-        service.onQR = onQR;
-        service.onConnectionUpdate = onConn;
+        service.events.on('qr', onQR);
+        service.events.on('connection.update', onConn);
 
         req.on('close', () => {
-          if (service && service.onQR === onQR) service.onQR = undefined;
-          if (service && service.onConnectionUpdate === onConn) service.onConnectionUpdate = undefined;
+          if (service) {
+            service.events.off('qr', onQR);
+            service.events.off('connection.update', onConn);
+          }
         });
       } catch (err: any) {
         res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`);
@@ -206,8 +221,9 @@ export class TenantsController {
     this.router.post('/widget/configure', async (req: AuthenticatedRequest, res: Response) => {
       try {
         const tenantId = req.tenantId!;
-        const { widgetApiKey, widgetTitle, widgetWelcomeMessage, widgetAccentColor, widgetEnabled } = req.body || {};
+        const { widgetApiKey, widgetTitle, widgetWelcomeMessage, widgetAccentColor, widgetEnabled, panelApiUrl } = req.body || {};
         const result = await this.tenantsService.configureWidget(tenantId, {
+          panelApiUrl,
           widgetApiKey,
           widgetTitle,
           widgetWelcomeMessage,

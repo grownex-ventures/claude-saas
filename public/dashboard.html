@@ -403,6 +403,13 @@
           </svg>
           Live Inbox
         </a>
+        <a href="#billing" id="navBilling" class="sidebar-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+            <line x1="2" y1="10" x2="22" y2="10"></line>
+          </svg>
+          Billing & Plans
+        </a>
         <a href="#logs" id="navRuntimeLogs" class="sidebar-link">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -502,6 +509,17 @@
 
         <div id="alertBox" class="alert" role="alert"></div>
 
+        <!-- Email Verification Banner -->
+        <div id="emailVerificationBanner" style="display: none; background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; padding: 0.85rem 1.25rem; border-radius: var(--radius-md); margin-bottom: var(--space-4); align-items: center; justify-content: space-between; gap: 1rem; font-size: var(--font-sm);">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <span style="font-size: 1.2rem;">⚠️</span>
+            <span><strong>Email verification required:</strong> Your email address (<span id="bannerEmail"></span>) is not yet verified. Please verify your email to ensure uninterrupted access.</span>
+          </div>
+          <button type="button" id="resendBannerBtn" class="btn btn-sm" style="background: #f59e0b; color: #ffffff; border: none; padding: 0.4rem 0.85rem; border-radius: 6px; cursor: pointer; font-weight: 700; white-space: nowrap;">
+            Resend Email
+          </button>
+        </div>
+
         <!-- Channel Switcher Tabs -->
         <div class="channel-tabs" role="tablist" aria-label="Support Channels">
           <button type="button" class="channel-tab-btn active" id="tabTelegram" role="tab" aria-selected="true">
@@ -509,18 +527,28 @@
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.77-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
             </svg>
             Telegram Bot
+            <span id="tabTgBadge" style="margin-left: 0.35rem; font-size: 0.75rem;"></span>
           </button>
           <button type="button" class="channel-tab-btn" id="tabWhatsApp" role="tab" aria-selected="false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
             </svg>
             WhatsApp Support Line
+            <span id="tabWaBadge" style="margin-left: 0.35rem; font-size: 0.75rem;"></span>
           </button>
           <button type="button" class="channel-tab-btn" id="tabWidget" role="tab" aria-selected="false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
             Website Chat Widget
+            <span id="tabWidgetBadge" style="margin-left: 0.35rem; font-size: 0.75rem;"></span>
+          </button>
+          <button type="button" class="channel-tab-btn" id="tabSecurity" role="tab" aria-selected="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Account & Security
           </button>
         </div>
 
@@ -538,6 +566,12 @@
             <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-6);">
               Provide your Telegram Bot Token from @BotFather and your active SMM panel API endpoint to activate automated customer support.
             </p>
+
+            <div id="tgPlanLockBanner" style="display: none; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-5); text-align: center;">
+              <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🔒</div>
+              <h3 style="font-size: var(--font-base); font-weight: 700; color: var(--color-danger); margin: 0 0 0.25rem 0;">Telegram Bot Plan Required</h3>
+              <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin: 0;">The Telegram Bot is a separate add-on plan and is not active on your account. Please contact support or upgrade your plan to unlock Telegram automation.</p>
+            </div>
 
             <form id="botConfigForm" novalidate>
               <!-- Bot Token Input -->
@@ -584,6 +618,9 @@
                 <button type="submit" class="btn btn-primary" id="deployBtn" style="flex: 1;">
                   🚀 Deploy & Activate Bot
                 </button>
+                <button type="button" class="btn btn-secondary" id="testTgBotBtn" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                  ⚡ Test Bot
+                </button>
                 <button type="button" class="btn btn-danger" id="deactivateBtn" style="display: none;">
                   Stop Bot
                 </button>
@@ -602,6 +639,11 @@
                 <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
                   <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Runtime Status</div>
                   <div id="summaryStatus" style="font-size: var(--font-sm); font-weight: 600; margin-top: 0.2rem;"><span class="skeleton skeleton-text" style="width: 90px;"></span></div>
+                </div>
+
+                <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                  <div style="font-size: var(--font-xs); font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Bot Username</div>
+                  <div id="summaryTgUsername" class="font-mono" style="font-size: var(--font-sm); font-weight: 600; margin-top: 0.2rem; color: var(--color-primary);">None</div>
                 </div>
 
                 <div style="background-color: var(--color-bg-alt); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
@@ -653,6 +695,29 @@
             <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">
               Connect your WhatsApp business or support phone number. Customers can chat directly to check balances, query services, and track orders.
             </p>
+
+            <div id="waPlanLockBanner" style="display: none; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-5); text-align: center;">
+              <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🔒</div>
+              <h3 style="font-size: var(--font-base); font-weight: 700; color: var(--color-danger); margin: 0 0 0.25rem 0;">WhatsApp Plan Required</h3>
+              <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin: 0;">The WhatsApp Support Line is a separate add-on plan and is not active on your account. Please contact support or upgrade your plan to unlock WhatsApp automation.</p>
+            </div>
+
+            <!-- WhatsApp Dedicated SMM Panel API URL -->
+            <div class="form-group" style="margin-bottom: var(--space-5);">
+              <label for="waPanelApiUrl" class="form-label">
+                <span>SMM Panel API URL (WhatsApp Support Line)</span>
+              </label>
+              <div class="input-icon-wrapper">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                <input type="url" id="waPanelApiUrl" name="waPanelApiUrl" class="form-control" placeholder="https://mypanel.com/api/v2" />
+              </div>
+              <span style="font-size: var(--font-xs); color: var(--color-text-subtle); margin-top: 0.25rem;">
+                The SMM API endpoint your WhatsApp bot queries to verify user keys, track orders, and list services.
+              </span>
+            </div>
 
             <!-- Mode Toggle -->
             <div class="wa-mode-toggle">
@@ -780,7 +845,30 @@
               Embed a floating 24/7 support widget on your SMM panel. Website visitors can browse services, search rates, and track orders with zero login required.
             </p>
 
+            <div id="widgetPlanLockBanner" style="display: none; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-5); text-align: center;">
+              <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🔒</div>
+              <h3 style="font-size: var(--font-base); font-weight: 700; color: var(--color-danger); margin: 0 0 0.25rem 0;">Website Chat Widget Plan Required</h3>
+              <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin: 0;">The Website Chat Widget is a separate add-on plan and is not active on your account. Please contact support or upgrade your plan to unlock the embeddable chat widget.</p>
+            </div>
+
             <form id="widgetConfigForm" novalidate>
+              <!-- Widget Dedicated SMM Panel API URL Input -->
+              <div class="form-group">
+                <label for="widgetPanelApiUrl" class="form-label">
+                  <span>SMM Panel API URL (Website Widget)</span>
+                </label>
+                <div class="input-icon-wrapper">
+                  <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                  </svg>
+                  <input type="url" id="widgetPanelApiUrl" name="widgetPanelApiUrl" class="form-control" placeholder="https://mypanel.com/api/v2" />
+                </div>
+                <span style="font-size: var(--font-xs); color: var(--color-text-subtle); margin-top: 0.25rem;">
+                  The SMM API endpoint your website widget calls to fetch live services, categories, and rates.
+                </span>
+              </div>
+
               <!-- Catalog / Demo API Key Input -->
               <div class="form-group">
                 <label for="widgetApiKeyInput" class="form-label">
@@ -885,6 +973,95 @@
               <button type="button" class="btn btn-primary btn-block" id="testLaunchWidgetBtn">
                 💬 Open Live Support Widget Now
               </button>
+            </section>
+          </div>
+        </div>
+
+        <!-- Security & Account Container -->
+        <div id="containerSecurity" class="dashboard-grid" style="display: none;">
+          <!-- Left Column: Two-Factor Authentication -->
+          <section class="card card-glass dashboard-widget-container">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Two-Factor Authentication (2FA)</h2>
+              <span class="badge badge-inactive" id="mfaBadge">
+                <span class="badge-dot"></span>
+                <span id="mfaStatusText">Disabled</span>
+              </span>
+            </div>
+            <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-6);">
+              Protect your YourSMMagent control center and bot credentials with industry-standard time-based one-time passwords (TOTP - RFC 6238).
+            </p>
+
+            <div id="mfaDisabledView">
+              <div style="background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem;">
+                <p style="font-size: 0.875rem; color: var(--color-text-main); margin: 0 0 0.5rem 0; font-weight: 700;">🛡️ Recommended Security Baseline</p>
+                <p style="font-size: 0.8125rem; color: var(--color-text-muted); margin: 0; line-height: 1.5;">
+                  Enabling 2FA prevents unauthorized logins even if your primary password is leaked or guessed. Compatible with Google Authenticator, Microsoft Authenticator, Authy, Apple Keychain, and 1Password.
+                </p>
+              </div>
+              <button type="button" class="btn btn-primary" id="startMfaSetupBtn" style="min-height: 44px;">
+                ⚡ Set Up Two-Factor Authentication
+              </button>
+            </div>
+
+            <div id="mfaEnabledView" style="display: none;">
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem; color: #166534;">
+                <p style="font-size: 0.875rem; margin: 0; font-weight: 700;">✓ Two-Factor Authentication is currently Active</p>
+                <p style="font-size: 0.8125rem; margin: 0.25rem 0 0 0; color: #15803d; line-height: 1.5;">
+                  Your account requires a 6-digit TOTP code or emergency backup code on every login.
+                </p>
+              </div>
+              <button type="button" class="btn btn-outline" id="disableMfaBtn" style="color: #dc2626; border-color: #fca5a5; min-height: 44px;">
+                Disable Two-Factor Authentication
+              </button>
+            </div>
+          </section>
+
+          <!-- Right Column: Email & Single Sign-On -->
+          <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+            <!-- Email Verification Status -->
+            <section class="card card-glass">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">Email Verification</h2>
+              <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">
+                Your registered email address used for password recovery and critical notifications.
+              </p>
+
+              <div style="background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span id="accountEmailDisplay" style="font-weight: 700; font-size: var(--font-body); color: var(--color-text-main);">-</span>
+                  <span class="badge" id="emailVerifyBadge">
+                    <span class="badge-dot"></span>
+                    <span id="emailVerifyText">Unverified</span>
+                  </span>
+                </div>
+              </div>
+
+              <div id="resendEmailBox" style="display: none;">
+                <button type="button" class="btn btn-outline btn-block" id="resendEmailBtn">
+                  ✉️ Resend Verification Email
+                </button>
+              </div>
+            </section>
+
+            <!-- Google Account Status -->
+            <section class="card card-glass">
+              <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">Google Single Sign-On</h2>
+              <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">
+                Sign in with one tap using Google OAuth 2.0.
+              </p>
+
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: var(--radius-md);">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                    <path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.46a5.52 5.52 0 0 1-2.4 3.62v3h3.88c2.27-2.09 3.58-5.17 3.58-8.81z"></path>
+                    <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.88-3c-1.07.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.71-4.95H1.28v3.1A12 12 0 0 0 12 24z"></path>
+                    <path fill="#FBBC05" d="M5.29 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.28a12 12 0 0 0 0 10.78l4.01-3.1z"></path>
+                    <path fill="#EA4335" d="M12 4.77c1.76 0 3.34.6 4.59 1.8l3.44-3.44A11.53 11.53 0 0 0 12 0 12 12 0 0 0 1.28 6.61l4.01 3.1C6.23 6.88 8.88 4.77 12 4.77z"></path>
+                  </svg>
+                  <span style="font-weight: 600; font-size: 0.9rem; color: var(--color-text-main);">Google Account</span>
+                </div>
+                <span id="googleAccountStatusBadge" class="badge badge-inactive">Not Linked</span>
+              </div>
             </section>
           </div>
         </div>
@@ -1069,6 +1246,145 @@
           </div>
         </div>
       </div> <!-- /viewInbox -->
+
+      <!-- View 4: Billing & Subscriptions -->
+      <div id="viewBilling" style="display: none;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-6);">
+          <div>
+            <h1 style="font-size: var(--font-h1); font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.25rem 0;">Billing & Subscriptions</h1>
+            <p style="font-size: var(--font-body); color: var(--color-text-muted); margin: 0;">Manage your AI channel subscriptions and renew instantly with automated Crypto (USDT TRC20, TON, BTC, ETH).</p>
+          </div>
+          <button type="button" id="refreshBillingBtn" class="btn btn-secondary" style="min-height: 38px; font-size: var(--font-xs); display: inline-flex; align-items: center; gap: 6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            Refresh Status
+          </button>
+        </div>
+
+        <!-- Current Subscription Status Overview Card -->
+        <div class="card card-glass" style="margin-bottom: var(--space-6); padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
+            <div>
+              <div style="font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); font-weight: 700; margin-bottom: 4px;">Current Plan Status</div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span id="billingStatusBadge" class="badge badge-secondary" style="font-size: 0.9rem; padding: 4px 12px; font-weight: 700;">INACTIVE</span>
+                <span id="billingExpiresText" style="font-size: var(--font-sm); color: var(--color-text-muted);">No active subscription</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="billingActiveChannelsBadges">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Plan Selection & Crypto Checkout Form -->
+        <div class="card card-glass" style="margin-bottom: var(--space-6); padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--space-2);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent);"></div>
+            <h2 style="font-size: var(--font-h3); font-weight: 700; margin: 0;">Select Channels & Duration</h2>
+          </div>
+          <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-5);">Choose the individual services your SMM panel needs, or pick the All-in-One bundle to unlock all channels and save $14/month.</p>
+
+          <form id="billingOrderForm">
+            <!-- Channel Selection Cards Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6);">
+              
+              <!-- Telegram Bot -->
+              <label class="billing-channel-card" style="display: block; position: relative; border: 2px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); cursor: pointer; background: var(--color-bg-alt); transition: all 0.2s ease;">
+                <input type="checkbox" name="billingChannel" value="telegram" class="billing-ch-checkbox" style="position: absolute; top: 14px; right: 14px; width: 18px; height: 18px; accent-color: var(--color-accent);" checked />
+                <div style="font-size: 1.5rem; margin-bottom: 6px;">🤖</div>
+                <div style="font-weight: 700; font-size: var(--font-sm); color: var(--color-text-main); margin-bottom: 4px;">Telegram Bot</div>
+                <div style="font-size: var(--font-xs); color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.4;">24/7 AI Bot for your panel via Telegram. Orders, balance checks, service queries.</div>
+                <div style="font-weight: 800; font-size: 1.15rem; color: var(--color-accent);">$19 <span style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 500;">/ month</span></div>
+              </label>
+
+              <!-- WhatsApp Support Line -->
+              <label class="billing-channel-card" style="display: block; position: relative; border: 2px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); cursor: pointer; background: var(--color-bg-alt); transition: all 0.2s ease;">
+                <input type="checkbox" name="billingChannel" value="whatsapp" class="billing-ch-checkbox" style="position: absolute; top: 14px; right: 14px; width: 18px; height: 18px; accent-color: var(--color-accent);" />
+                <div style="font-size: 1.5rem; margin-bottom: 6px;">💬</div>
+                <div style="font-weight: 700; font-size: var(--font-sm); color: var(--color-text-main); margin-bottom: 4px;">WhatsApp Line</div>
+                <div style="font-size: var(--font-xs); color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.4;">Direct customer WhatsApp support with QR code / pairing link & chat memory.</div>
+                <div style="font-weight: 800; font-size: 1.15rem; color: var(--color-accent);">$29 <span style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 500;">/ month</span></div>
+              </label>
+
+              <!-- Website Chat Widget -->
+              <label class="billing-channel-card" style="display: block; position: relative; border: 2px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); cursor: pointer; background: var(--color-bg-alt); transition: all 0.2s ease;">
+                <input type="checkbox" name="billingChannel" value="widget" class="billing-ch-checkbox" style="position: absolute; top: 14px; right: 14px; width: 18px; height: 18px; accent-color: var(--color-accent);" />
+                <div style="font-size: 1.5rem; margin-bottom: 6px;">🌐</div>
+                <div style="font-weight: 700; font-size: var(--font-sm); color: var(--color-text-main); margin-bottom: 4px;">Website Widget</div>
+                <div style="font-size: var(--font-xs); color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.4;">Embeddable AI assistant for your storefront with live catalog search.</div>
+                <div style="font-weight: 800; font-size: 1.15rem; color: var(--color-accent);">$15 <span style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 500;">/ month</span></div>
+              </label>
+
+              <!-- All-in-One Full Suite Bundle -->
+              <label class="billing-channel-card" style="display: block; position: relative; border: 2px dashed var(--color-accent); border-radius: var(--radius-md); padding: var(--space-4); cursor: pointer; background: rgba(79, 70, 229, 0.05); transition: all 0.2s ease;">
+                <span class="badge badge-accent" style="position: absolute; top: 10px; left: 10px; font-size: 0.65rem;">BEST VALUE</span>
+                <div style="font-size: 1.5rem; margin-top: 14px; margin-bottom: 6px;">⚡</div>
+                <div style="font-weight: 700; font-size: var(--font-sm); color: var(--color-text-main); margin-bottom: 4px;">All-In-One Bundle</div>
+                <div style="font-size: var(--font-xs); color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.4;">All 3 Channels (Telegram + WhatsApp + Website Widget). Full automation suite.</div>
+                <div style="font-weight: 800; font-size: 1.15rem; color: var(--color-emerald);">$49 <span style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 500;">/ mo <s style="color: #94a3b8; font-size: 0.8rem;">$63</s></span></div>
+                <button type="button" id="selectAllBundleBtn" class="btn btn-xs btn-outline" style="margin-top: 6px; width: 100%;">Select All 3 Channels</button>
+              </label>
+
+            </div>
+
+            <!-- Billing Duration & Discount Row -->
+            <div style="background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-6); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4);">
+              <div>
+                <label for="billingDurationSelect" style="display: block; font-weight: 700; font-size: var(--font-sm); color: var(--color-text-main); margin-bottom: 4px;">Billing Period</label>
+                <select id="billingDurationSelect" class="form-control" style="min-width: 200px; min-height: 40px;">
+                  <option value="1">1 Month (Standard)</option>
+                  <option value="3">3 Months (10% Discount)</option>
+                  <option value="6">6 Months (15% Discount)</option>
+                  <option value="12">12 Months (20% Discount)</option>
+                </select>
+              </div>
+
+              <!-- Live Price Summary -->
+              <div style="text-align: right;">
+                <div style="font-size: var(--font-xs); color: var(--color-text-muted); margin-bottom: 2px;">Total Payable (Crypto)</div>
+                <div id="billingTotalDisplay" style="font-size: 1.75rem; font-weight: 800; color: var(--color-accent); letter-spacing: -0.02em;">$19.00 USD</div>
+                <div id="billingDiscountNote" style="font-size: 0.75rem; color: var(--color-emerald); font-weight: 600;"></div>
+              </div>
+            </div>
+
+            <button type="submit" id="billingSubmitBtn" class="btn btn-primary btn-block" style="min-height: 48px; font-size: var(--font-body); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                <line x1="2" y1="10" x2="22" y2="10"></line>
+              </svg>
+              <span>Pay with Crypto (USDT TRC20, TON, BTC)</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Payment Invoices History Table -->
+        <div class="card card-glass" style="padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
+          <h2 style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-4);">Payment Invoices History</h2>
+          <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%; border-collapse: collapse; font-size: var(--font-sm);">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--color-border); text-align: left; color: var(--color-text-muted);">
+                  <th style="padding: 10px 12px;">Date</th>
+                  <th style="padding: 10px 12px;">Order ID</th>
+                  <th style="padding: 10px 12px;">Channels</th>
+                  <th style="padding: 10px 12px;">Amount</th>
+                  <th style="padding: 10px 12px;">Status</th>
+                  <th style="padding: 10px 12px; text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="billingInvoicesTableBody">
+                <tr>
+                  <td colspan="6" style="padding: 24px; text-align: center; color: var(--color-text-muted);">No invoices found.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div> <!-- /viewBilling -->
     </main>
   </div>
 
@@ -1363,15 +1679,80 @@
         if (currentTenant.botToken) {
           botTokenInput.value = currentTenant.botToken;
         }
-        if (currentTenant.panelApiUrl) {
+        if (currentTenant.telegramPanelUrl) {
+          panelApiUrlInput.value = currentTenant.telegramPanelUrl;
+          summaryPanel.textContent = currentTenant.telegramPanelUrl;
+        } else if (currentTenant.panelApiUrl) {
           panelApiUrlInput.value = currentTenant.panelApiUrl;
           summaryPanel.textContent = currentTenant.panelApiUrl;
         }
 
+        const waPanelApiUrlInput = document.getElementById('waPanelApiUrl');
+        if (waPanelApiUrlInput) {
+          waPanelApiUrlInput.value = currentTenant.whatsappPanelUrl || currentTenant.panelApiUrl || '';
+        }
+
+        const widgetPanelApiUrlInput = document.getElementById('widgetPanelApiUrl');
+        if (widgetPanelApiUrlInput) {
+          widgetPanelApiUrlInput.value = currentTenant.widgetPanelUrl || currentTenant.panelApiUrl || '';
+        }
+
         updateStatusUI(currentTenant.subscriptionStatus);
+        updateSecurityUI(currentTenant);
+        updatePlanEntitlementsUI(currentTenant);
       } catch (err) {
         showAlert(err.message || 'Error connecting to dashboard backend.');
       }
+    }
+
+    function updatePlanEntitlementsUI(tenant) {
+      if (!tenant) return;
+
+      // Telegram Plan Entitlement
+      const hasTg = Boolean(tenant.hasTelegram);
+      const tgBanner = document.getElementById('tgPlanLockBanner');
+      if (tgBanner) tgBanner.style.display = hasTg ? 'none' : 'block';
+      if (botTokenInput) botTokenInput.disabled = !hasTg;
+      if (panelApiUrlInput) panelApiUrlInput.disabled = !hasTg;
+      if (deployBtn) deployBtn.disabled = !hasTg;
+      const tabTgBadge = document.getElementById('tabTgBadge');
+      if (tabTgBadge) tabTgBadge.textContent = hasTg ? '' : '🔒';
+
+      // WhatsApp Plan Entitlement
+      const hasWa = Boolean(tenant.hasWhatsapp);
+      const waBanner = document.getElementById('waPlanLockBanner');
+      if (waBanner) waBanner.style.display = hasWa ? 'none' : 'block';
+      const waPanelApiUrlInput = document.getElementById('waPanelApiUrl');
+      if (waPanelApiUrlInput) waPanelApiUrlInput.disabled = !hasWa;
+      const waPhoneInput = document.getElementById('waPhoneInput');
+      if (waPhoneInput) waPhoneInput.disabled = !hasWa;
+      const waStartQrBtn = document.getElementById('waStartQrBtn');
+      if (waStartQrBtn && !hasWa) waStartQrBtn.disabled = true;
+      const waGeneratePairingBtn = document.getElementById('waGeneratePairingBtn');
+      if (waGeneratePairingBtn && !hasWa) waGeneratePairingBtn.disabled = true;
+      const tabWaBadge = document.getElementById('tabWaBadge');
+      if (tabWaBadge) tabWaBadge.textContent = hasWa ? '' : '🔒';
+
+      // Website Widget Plan Entitlement
+      const hasWdg = Boolean(tenant.hasWidget);
+      const widgetBanner = document.getElementById('widgetPlanLockBanner');
+      if (widgetBanner) widgetBanner.style.display = hasWdg ? 'none' : 'block';
+      const widgetPanelApiUrlInput = document.getElementById('widgetPanelApiUrl');
+      if (widgetPanelApiUrlInput) widgetPanelApiUrlInput.disabled = !hasWdg;
+      const widgetApiKeyInput = document.getElementById('widgetApiKeyInput');
+      if (widgetApiKeyInput) widgetApiKeyInput.disabled = !hasWdg;
+      const widgetTitleInput = document.getElementById('widgetTitleInput');
+      if (widgetTitleInput) widgetTitleInput.disabled = !hasWdg;
+      const widgetAccentInput = document.getElementById('widgetAccentInput');
+      if (widgetAccentInput) widgetAccentInput.disabled = !hasWdg;
+      const widgetEnabledSelect = document.getElementById('widgetEnabledSelect');
+      if (widgetEnabledSelect) widgetEnabledSelect.disabled = !hasWdg;
+      const widgetWelcomeInput = document.getElementById('widgetWelcomeInput');
+      if (widgetWelcomeInput) widgetWelcomeInput.disabled = !hasWdg;
+      const saveWidgetBtn = document.getElementById('saveWidgetBtn');
+      if (saveWidgetBtn && !hasWdg) saveWidgetBtn.disabled = true;
+      const tabWidgetBadge = document.getElementById('tabWidgetBadge');
+      if (tabWidgetBadge) tabWidgetBadge.textContent = hasWdg ? '' : '🔒';
     }
 
     botConfigForm.addEventListener('submit', async (e) => {
@@ -1434,6 +1815,35 @@
       }
     });
 
+    // Test Telegram Bot Connection Handler
+    const testTgBotBtn = document.getElementById('testTgBotBtn');
+    if (testTgBotBtn) {
+      testTgBotBtn.addEventListener('click', async () => {
+        testTgBotBtn.disabled = true;
+        testTgBotBtn.textContent = '⏳ Testing...';
+        try {
+          const res = await fetch('/api/tenants/telegram/test', {
+            headers: getAuthHeaders()
+          });
+          const data = await res.json();
+          if (data.valid) {
+            const summaryTgUsername = document.getElementById('summaryTgUsername');
+            if (summaryTgUsername && data.botUsername) {
+              summaryTgUsername.textContent = '@' + data.botUsername;
+            }
+            showAlert(`✓ Bot Verified: @${data.botUsername || 'configured_bot'} (${data.isRunning ? 'Online / Responding' : 'Standby / Ready'}) [Mode: ${data.mode || 'polling'}]`, false);
+          } else {
+            showAlert(`❌ Telegram Test Failed: ${data.error || 'Token rejected by Telegram API'}`);
+          }
+        } catch (err) {
+          showAlert(err.message || 'Failed to communicate with test endpoint.');
+        } finally {
+          testTgBotBtn.disabled = false;
+          testTgBotBtn.textContent = '⚡ Test Bot';
+        }
+      });
+    }
+
     deactivateBtn.addEventListener('click', async () => {
       if (!confirm('Are you sure you want to stop this bot? Customers will not receive balance responses while stopped.')) {
         return;
@@ -1468,9 +1878,11 @@
     const tabTelegram = document.getElementById('tabTelegram');
     const tabWhatsApp = document.getElementById('tabWhatsApp');
     const tabWidget = document.getElementById('tabWidget');
+    const tabSecurity = document.getElementById('tabSecurity');
     const containerTelegram = document.getElementById('containerTelegram');
     const containerWhatsApp = document.getElementById('containerWhatsApp');
     const containerWidget = document.getElementById('containerWidget');
+    const containerSecurity = document.getElementById('containerSecurity');
 
     tabTelegram.addEventListener('click', () => {
       tabTelegram.classList.add('active');
@@ -1479,9 +1891,12 @@
       tabWhatsApp.setAttribute('aria-selected', 'false');
       tabWidget.classList.remove('active');
       tabWidget.setAttribute('aria-selected', 'false');
+      tabSecurity.classList.remove('active');
+      tabSecurity.setAttribute('aria-selected', 'false');
       containerTelegram.style.display = 'grid';
       containerWhatsApp.style.display = 'none';
       containerWidget.style.display = 'none';
+      containerSecurity.style.display = 'none';
     });
 
     tabWhatsApp.addEventListener('click', () => {
@@ -1491,9 +1906,12 @@
       tabTelegram.setAttribute('aria-selected', 'false');
       tabWidget.classList.remove('active');
       tabWidget.setAttribute('aria-selected', 'false');
+      tabSecurity.classList.remove('active');
+      tabSecurity.setAttribute('aria-selected', 'false');
       containerWhatsApp.style.display = 'grid';
       containerTelegram.style.display = 'none';
       containerWidget.style.display = 'none';
+      containerSecurity.style.display = 'none';
       loadWhatsAppStatus();
     });
 
@@ -1504,10 +1922,28 @@
       tabTelegram.setAttribute('aria-selected', 'false');
       tabWhatsApp.classList.remove('active');
       tabWhatsApp.setAttribute('aria-selected', 'false');
+      tabSecurity.classList.remove('active');
+      tabSecurity.setAttribute('aria-selected', 'false');
       containerWidget.style.display = 'grid';
       containerTelegram.style.display = 'none';
       containerWhatsApp.style.display = 'none';
+      containerSecurity.style.display = 'none';
       loadWidgetSettings();
+    });
+
+    tabSecurity.addEventListener('click', () => {
+      tabSecurity.classList.add('active');
+      tabSecurity.setAttribute('aria-selected', 'true');
+      tabTelegram.classList.remove('active');
+      tabTelegram.setAttribute('aria-selected', 'false');
+      tabWhatsApp.classList.remove('active');
+      tabWhatsApp.setAttribute('aria-selected', 'false');
+      tabWidget.classList.remove('active');
+      tabWidget.setAttribute('aria-selected', 'false');
+      containerSecurity.style.display = 'grid';
+      containerTelegram.style.display = 'none';
+      containerWhatsApp.style.display = 'none';
+      containerWidget.style.display = 'none';
     });
 
     // ==========================================
@@ -1627,15 +2063,16 @@
       waQrImg.style.display = 'none';
 
       try {
-        const panelApiUrl = panelApiUrlInput.value.trim();
-        if (!panelApiUrl) {
-          throw new Error('Please configure and save your SMM Panel API URL first.');
+        const waPanelApiUrlInput = document.getElementById('waPanelApiUrl');
+        const waPanelApiUrl = (waPanelApiUrlInput && waPanelApiUrlInput.value.trim()) ? waPanelApiUrlInput.value.trim() : (panelApiUrlInput ? panelApiUrlInput.value.trim() : '');
+        if (!waPanelApiUrl) {
+          throw new Error('Please enter your SMM Panel API URL for WhatsApp.');
         }
 
         const res = await fetch('/api/tenants/whatsapp/start', {
           method: 'POST',
           headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ mode: 'qr', forceRestart: true })
+          body: JSON.stringify({ mode: 'qr', forceRestart: true, panelApiUrl: waPanelApiUrl })
         });
 
         const data = await res.json();
@@ -1689,10 +2126,16 @@
       waPairingText.textContent = 'GENERATING...';
 
       try {
+        const waPanelApiUrlInput = document.getElementById('waPanelApiUrl');
+        const waPanelApiUrl = (waPanelApiUrlInput && waPanelApiUrlInput.value.trim()) ? waPanelApiUrlInput.value.trim() : (panelApiUrlInput ? panelApiUrlInput.value.trim() : '');
+        if (!waPanelApiUrl) {
+          throw new Error('Please enter your SMM Panel API URL for WhatsApp.');
+        }
+
         const res = await fetch('/api/tenants/whatsapp/pairing-code', {
           method: 'POST',
           headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ phoneNumber })
+          body: JSON.stringify({ phoneNumber, panelApiUrl: waPanelApiUrl })
         });
 
         const data = await res.json();
@@ -1802,6 +2245,10 @@
           if (data.widgetAccentColor) widgetAccentInput.value = data.widgetAccentColor;
           if (data.widgetWelcomeMessage) widgetWelcomeInput.value = data.widgetWelcomeMessage;
           if (data.widgetEnabled !== undefined) widgetEnabledSelect.value = String(data.widgetEnabled);
+          const widgetPanelApiUrlInput = document.getElementById('widgetPanelApiUrl');
+          if (data.panelApiUrl && widgetPanelApiUrlInput) {
+            widgetPanelApiUrlInput.value = data.panelApiUrl;
+          }
           if (data.hasWidgetApiKey) {
             widgetApiKeyInput.placeholder = '•••••••••••••••• (Encrypted catalog key saved)';
           }
@@ -1819,7 +2266,9 @@
       saveWidgetBtn.disabled = true;
       saveWidgetBtn.textContent = '⏳ Saving Widget Settings...';
 
+      const widgetPanelApiUrlInput = document.getElementById('widgetPanelApiUrl');
       const payload = {
+        panelApiUrl: widgetPanelApiUrlInput ? widgetPanelApiUrlInput.value.trim() : '',
         widgetTitle: widgetTitleInput.value.trim(),
         widgetAccentColor: widgetAccentInput.value.trim(),
         widgetWelcomeMessage: widgetWelcomeInput.value.trim(),
@@ -2344,14 +2793,349 @@
       inboxReplyForm.addEventListener('submit', handleInboxReply);
     }
 
+    // ==========================================
+    // BILLING & SUBSCRIPTION CONTROLLER
+    // ==========================================
+    const navBilling = document.getElementById('navBilling');
+    const viewBilling = document.getElementById('viewBilling');
+    const refreshBillingBtn = document.getElementById('refreshBillingBtn');
+    const billingStatusBadge = document.getElementById('billingStatusBadge');
+    const billingExpiresText = document.getElementById('billingExpiresText');
+    const billingActiveChannelsBadges = document.getElementById('billingActiveChannelsBadges');
+    const billingOrderForm = document.getElementById('billingOrderForm');
+    const billingDurationSelect = document.getElementById('billingDurationSelect');
+    const billingTotalDisplay = document.getElementById('billingTotalDisplay');
+    const billingDiscountNote = document.getElementById('billingDiscountNote');
+    const selectAllBundleBtn = document.getElementById('selectAllBundleBtn');
+    const billingInvoicesTableBody = document.getElementById('billingInvoicesTableBody');
+
+    // Crypto Checkout Modal
+    const cryptoInvoiceModal = document.getElementById('cryptoInvoiceModal');
+    const closeCryptoModalBtn = document.getElementById('closeCryptoModalBtn');
+    const cryptoModalOrderId = document.getElementById('cryptoModalOrderId');
+    const cryptoModalAmount = document.getElementById('cryptoModalAmount');
+    const cryptoModalChannels = document.getElementById('cryptoModalChannels');
+    const cryptoModalStatusBadge = document.getElementById('cryptoModalStatusBadge');
+    const cryptoModalPayLink = document.getElementById('cryptoModalPayLink');
+    const cryptoModalSimulateBtn = document.getElementById('cryptoModalSimulateBtn');
+    let billingPollingInterval = null;
+    let currentPollingOrderId = null;
+
+    function getSelectedBillingChannels() {
+      const checkboxes = document.querySelectorAll('.billing-ch-checkbox:checked');
+      return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    function calculateBillingPriceLocal() {
+      const channels = getSelectedBillingChannels();
+      const months = parseInt(billingDurationSelect ? billingDurationSelect.value : '1', 10) || 1;
+      const isBundle = channels.includes('telegram') && channels.includes('whatsapp') && channels.includes('widget');
+
+      let monthlyBase = 0;
+      if (isBundle) {
+        monthlyBase = 49;
+      } else {
+        if (channels.includes('telegram')) monthlyBase += 19;
+        if (channels.includes('whatsapp')) monthlyBase += 29;
+        if (channels.includes('widget')) monthlyBase += 15;
+      }
+
+      let discount = 0;
+      if (months >= 12) discount = 20;
+      else if (months >= 6) discount = 15;
+      else if (months >= 3) discount = 10;
+
+      const total = Math.round(monthlyBase * months * (1 - discount / 100) * 100) / 100;
+      return { channels, months, isBundle, monthlyBase, discount, total };
+    }
+
+    function updateBillingPriceDisplay() {
+      const calc = calculateBillingPriceLocal();
+      if (billingTotalDisplay) {
+        billingTotalDisplay.textContent = `$${calc.total.toFixed(2)} USD`;
+      }
+      if (billingDiscountNote) {
+        if (calc.isBundle && calc.discount > 0) {
+          billingDiscountNote.textContent = `⚡ All-in-One Bundle Deal + ${calc.discount}% Multi-Month Discount Applied!`;
+        } else if (calc.isBundle) {
+          billingDiscountNote.textContent = '⚡ All-in-One Bundle Deal Applied (Saved $14/mo)';
+        } else if (calc.discount > 0) {
+          billingDiscountNote.textContent = `🎉 ${calc.discount}% Duration Discount Applied!`;
+        } else {
+          billingDiscountNote.textContent = '';
+        }
+      }
+    }
+
+    document.querySelectorAll('.billing-ch-checkbox').forEach(cb => {
+      cb.addEventListener('change', updateBillingPriceDisplay);
+    });
+
+    if (billingDurationSelect) {
+      billingDurationSelect.addEventListener('change', updateBillingPriceDisplay);
+    }
+
+    if (selectAllBundleBtn) {
+      selectAllBundleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.billing-ch-checkbox').forEach(cb => cb.checked = true);
+        updateBillingPriceDisplay();
+      });
+    }
+
+    async function loadBillingData() {
+      if (!token) return;
+      try {
+        // Fetch Tenant Me
+        const meRes = await fetch('/api/v1/auth/me', { headers: getAuthHeaders() });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          const t = meData.tenant;
+          if (t && billingStatusBadge) {
+            const isActive = t.subscriptionStatus === 'ACTIVE';
+            billingStatusBadge.textContent = t.subscriptionStatus;
+            billingStatusBadge.className = isActive ? 'badge badge-emerald' : 'badge badge-secondary';
+
+            if (isActive && t.subscriptionExpiresAt) {
+              const expDate = new Date(t.subscriptionExpiresAt);
+              const daysLeft = Math.ceil((expDate - new Date()) / (1000 * 60 * 60 * 24));
+              billingExpiresText.textContent = daysLeft > 0 
+                ? `Active &bull; Renews in ${daysLeft} days (${expDate.toLocaleDateString()})`
+                : `Expired on ${expDate.toLocaleDateString()}`;
+            } else if (isActive) {
+              billingExpiresText.textContent = 'Active Subscription';
+            } else {
+              billingExpiresText.textContent = 'No active subscription. Select plan below.';
+            }
+
+            // Badges
+            if (billingActiveChannelsBadges) {
+              billingActiveChannelsBadges.innerHTML = `
+                <span class="badge ${t.hasTelegram ? 'badge-accent' : 'badge-secondary'}" style="font-size: 0.75rem;">
+                  🤖 Telegram: ${t.hasTelegram ? 'Enabled' : 'Locked'}
+                </span>
+                <span class="badge ${t.hasWhatsapp ? 'badge-accent' : 'badge-secondary'}" style="font-size: 0.75rem;">
+                  💬 WhatsApp: ${t.hasWhatsapp ? 'Enabled' : 'Locked'}
+                </span>
+                <span class="badge ${t.hasWidget ? 'badge-accent' : 'badge-secondary'}" style="font-size: 0.75rem;">
+                  🌐 Widget: ${t.hasWidget ? 'Enabled' : 'Locked'}
+                </span>
+              `;
+            }
+          }
+        }
+
+        // Fetch Invoices History
+        const invRes = await fetch('/api/v1/billing/invoices', { headers: getAuthHeaders() });
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          const invoices = invData.invoices || [];
+          renderBillingInvoices(invoices);
+        }
+      } catch (err) {
+        console.error('[Billing Error]', err);
+      }
+    }
+
+    function renderBillingInvoices(invoices) {
+      if (!billingInvoicesTableBody) return;
+      if (invoices.length === 0) {
+        billingInvoicesTableBody.innerHTML = `
+          <tr>
+            <td colspan="6" style="padding: 24px; text-align: center; color: var(--color-text-muted);">
+              No previous crypto invoices found.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      billingInvoicesTableBody.innerHTML = invoices.map(inv => {
+        const dateStr = new Date(inv.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        const channelsArr = Array.isArray(inv.selectedChannels) ? inv.selectedChannels : [];
+        const channelsFormatted = channelsArr.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ');
+        
+        let statusBadgeClass = 'badge-secondary';
+        if (inv.status === 'PAID') statusBadgeClass = 'badge-emerald';
+        else if (inv.status === 'PENDING') statusBadgeClass = 'badge-accent';
+        else if (inv.status === 'FAILED' || inv.status === 'CANCELLED') statusBadgeClass = 'badge-danger';
+
+        const isPending = inv.status === 'PENDING';
+        const actionHtml = isPending && inv.paymentUrl
+          ? `<a href="${inv.paymentUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-primary">Pay Invoice</a>`
+          : `<span style="color: var(--color-text-muted); font-size: 0.75rem;">—</span>`;
+
+        return `
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <td style="padding: 12px; color: var(--color-text-muted); font-size: var(--font-xs);">${dateStr}</td>
+            <td style="padding: 12px; font-family: monospace; font-weight: 600; font-size: var(--font-xs);">${inv.orderId}</td>
+            <td style="padding: 12px; font-size: var(--font-xs);">${channelsFormatted}</td>
+            <td style="padding: 12px; font-weight: 700; font-size: var(--font-xs); color: var(--color-accent);">$${Number(inv.amount).toFixed(2)} USD</td>
+            <td style="padding: 12px;"><span class="badge ${statusBadgeClass}" style="font-size: 0.7rem;">${inv.status}</span></td>
+            <td style="padding: 12px; text-align: right;">${actionHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    if (refreshBillingBtn) {
+      refreshBillingBtn.addEventListener('click', () => {
+        loadBillingData();
+        showAlert('Billing status updated', false);
+      });
+    }
+
+    if (billingOrderForm) {
+      billingOrderForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const channels = getSelectedBillingChannels();
+        if (channels.length === 0) {
+          showAlert('Please select at least one channel to purchase', true);
+          return;
+        }
+
+        const durationMonths = parseInt(billingDurationSelect.value, 10) || 1;
+        const submitBtn = document.getElementById('billingSubmitBtn');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<span>Generating Crypto Invoice...</span>';
+        }
+
+        try {
+          const res = await fetch('/api/v1/billing/invoices', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ channels, durationMonths })
+          });
+
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to create invoice');
+
+          const inv = data.invoice;
+          openCryptoModal(inv);
+        } catch (err) {
+          showAlert(err.message || 'Error generating invoice', true);
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                <line x1="2" y1="10" x2="22" y2="10"></line>
+              </svg>
+              <span>Pay with Crypto (USDT TRC20, TON, BTC)</span>
+            `;
+          }
+        }
+      });
+    }
+
+    function openCryptoModal(invoice) {
+      if (!cryptoInvoiceModal) return;
+      currentPollingOrderId = invoice.orderId;
+
+      if (cryptoModalOrderId) cryptoModalOrderId.textContent = invoice.orderId;
+      if (cryptoModalAmount) cryptoModalAmount.textContent = `$${Number(invoice.amount).toFixed(2)} USD`;
+      if (cryptoModalChannels) {
+        const arr = Array.isArray(invoice.channels) ? invoice.channels : [];
+        cryptoModalChannels.textContent = arr.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ');
+      }
+      if (cryptoModalStatusBadge) {
+        cryptoModalStatusBadge.textContent = invoice.status;
+        cryptoModalStatusBadge.className = 'badge badge-accent';
+      }
+      if (cryptoModalPayLink) {
+        cryptoModalPayLink.href = invoice.paymentUrl || '#';
+      }
+
+      // If mock/sandbox mode, show simulate button
+      if (cryptoModalSimulateBtn) {
+        cryptoModalSimulateBtn.style.display = invoice.isMock ? 'block' : 'none';
+        cryptoModalSimulateBtn.onclick = async () => {
+          try {
+            cryptoModalSimulateBtn.disabled = true;
+            cryptoModalSimulateBtn.textContent = 'Simulating on-chain confirmation...';
+            const simRes = await fetch(`/api/v1/billing/mock-pay/${encodeURIComponent(invoice.orderId)}`, {
+              method: 'POST',
+              headers: getAuthHeaders()
+            });
+            const simData = await simRes.json();
+            if (!simRes.ok) throw new Error(simData.error || 'Simulation failed');
+            checkInvoiceStatusImmediate(invoice.orderId);
+          } catch (simErr) {
+            alert('Simulation error: ' + simErr.message);
+          } finally {
+            cryptoModalSimulateBtn.disabled = false;
+            cryptoModalSimulateBtn.textContent = '⚡ Simulate Payment Confirmation (Sandbox Test)';
+          }
+        };
+      }
+
+      cryptoInvoiceModal.style.display = 'flex';
+      startInvoiceStatusPolling(invoice.orderId);
+    }
+
+    function closeCryptoModal() {
+      if (cryptoInvoiceModal) cryptoInvoiceModal.style.display = 'none';
+      stopInvoiceStatusPolling();
+      loadBillingData();
+    }
+
+    if (closeCryptoModalBtn) {
+      closeCryptoModalBtn.addEventListener('click', closeCryptoModal);
+    }
+
+    function startInvoiceStatusPolling(orderId) {
+      stopInvoiceStatusPolling();
+      billingPollingInterval = setInterval(() => {
+        checkInvoiceStatusImmediate(orderId);
+      }, 3000);
+    }
+
+    function stopInvoiceStatusPolling() {
+      if (billingPollingInterval) {
+        clearInterval(billingPollingInterval);
+        billingPollingInterval = null;
+      }
+    }
+
+    async function checkInvoiceStatusImmediate(orderId) {
+      if (!orderId || !token) return;
+      try {
+        const res = await fetch(`/api/v1/billing/invoices/${encodeURIComponent(orderId)}`, {
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const inv = data.invoice;
+        if (inv && inv.status === 'PAID') {
+          stopInvoiceStatusPolling();
+          if (cryptoModalStatusBadge) {
+            cryptoModalStatusBadge.textContent = 'PAID ✅';
+            cryptoModalStatusBadge.className = 'badge badge-emerald';
+          }
+          showAlert('🎉 Payment confirmed! Your plan and channels are now active.', false);
+          setTimeout(() => {
+            closeCryptoModal();
+            loadTenantData();
+            loadBillingData();
+          }, 1500);
+        }
+      } catch (err) {
+        console.error('[Invoice Poll Error]', err);
+      }
+    }
+
     // View Switching Logic
     function switchView(targetView) {
       if (targetView === 'logs') {
         if (navRuntimeLogs) navRuntimeLogs.classList.add('active');
         if (navDeployment) navDeployment.classList.remove('active');
         if (navInbox) navInbox.classList.remove('active');
+        if (navBilling) navBilling.classList.remove('active');
         if (viewDeployment) viewDeployment.style.display = 'none';
         if (viewInbox) viewInbox.style.display = 'none';
+        if (viewBilling) viewBilling.style.display = 'none';
         if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'block';
         if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Runtime Logs & Telemetry';
         stopInboxPolling();
@@ -2361,20 +3145,38 @@
         if (navInbox) navInbox.classList.add('active');
         if (navDeployment) navDeployment.classList.remove('active');
         if (navRuntimeLogs) navRuntimeLogs.classList.remove('active');
+        if (navBilling) navBilling.classList.remove('active');
         if (viewDeployment) viewDeployment.style.display = 'none';
         if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'none';
+        if (viewBilling) viewBilling.style.display = 'none';
         if (viewInbox) viewInbox.style.display = 'block';
         if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Live Support Inbox';
         stopLogPolling();
         fetchInboxSessions(false);
         startInboxPolling();
+      } else if (targetView === 'billing') {
+        if (navBilling) navBilling.classList.add('active');
+        if (navDeployment) navDeployment.classList.remove('active');
+        if (navRuntimeLogs) navRuntimeLogs.classList.remove('active');
+        if (navInbox) navInbox.classList.remove('active');
+        if (viewDeployment) viewDeployment.style.display = 'none';
+        if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'none';
+        if (viewInbox) viewInbox.style.display = 'none';
+        if (viewBilling) viewBilling.style.display = 'block';
+        if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Billing & Subscriptions';
+        stopLogPolling();
+        stopInboxPolling();
+        loadBillingData();
+        updateBillingPriceDisplay();
       } else {
         if (navDeployment) navDeployment.classList.add('active');
         if (navRuntimeLogs) navRuntimeLogs.classList.remove('active');
         if (navInbox) navInbox.classList.remove('active');
+        if (navBilling) navBilling.classList.remove('active');
         if (viewDeployment) viewDeployment.style.display = 'block';
         if (viewRuntimeLogs) viewRuntimeLogs.style.display = 'none';
         if (viewInbox) viewInbox.style.display = 'none';
+        if (viewBilling) viewBilling.style.display = 'none';
         if (topbarHeaderTitle) topbarHeaderTitle.textContent = 'Control Panel';
         stopLogPolling();
         stopInboxPolling();
@@ -2405,11 +3207,21 @@
       });
     }
 
+    if (navBilling) {
+      navBilling.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.hash = '#billing';
+        switchView('billing');
+      });
+    }
+
     window.addEventListener('hashchange', () => {
       if (window.location.hash === '#logs') {
         switchView('logs');
       } else if (window.location.hash === '#inbox') {
         switchView('inbox');
+      } else if (window.location.hash === '#billing' || window.location.hash === '#invoices') {
+        switchView('billing');
       } else {
         switchView('deployment');
       }
@@ -2420,6 +3232,8 @@
       switchView('logs');
     } else if (window.location.hash === '#inbox') {
       switchView('inbox');
+    } else if (window.location.hash === '#billing' || window.location.hash === '#invoices') {
+      switchView('billing');
     }
 
     // Stream Pause/Resume Toggle
@@ -2519,10 +3333,410 @@
       });
     }
 
+    // ==========================================
+    // ACCOUNT SECURITY & TWO-FACTOR AUTH (2FA)
+    // ==========================================
+    const emailVerificationBanner = document.getElementById('emailVerificationBanner');
+    const bannerEmail = document.getElementById('bannerEmail');
+    const resendBannerBtn = document.getElementById('resendBannerBtn');
+    const accountEmailDisplay = document.getElementById('accountEmailDisplay');
+    const emailVerifyBadge = document.getElementById('emailVerifyBadge');
+    const emailVerifyText = document.getElementById('emailVerifyText');
+    const resendEmailBox = document.getElementById('resendEmailBox');
+    const resendEmailBtn = document.getElementById('resendEmailBtn');
+    const googleAccountStatusBadge = document.getElementById('googleAccountStatusBadge');
+
+    const mfaBadge = document.getElementById('mfaBadge');
+    const mfaStatusText = document.getElementById('mfaStatusText');
+    const mfaDisabledView = document.getElementById('mfaDisabledView');
+    const mfaEnabledView = document.getElementById('mfaEnabledView');
+    const startMfaSetupBtn = document.getElementById('startMfaSetupBtn');
+    const disableMfaBtn = document.getElementById('disableMfaBtn');
+
+    // MFA Modals
+    const mfaSetupModal = document.getElementById('mfaSetupModal');
+    const mfaQrImg = document.getElementById('mfaQrImg');
+    const mfaSecretCode = document.getElementById('mfaSecretCode');
+    const mfaCopySecretBtn = document.getElementById('mfaCopySecretBtn');
+    const mfaBackupCodesContainer = document.getElementById('mfaBackupCodesContainer');
+    const mfaCopyBackupBtn = document.getElementById('mfaCopyBackupBtn');
+    const mfaConfirmInput = document.getElementById('mfaConfirmInput');
+    const mfaModalEnableBtn = document.getElementById('mfaModalEnableBtn');
+    const mfaModalCancelBtn = document.getElementById('mfaModalCancelBtn');
+    const mfaModalAlert = document.getElementById('mfaModalAlert');
+
+    const mfaDisableModal = document.getElementById('mfaDisableModal');
+    const mfaDisablePasswordInput = document.getElementById('mfaDisablePasswordInput');
+    const mfaDisableConfirmBtn = document.getElementById('mfaDisableConfirmBtn');
+    const mfaDisableCancelBtn = document.getElementById('mfaDisableCancelBtn');
+    const mfaDisableAlert = document.getElementById('mfaDisableAlert');
+
+    let currentBackupCodes = [];
+
+    function updateSecurityUI(tenant) {
+      if (!tenant) return;
+
+      accountEmailDisplay.textContent = tenant.email || '-';
+      bannerEmail.textContent = tenant.email || '';
+
+      // Email Verification Status
+      if (tenant.emailVerified) {
+        emailVerificationBanner.style.display = 'none';
+        resendEmailBox.style.display = 'none';
+        emailVerifyBadge.className = 'badge badge-active';
+        emailVerifyText.textContent = 'Verified';
+      } else {
+        emailVerificationBanner.style.display = 'flex';
+        resendEmailBox.style.display = 'block';
+        emailVerifyBadge.className = 'badge badge-amber';
+        emailVerifyText.textContent = 'Unverified';
+      }
+
+      // Google Account Status
+      if (tenant.googleId) {
+        googleAccountStatusBadge.className = 'badge badge-active';
+        googleAccountStatusBadge.textContent = 'Linked';
+      } else {
+        googleAccountStatusBadge.className = 'badge badge-inactive';
+        googleAccountStatusBadge.textContent = 'Not Linked';
+      }
+
+      // MFA Status
+      if (tenant.mfaEnabled) {
+        mfaBadge.className = 'badge badge-active';
+        mfaStatusText.textContent = 'Active';
+        mfaEnabledView.style.display = 'block';
+        mfaDisabledView.style.display = 'none';
+      } else {
+        mfaBadge.className = 'badge badge-inactive';
+        mfaStatusText.textContent = 'Disabled';
+        mfaEnabledView.style.display = 'none';
+        mfaDisabledView.style.display = 'block';
+      }
+    }
+
+    // Resend Email Verification Handler
+    async function triggerResendEmail() {
+      showAlert('Dispatching verification email...');
+      try {
+        const res = await fetch('/api/v1/auth/resend-verification', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ email: currentTenant?.email })
+        });
+        const data = await res.json();
+        showAlert(data.message || 'Verification link sent to your email!', false);
+      } catch (err) {
+        showAlert('Could not dispatch verification email. Please try again.', true);
+      }
+    }
+
+    if (resendBannerBtn) resendBannerBtn.addEventListener('click', triggerResendEmail);
+    if (resendEmailBtn) resendEmailBtn.addEventListener('click', triggerResendEmail);
+
+    // Start 2FA Setup
+    if (startMfaSetupBtn) {
+      startMfaSetupBtn.addEventListener('click', async () => {
+        startMfaSetupBtn.disabled = true;
+        startMfaSetupBtn.textContent = '⏳ Initializing 2FA...';
+        mfaModalAlert.style.display = 'none';
+
+        try {
+          const res = await fetch('/api/v1/auth/mfa/setup', {
+            method: 'POST',
+            headers: getAuthHeaders()
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to initialize MFA');
+          }
+
+          mfaQrImg.src = data.qrCodeDataUrl;
+          mfaSecretCode.textContent = data.secret;
+          currentBackupCodes = data.backupCodes || [];
+
+          // Render backup codes grid
+          mfaBackupCodesContainer.innerHTML = '';
+          currentBackupCodes.forEach(code => {
+            const span = document.createElement('span');
+            span.style.cssText = 'background: #ffffff; border: 1px solid var(--color-border); padding: 0.35rem 0.5rem; border-radius: 4px; font-family: var(--font-family-mono); font-size: 0.8125rem; font-weight: 700; text-align: center;';
+            span.textContent = code;
+            mfaBackupCodesContainer.appendChild(span);
+          });
+
+          mfaConfirmInput.value = '';
+          mfaSetupModal.style.display = 'flex';
+          mfaConfirmInput.focus();
+        } catch (err) {
+          showAlert(err.message || 'Error generating MFA setup');
+        } finally {
+          startMfaSetupBtn.disabled = false;
+          startMfaSetupBtn.textContent = '⚡ Set Up Two-Factor Authentication';
+        }
+      });
+    }
+
+    if (mfaCopySecretBtn) {
+      mfaCopySecretBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(mfaSecretCode.textContent || '');
+        mfaCopySecretBtn.textContent = '✓ Copied';
+        setTimeout(() => { mfaCopySecretBtn.textContent = 'Copy'; }, 2000);
+      });
+    }
+
+    if (mfaCopyBackupBtn) {
+      mfaCopyBackupBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(currentBackupCodes.join('\n'));
+        mfaCopyBackupBtn.textContent = '✓ Backup Codes Copied';
+        setTimeout(() => { mfaCopyBackupBtn.textContent = 'Copy All Codes'; }, 2000);
+      });
+    }
+
+    if (mfaModalCancelBtn) {
+      mfaModalCancelBtn.addEventListener('click', () => {
+        mfaSetupModal.style.display = 'none';
+      });
+    }
+
+    // Enable 2FA Confirmation
+    if (mfaModalEnableBtn) {
+      mfaModalEnableBtn.addEventListener('click', async () => {
+        const code = mfaConfirmInput.value.trim();
+        if (!code || !/^\d{6}$/.test(code)) {
+          mfaModalAlert.style.background = '#fef2f2';
+          mfaModalAlert.style.color = '#b91c1c';
+          mfaModalAlert.style.border = '1px solid #fecaca';
+          mfaModalAlert.textContent = 'Please enter a valid 6-digit code from your authenticator app.';
+          mfaModalAlert.style.display = 'block';
+          return;
+        }
+
+        mfaModalEnableBtn.disabled = true;
+        mfaModalEnableBtn.textContent = 'Verifying code...';
+
+        try {
+          const res = await fetch('/api/v1/auth/mfa/enable', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ code })
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to activate 2FA');
+          }
+
+          mfaSetupModal.style.display = 'none';
+          currentTenant.mfaEnabled = true;
+          updateSecurityUI(currentTenant);
+          showAlert('🎉 Two-factor authentication has been enabled successfully!', false);
+        } catch (err) {
+          mfaModalAlert.style.background = '#fef2f2';
+          mfaModalAlert.style.color = '#b91c1c';
+          mfaModalAlert.style.border = '1px solid #fecaca';
+          mfaModalAlert.textContent = err.message || 'Verification failed. Please check your time and code.';
+          mfaModalAlert.style.display = 'block';
+        } finally {
+          mfaModalEnableBtn.disabled = false;
+          mfaModalEnableBtn.textContent = 'Verify & Activate 2FA';
+        }
+      });
+    }
+
+    // Disable 2FA Handler
+    if (disableMfaBtn) {
+      disableMfaBtn.addEventListener('click', () => {
+        mfaDisablePasswordInput.value = '';
+        mfaDisableAlert.style.display = 'none';
+        mfaDisableModal.style.display = 'flex';
+        mfaDisablePasswordInput.focus();
+      });
+    }
+
+    if (mfaDisableCancelBtn) {
+      mfaDisableCancelBtn.addEventListener('click', () => {
+        mfaDisableModal.style.display = 'none';
+      });
+    }
+
+    if (mfaDisableConfirmBtn) {
+      mfaDisableConfirmBtn.addEventListener('click', async () => {
+        const passwordOrCode = mfaDisablePasswordInput.value.trim();
+        if (!passwordOrCode) {
+          mfaDisableAlert.style.background = '#fef2f2';
+          mfaDisableAlert.style.color = '#b91c1c';
+          mfaDisableAlert.style.border = '1px solid #fecaca';
+          mfaDisableAlert.textContent = 'Please enter your password or current 2FA code.';
+          mfaDisableAlert.style.display = 'block';
+          return;
+        }
+
+        mfaDisableConfirmBtn.disabled = true;
+        mfaDisableConfirmBtn.textContent = 'Disabling...';
+
+        try {
+          const res = await fetch('/api/v1/auth/mfa/disable', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ passwordOrCode })
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to disable 2FA');
+          }
+
+          mfaDisableModal.style.display = 'none';
+          currentTenant.mfaEnabled = false;
+          updateSecurityUI(currentTenant);
+          showAlert('Two-factor authentication has been disabled.', false);
+        } catch (err) {
+          mfaDisableAlert.style.background = '#fef2f2';
+          mfaDisableAlert.style.color = '#b91c1c';
+          mfaDisableAlert.style.border = '1px solid #fecaca';
+          mfaDisableAlert.textContent = err.message || 'Failed to disable 2FA.';
+          mfaDisableAlert.style.display = 'block';
+        } finally {
+          mfaDisableConfirmBtn.disabled = false;
+          mfaDisableConfirmBtn.textContent = 'Disable 2FA';
+        }
+      });
+    }
+
     loadTenantData();
     loadWhatsAppStatus();
 
   </script>
+
+  <!-- MFA Setup Modal Dialog -->
+  <div id="mfaSetupModal" role="dialog" aria-modal="true" aria-labelledby="mfaSetupTitle" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 1rem;">
+    <div style="background: var(--color-surface, #ffffff); border-radius: var(--radius-xl, 24px); max-width: 500px; width: 100%; padding: 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); border: 1px solid var(--color-border); max-height: 90vh; overflow-y: auto;">
+      <h3 id="mfaSetupTitle" style="font-size: 1.35rem; font-weight: 800; color: var(--color-text-main); margin: 0 0 0.5rem 0;">Set Up Two-Factor Authentication</h3>
+      <p style="font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
+        Scan this QR code with Google Authenticator, Microsoft Authenticator, or Authy on your phone.
+      </p>
+
+      <div id="mfaModalAlert" style="display: none; padding: 0.75rem; border-radius: 8px; font-size: 0.8125rem; margin-bottom: 1rem;"></div>
+
+      <!-- Step 1: QR Code -->
+      <div style="text-align: center; margin-bottom: 1.25rem;">
+        <div style="background: #ffffff; padding: 0.75rem; border-radius: 12px; display: inline-block; border: 1px solid var(--color-border);">
+          <img id="mfaQrImg" style="width: 180px; height: 180px; display: block;" alt="2FA QR Code" />
+        </div>
+      </div>
+
+      <!-- Step 2: Manual Key -->
+      <div style="background: var(--color-bg-alt); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 1.25rem;">
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-subtle); margin-bottom: 0.25rem; text-transform: uppercase;">Manual Entry Key</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+          <code id="mfaSecretCode" style="font-family: var(--font-family-mono); font-size: 0.875rem; font-weight: 700; color: var(--color-accent); word-break: break-all;"></code>
+          <button type="button" id="mfaCopySecretBtn" class="btn btn-sm btn-outline" style="white-space: nowrap; padding: 0.25rem 0.65rem; font-size: 0.75rem;">Copy</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Backup Codes -->
+      <div style="background: var(--color-bg-alt); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-subtle); text-transform: uppercase;">Emergency Backup Codes</span>
+          <button type="button" id="mfaCopyBackupBtn" class="btn btn-sm btn-outline" style="white-space: nowrap; padding: 0.2rem 0.6rem; font-size: 0.75rem;">Copy All Codes</button>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--color-text-muted); margin: 0 0 0.5rem 0;">Save these single-use codes safely. If you lose your phone, you can use one to log in.</p>
+        <div id="mfaBackupCodesContainer" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem;"></div>
+      </div>
+
+      <!-- Step 4: Confirm 6-digit code -->
+      <div style="margin-bottom: 1.5rem;">
+        <label for="mfaConfirmInput" style="display: block; font-size: 0.875rem; font-weight: 700; color: var(--color-text-main); margin-bottom: 0.35rem;">Enter 6-digit code from app to verify</label>
+        <input type="text" id="mfaConfirmInput" placeholder="e.g. 123456" maxlength="6" class="form-control" style="font-size: 1.1rem; font-weight: 700; letter-spacing: 0.15em; text-align: center;" />
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+        <button type="button" id="mfaModalCancelBtn" class="btn btn-outline">Cancel</button>
+        <button type="button" id="mfaModalEnableBtn" class="btn btn-primary">Verify & Activate 2FA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MFA Disable Confirmation Modal -->
+  <div id="mfaDisableModal" role="dialog" aria-modal="true" aria-labelledby="mfaDisableTitle" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 1rem;">
+    <div style="background: var(--color-surface, #ffffff); border-radius: var(--radius-xl, 24px); max-width: 420px; width: 100%; padding: 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); border: 1px solid var(--color-border);">
+      <h3 id="mfaDisableTitle" style="font-size: 1.25rem; font-weight: 800; color: #dc2626; margin: 0 0 0.5rem 0;">Disable Two-Factor Authentication?</h3>
+      <p style="font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
+        This will reduce your account security. To proceed, please enter your password or current 6-digit authenticator code:
+      </p>
+
+      <div id="mfaDisableAlert" style="display: none; padding: 0.75rem; border-radius: 8px; font-size: 0.8125rem; margin-bottom: 1rem;"></div>
+
+      <div style="margin-bottom: 1.25rem;">
+        <label for="mfaDisablePasswordInput" style="display: block; font-size: 0.875rem; font-weight: 700; color: var(--color-text-main); margin-bottom: 0.35rem;">Password or Current 2FA Code</label>
+        <input type="password" id="mfaDisablePasswordInput" placeholder="Password or 6-digit code" class="form-control" />
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+        <button type="button" id="mfaDisableCancelBtn" class="btn btn-outline">Cancel</button>
+        <button type="button" id="mfaDisableConfirmBtn" class="btn btn-primary" style="background: #dc2626;">Disable 2FA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crypto Checkout Modal Dialog -->
+  <div id="cryptoInvoiceModal" role="dialog" aria-modal="true" aria-labelledby="cryptoModalTitle" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 1rem;">
+    <div class="card card-glass" style="max-width: 500px; width: 100%; padding: var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.5rem;">🪙</span>
+          <h3 id="cryptoModalTitle" style="font-size: var(--font-h3); font-weight: 800; margin: 0;">Crypto Payment Invoice</h3>
+        </div>
+        <button type="button" id="closeCryptoModalBtn" class="btn btn-icon btn-ghost" style="min-height: 32px; width: 32px; padding: 0;">✕</button>
+      </div>
+
+      <div style="background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="color: var(--color-text-muted); font-size: var(--font-xs);">Order ID:</span>
+          <span id="cryptoModalOrderId" style="font-family: monospace; font-weight: 700; font-size: var(--font-xs); color: var(--color-text-main);">INV-...</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="color: var(--color-text-muted); font-size: var(--font-xs);">Total Amount:</span>
+          <span id="cryptoModalAmount" style="font-weight: 800; font-size: 1.25rem; color: var(--color-accent);">$19.00 USD</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="color: var(--color-text-muted); font-size: var(--font-xs);">Selected Channels:</span>
+          <span id="cryptoModalChannels" style="font-weight: 600; font-size: var(--font-xs); color: var(--color-text-main);">Telegram</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--color-text-muted); font-size: var(--font-xs);">Invoice Status:</span>
+          <span id="cryptoModalStatusBadge" class="badge badge-secondary" style="font-size: 0.75rem;">PENDING</span>
+        </div>
+      </div>
+
+      <p style="font-size: var(--font-xs); color: var(--color-text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
+        Click below to open the secure Cryptomus checkout page to pay with <strong>USDT (TRC20 / TON / BEP20), Bitcoin, or Ethereum</strong>. Your plan activates automatically once the transaction is detected.
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+        <a id="cryptoModalPayLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-block" style="min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700;">
+          <span>🔗 Proceed to Cryptomus Payment</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+        </a>
+
+        <!-- Sandbox instant confirmation button for dev/testing -->
+        <button type="button" id="cryptoModalSimulateBtn" class="btn btn-outline btn-block" style="min-height: 38px; font-size: var(--font-xs); color: var(--color-emerald); border-color: var(--color-emerald); display: none;">
+          ⚡ Simulate Payment Confirmation (Sandbox Test)
+        </button>
+      </div>
+
+      <div id="cryptoModalPollingIndicator" style="margin-top: var(--space-4); text-align: center; font-size: var(--font-xs); color: var(--color-text-muted); display: flex; align-items: center; justify-content: center; gap: 6px;">
+        <span class="badge-dot pulse" style="background-color: var(--color-accent);"></span>
+        <span>Awaiting on-chain transaction confirmation...</span>
+      </div>
+    </div>
+  </div>
+
 </body>
 
 </html>

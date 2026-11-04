@@ -1,4 +1,6 @@
 export const APP_URL = "https://app.yoursmmagent.com";
+export const LOGIN_URL = "https://app.yoursmmagent.com/login";
+export const SIGNUP_URL = "https://app.yoursmmagent.com/signup";
 
 export const NAV_LINKS = [
     { label: "Features", href: "#features" },

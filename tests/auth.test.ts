@@ -77,12 +77,12 @@ describe('AuthService & Argon2 Password Hashing', () => {
     });
 
     expect(result.token).toBeDefined();
-    expect(result.tenant.id).toBe('new-tenant-1');
-    expect(result.tenant.email).toBe('newuser@example.com');
+    expect(result.tenant!.id).toBe('new-tenant-1');
+    expect(result.tenant!.email).toBe('newuser@example.com');
     // Ensure passwordHash is NEVER exposed in result
     expect((result.tenant as any).passwordHash).toBeUndefined();
 
-    const decoded: any = jwt.verify(result.token, process.env.JWT_SECRET || 'super-secret-jwt-key-for-tenant-admin');
+    const decoded: any = jwt.verify(result.token!, process.env.JWT_SECRET || 'super-secret-jwt-key-for-tenant-admin');
     expect(decoded.tenantId).toBe('new-tenant-1');
     expect(decoded.email).toBe('newuser@example.com');
   });
@@ -110,7 +110,7 @@ describe('AuthService & Argon2 Password Hashing', () => {
     });
 
     expect(result.token).toBeDefined();
-    expect(result.tenant.id).toBe('login-tenant-id');
+    expect(result.tenant!.id).toBe('login-tenant-id');
     expect((result.tenant as any).passwordHash).toBeUndefined();
   });
 

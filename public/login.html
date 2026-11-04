@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/global.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -237,7 +238,42 @@
           </button>
         </form>
 
-        <p style="margin-top: 1.75rem; text-align: center; font-size: 0.875rem; color: #475569;">
+        <!-- MFA Two-Factor Authentication Challenge Form -->
+        <div id="mfaSection" style="display: none; margin-top: 1rem;">
+          <div style="text-align: center; margin-bottom: 1.5rem;">
+            <div style="width: 52px; height: 52px; border-radius: 50%; background: #eef2ff; color: #4f46e5; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 0.75rem;">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <h2 style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin: 0 0 0.5rem 0;">Two-Factor Authentication</h2>
+            <p style="font-size: 0.875rem; color: #64748b; line-height: 1.5; margin: 0;">
+              Enter the 6-digit code from your authenticator app (Google Authenticator, Authy, Apple) or a backup code.
+            </p>
+          </div>
+
+          <form id="mfaForm" novalidate>
+            <div class="auth-input-group">
+              <label for="mfaCode" style="font-size: 0.875rem; font-weight: 600; color: #1e293b;">Authentication or Backup Code</label>
+              <div class="auth-input-wrapper">
+                <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                <input type="text" id="mfaCode" name="mfaCode" class="auth-input" placeholder="e.g. 123456 or 10-char code" required autocomplete="one-time-code" maxlength="20" style="letter-spacing: 0.08em; font-weight: 600;" />
+              </div>
+            </div>
+
+            <button type="submit" id="mfaSubmitBtn" class="auth-submit-btn">
+              Verify & Complete Login
+            </button>
+            <button type="button" id="mfaBackBtn" style="width: 100%; margin-top: 0.75rem; background: transparent; border: none; color: #64748b; font-size: 0.875rem; font-weight: 600; cursor: pointer; padding: 0.5rem;">
+              ← Back to login credentials
+            </button>
+          </form>
+        </div>
+
+        <p id="newAccountPrompt" style="margin-top: 1.75rem; text-align: center; font-size: 0.875rem; color: #475569;">
           New to YourSMMagent? <a href="/signup" style="font-weight: 600; color: #4f46e5; text-decoration: none;">Create an account</a>
         </p>
       </div>
@@ -271,7 +307,13 @@
       window.location.href = '/dashboard';
     }
 
-    const form = document.getElementById('loginForm');
+    const loginForm = document.getElementById('loginForm');
+    const mfaSection = document.getElementById('mfaSection');
+    const mfaForm = document.getElementById('mfaForm');
+    const mfaSubmitBtn = document.getElementById('mfaSubmitBtn');
+    const mfaCodeInput = document.getElementById('mfaCode');
+    const mfaBackBtn = document.getElementById('mfaBackBtn');
+    const newAccountPrompt = document.getElementById('newAccountPrompt');
     const alertBox = document.getElementById('alertBox');
     const submitBtn = document.getElementById('submitBtn');
     const passwordInput = document.getElementById('password');
@@ -280,17 +322,70 @@
     const googleLoginBtn = document.getElementById('googleLoginBtn');
     const forgotPassLink = document.getElementById('forgotPassLink');
 
-    googleLoginBtn.addEventListener('click', () => {
-      alertBox.textContent = 'Google sign-in is enabled in production. Please use your email and password to log in.';
-      alertBox.className = 'alert alert-error';
-      alertBox.style.display = 'block';
-    });
+    let pendingMfaSessionToken = null;
 
-    forgotPassLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      alertBox.textContent = 'Please contact support or your account administrator to reset your password.';
-      alertBox.className = 'alert alert-error';
-      alertBox.style.display = 'block';
+    // Google Sign-In Integration
+    async function submitGoogleCredential(credential) {
+      alertBox.style.display = 'none';
+      try {
+        const res = await fetch('/api/v1/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Google sign-in failed');
+        }
+
+        if (data.mfaRequired) {
+          showMfaChallenge(data.mfaSessionToken);
+          return;
+        }
+
+        handleAuthSuccess(data);
+      } catch (err) {
+        alertBox.textContent = err.message || 'Google sign-in failed.';
+        alertBox.style.display = 'block';
+      }
+    }
+
+    // Initialize GIS dynamically from /api/auth/config
+    let dynamicGoogleClientId = '';
+    async function initAuthConfig() {
+      try {
+        const res = await fetch('/api/auth/config');
+        if (res.ok) {
+          const cfg = await res.json();
+          dynamicGoogleClientId = cfg.googleClientId || '';
+          if (dynamicGoogleClientId && window.google?.accounts?.id) {
+            window.google.accounts.id.initialize({
+              client_id: dynamicGoogleClientId,
+              callback: (response) => submitGoogleCredential(response.credential)
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Could not fetch public auth config:', e);
+      }
+    }
+
+    window.onload = function() {
+      initAuthConfig();
+    };
+
+    googleLoginBtn.addEventListener('click', () => {
+      if (dynamicGoogleClientId && window.google?.accounts?.id?.prompt) {
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            alertBox.textContent = 'Google One-Tap dialog prompt was closed or not displayed. Please check your browser third-party sign-in settings.';
+            alertBox.style.display = 'block';
+          }
+        });
+      } else {
+        alertBox.textContent = 'Google Sign-In is not configured yet. Configure GOOGLE_CLIENT_ID in the Super Admin dashboard.';
+        alertBox.style.display = 'block';
+      }
     });
 
     togglePasswordBtn.addEventListener('click', () => {
@@ -314,7 +409,42 @@
       }
     });
 
-    form.addEventListener('submit', async (e) => {
+    function showMfaChallenge(token) {
+      pendingMfaSessionToken = token;
+      loginForm.style.display = 'none';
+      googleLoginBtn.style.display = 'none';
+      document.querySelector('.auth-divider').style.display = 'none';
+      if (newAccountPrompt) newAccountPrompt.style.display = 'none';
+      mfaSection.style.display = 'block';
+      alertBox.style.display = 'none';
+      mfaCodeInput.value = '';
+      mfaCodeInput.focus();
+    }
+
+    mfaBackBtn.addEventListener('click', () => {
+      pendingMfaSessionToken = null;
+      mfaSection.style.display = 'none';
+      loginForm.style.display = 'block';
+      googleLoginBtn.style.display = 'flex';
+      document.querySelector('.auth-divider').style.display = 'flex';
+      if (newAccountPrompt) newAccountPrompt.style.display = 'block';
+      alertBox.style.display = 'none';
+    });
+
+    function handleAuthSuccess(data) {
+      if (data.token) {
+        localStorage.setItem('supportbot_token', data.token);
+      }
+      if (data.tenant) {
+        localStorage.setItem('supportbot_user', JSON.stringify(data.tenant));
+      }
+      if (data.csrfToken) {
+        localStorage.setItem('supportbot_csrf', data.csrfToken);
+      }
+      window.location.href = '/dashboard';
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       alertBox.style.display = 'none';
 
@@ -333,21 +463,19 @@
       try {
         let csrfToken = '';
         try {
-          const csrfRes = await fetch('/api/auth/csrf');
+          const csrfRes = await fetch('/api/v1/auth/csrf');
           if (csrfRes.ok) {
             const csrfData = await csrfRes.json();
             csrfToken = csrfData.csrfToken || '';
           }
-        } catch (csrfErr) {
-          console.warn('Could not pre-fetch CSRF token:', csrfErr);
-        }
+        } catch (csrfErr) {}
 
         const headers = { 'Content-Type': 'application/json' };
         if (csrfToken) {
           headers['X-CSRF-Token'] = csrfToken;
         }
 
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch('/api/v1/auth/login', {
           method: 'POST',
           headers: headers,
           body: JSON.stringify({ email, password })
@@ -359,22 +487,57 @@
           throw new Error(data.error || 'Authentication failed. Please check your credentials.');
         }
 
-        if (data.token) {
-          localStorage.setItem('supportbot_token', data.token);
-        }
-        if (data.tenant) {
-          localStorage.setItem('supportbot_user', JSON.stringify(data.tenant));
-        }
-        if (data.csrfToken) {
-          localStorage.setItem('supportbot_csrf', data.csrfToken);
+        if (data.mfaRequired) {
+          showMfaChallenge(data.mfaSessionToken);
+          return;
         }
 
-        window.location.href = '/dashboard';
+        handleAuthSuccess(data);
       } catch (err) {
         alertBox.textContent = err.message || 'Login failed. Please try again.';
         alertBox.style.display = 'block';
+      } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Log in';
+      }
+    });
+
+    mfaForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      alertBox.style.display = 'none';
+
+      const code = mfaCodeInput.value.trim();
+      if (!code) {
+        alertBox.textContent = 'Please enter your 6-digit verification code or backup code.';
+        alertBox.style.display = 'block';
+        return;
+      }
+
+      mfaSubmitBtn.disabled = true;
+      mfaSubmitBtn.textContent = 'Verifying code...';
+
+      try {
+        const res = await fetch('/api/v1/auth/mfa/verify-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mfaSessionToken: pendingMfaSessionToken,
+            code
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Invalid verification code.');
+        }
+
+        handleAuthSuccess(data);
+      } catch (err) {
+        alertBox.textContent = err.message || 'Verification failed. Please try again.';
+        alertBox.style.display = 'block';
+      } finally {
+        mfaSubmitBtn.disabled = false;
+        mfaSubmitBtn.textContent = 'Verify & Complete Login';
       }
     });
 
@@ -416,7 +579,7 @@
           forgotAlert.style.background = '#f0fdf4';
           forgotAlert.style.color = '#15803d';
           forgotAlert.style.border = '1px solid #bbf7d0';
-          forgotAlert.textContent = data.message || 'If an account exists, reset instructions have been sent.';
+          forgotAlert.textContent = data.message || 'If an account exists, reset instructions have been sent to your email.';
           forgotAlert.style.display = 'block';
           forgotForm.reset();
         } catch (err) {

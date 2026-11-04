@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     port: 5173,
     open: false,
+    allowedHosts: ['yoursmmagent.com', 'app.yoursmmagent.com', '.yoursmmagent.com', 'localhost'],
   },
 });
 

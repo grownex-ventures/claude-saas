@@ -10,6 +10,7 @@ import pino from 'pino';
 import QRCode from 'qrcode';
 import fs from 'node:fs';
 import path from 'node:path';
+import { EventEmitter } from 'node:events';
 import { formatWhatsAppMessage } from './formatter.js';
 import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
 
@@ -40,6 +41,7 @@ export class WhatsAppService {
   private maxReconnectDelayMs = 30000;
   private onMessageCallback?: (sock: WASocket, msg: proto.IWebMessageInfo) => Promise<void>;
 
+  public events = new EventEmitter();
   public onQR?: (qr: string, dataUrl?: string) => void;
   public onConnectionUpdate?: (update: ConnectionUpdatePayload) => void;
   public lastQR: string | null = null;
@@ -129,13 +131,16 @@ export class WhatsAppService {
           message: 'WhatsApp authentication QR code refreshed'
         }).catch(() => {});
 
+        const qrPayload: ConnectionUpdatePayload = {
+          status: 'connecting',
+          qr,
+          qrDataUrl: this.lastQRDataUrl || undefined
+        };
+        this.events.emit('qr', qrPayload);
+        this.events.emit('connection.update', qrPayload);
         if (this.onQR) this.onQR(qr, this.lastQRDataUrl || undefined);
         if (this.onConnectionUpdate) {
-          this.onConnectionUpdate({
-            status: 'connecting',
-            qr,
-            qrDataUrl: this.lastQRDataUrl || undefined
-          });
+          this.onConnectionUpdate(qrPayload);
         }
       }
 
@@ -155,8 +160,10 @@ export class WhatsAppService {
           details: { user: this.sock?.user?.id }
         }).catch(() => {});
 
+        const openPayload: ConnectionUpdatePayload = { status: 'open', user: this.sock?.user };
+        this.events.emit('connection.update', openPayload);
         if (this.onConnectionUpdate) {
-          this.onConnectionUpdate({ status: 'open', user: this.sock?.user });
+          this.onConnectionUpdate(openPayload);
         }
       } else if (connection === 'close') {
         this.connectionStatus = 'close';
@@ -169,8 +176,10 @@ export class WhatsAppService {
           message: 'WhatsApp connection closed'
         }).catch(() => {});
 
+        const closePayload: ConnectionUpdatePayload = { status: 'close', error: lastDisconnect?.error };
+        this.events.emit('connection.update', closePayload);
         if (this.onConnectionUpdate) {
-          this.onConnectionUpdate({ status: 'close', error: lastDisconnect?.error });
+          this.onConnectionUpdate(closePayload);
         }
 
         if (this.isShuttingDown) {
@@ -197,8 +206,10 @@ export class WhatsAppService {
         }
       } else if (connection === 'connecting') {
         this.connectionStatus = 'connecting';
+        const connPayload: ConnectionUpdatePayload = { status: 'connecting', qr };
+        this.events.emit('connection.update', connPayload);
         if (this.onConnectionUpdate) {
-          this.onConnectionUpdate({ status: 'connecting', qr });
+          this.onConnectionUpdate(connPayload);
         }
       }
     });
@@ -255,8 +266,11 @@ export class WhatsAppService {
     this.lastQR = null;
     this.lastQRDataUrl = null;
 
+    const pairingPayload: ConnectionUpdatePayload = { status: 'connecting', pairingCode: code };
+    this.events.emit('pairingCode', pairingPayload);
+    this.events.emit('connection.update', pairingPayload);
     if (this.onConnectionUpdate) {
-      this.onConnectionUpdate({ status: 'connecting', pairingCode: code });
+      this.onConnectionUpdate(pairingPayload);
     }
 
     return code;

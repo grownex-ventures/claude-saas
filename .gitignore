@@ -24,3 +24,4 @@ Thumbs.db
 baileys_auth/
 test-results/
 playwright-report/
+cloudflared

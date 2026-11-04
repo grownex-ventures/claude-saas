@@ -27,8 +27,8 @@ export interface ActivationResult {
 export class TenantsService {
   constructor(
     private panelCrawlerService: PanelCrawlerService = new PanelCrawlerService(),
-    private botManagerService: BotManagerService = new BotManagerService(),
-    private whatsAppBotManagerService: WhatsAppBotManagerService = new WhatsAppBotManagerService()
+    private botManagerService: BotManagerService = BotManagerService.getInstance(),
+    private whatsAppBotManagerService: WhatsAppBotManagerService = WhatsAppBotManagerService.getInstance()
   ) {}
 
 
@@ -78,7 +78,8 @@ export class TenantsService {
       where: { id: tenantId },
       data: {
         botToken: botTokenEncrypted,
-        panelApiUrl: normalizedPanelUrl
+        panelApiUrl: normalizedPanelUrl,
+        telegramPanelUrl: normalizedPanelUrl
       }
     });
 
@@ -106,6 +107,10 @@ export class TenantsService {
 
     if (!tenant) {
       throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    if (!tenant.hasTelegram) {
+      throw new Error('Telegram Bot is not included in your active plan. Please upgrade your plan.');
     }
 
     if (!tenant.botToken || !tenant.panelApiUrl) {
@@ -185,33 +190,7 @@ export class TenantsService {
   /**
    * Configures tenant WhatsApp settings.
    */
-  async configureWhatsApp(tenantId: string, dto: ConfigureWhatsAppDto) {
-    const updated = await prisma.tenant.update({
-      where: { id: tenantId },
-      data: {
-        whatsAppPhoneNumber: dto.phoneNumber !== undefined ? dto.phoneNumber : undefined,
-        whatsAppEnabled: dto.enabled !== undefined ? dto.enabled : undefined
-      }
-    });
-
-    await AuditLogService.record({
-      tenantId,
-      action: 'WHATSAPP_CONFIGURED',
-      actorIp: 'unknown',
-      metadata: { enabled: dto.enabled, phoneNumber: dto.phoneNumber }
-    });
-
-    return {
-      tenantId: updated.id,
-      whatsAppPhoneNumber: updated.whatsAppPhoneNumber,
-      whatsAppEnabled: updated.whatsAppEnabled
-    };
-  }
-
-  /**
-   * Starts WhatsApp Baileys connection for the tenant.
-   */
-  async startWhatsApp(tenantId: string, options?: { mode?: 'qr' | 'pairing'; phoneNumber?: string; forceRestart?: boolean }) {
+  async configureWhatsApp(tenantId: string, dto: ConfigureWhatsAppDto & { panelApiUrl?: string }) {
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId }
     });
@@ -220,8 +199,79 @@ export class TenantsService {
       throw new Error(`Tenant ${tenantId} not found`);
     }
 
-    if (!tenant.panelApiUrl) {
-      throw new Error('SMM Panel URL must be configured before activating WhatsApp');
+    if (!tenant.hasWhatsapp) {
+      throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+    }
+
+    const data: any = {};
+    if (dto.phoneNumber !== undefined) data.whatsAppPhoneNumber = dto.phoneNumber;
+    if (dto.enabled !== undefined) data.whatsAppEnabled = dto.enabled;
+    if (dto.panelApiUrl !== undefined) {
+      if (dto.panelApiUrl && dto.panelApiUrl.trim()) {
+        const norm = dto.panelApiUrl.trim().replace(/\/+$/, '');
+        await validateSafeUrl(norm);
+        data.whatsappPanelUrl = norm;
+        if (!tenant.panelApiUrl) {
+          data.panelApiUrl = norm;
+        }
+      } else {
+        data.whatsappPanelUrl = null;
+      }
+    }
+
+    const updated = await prisma.tenant.update({
+      where: { id: tenantId },
+      data
+    });
+
+    await AuditLogService.record({
+      tenantId,
+      action: 'WHATSAPP_CONFIGURED',
+      actorIp: 'unknown',
+      metadata: { enabled: dto.enabled, phoneNumber: dto.phoneNumber, panelApiUrl: data.whatsappPanelUrl }
+    });
+
+    return {
+      tenantId: updated.id,
+      whatsAppPhoneNumber: updated.whatsAppPhoneNumber,
+      whatsAppEnabled: updated.whatsAppEnabled,
+      whatsappPanelUrl: updated.whatsappPanelUrl
+    };
+  }
+
+  /**
+   * Starts WhatsApp Baileys connection for the tenant.
+   */
+  async startWhatsApp(tenantId: string, options?: { mode?: 'qr' | 'pairing'; phoneNumber?: string; forceRestart?: boolean; panelApiUrl?: string }) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId }
+    });
+
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    if (!tenant.hasWhatsapp) {
+      throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+    }
+
+    let activePanelUrl = tenant.whatsappPanelUrl || tenant.panelApiUrl;
+
+    if (options?.panelApiUrl && options.panelApiUrl.trim()) {
+      const norm = options.panelApiUrl.trim().replace(/\/+$/, '');
+      await validateSafeUrl(norm);
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          whatsappPanelUrl: norm,
+          ...(!tenant.panelApiUrl ? { panelApiUrl: norm } : {})
+        }
+      });
+      activePanelUrl = norm;
+    }
+
+    if (!activePanelUrl) {
+      throw new Error('Please enter and save your SMM Panel API URL for WhatsApp.');
     }
 
     const mode = options?.mode || (options?.phoneNumber ? 'pairing' : 'qr');
@@ -255,7 +305,7 @@ export class TenantsService {
   /**
    * Generates a fresh 8-digit pairing code on demand for a tenant's WhatsApp line.
    */
-  async requestPairingCode(tenantId: string, phoneNumber: string) {
+  async requestPairingCode(tenantId: string, phoneNumber: string, panelApiUrl?: string) {
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId }
     });
@@ -264,9 +314,31 @@ export class TenantsService {
       throw new Error(`Tenant ${tenantId} not found`);
     }
 
+    if (!tenant.hasWhatsapp) {
+      throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+    }
+
     const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
     if (!cleanPhone || cleanPhone.length < 8) {
       throw new Error('Please enter a valid phone number with country code (e.g. 919876543210)');
+    }
+
+    let activePanelUrl = tenant.whatsappPanelUrl || tenant.panelApiUrl;
+    if (panelApiUrl && panelApiUrl.trim()) {
+      const norm = panelApiUrl.trim().replace(/\/+$/, '');
+      await validateSafeUrl(norm);
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          whatsappPanelUrl: norm,
+          ...(!tenant.panelApiUrl ? { panelApiUrl: norm } : {})
+        }
+      });
+      activePanelUrl = norm;
+    }
+
+    if (!activePanelUrl) {
+      throw new Error('Please enter and save your SMM Panel API URL for WhatsApp.');
     }
 
     // If changing number or requesting a new code, start with fresh pairing socket
@@ -309,8 +381,10 @@ export class TenantsService {
     const service = this.whatsAppBotManagerService.getService(tenantId);
 
     return {
+      hasWhatsapp: Boolean(tenant.hasWhatsapp),
       enabled: tenant.whatsAppEnabled,
       phoneNumber: tenant.whatsAppPhoneNumber,
+      whatsappPanelUrl: tenant.whatsappPanelUrl || tenant.panelApiUrl || null,
       connected: service ? service.isConnected() : false,
       status: service ? service.connectionStatus : 'close',
       lastQR: service ? service.lastQR : null,
@@ -357,12 +431,80 @@ export class TenantsService {
   }
 
   /**
+   * Tests tenant's stored Telegram bot token, returns verified username, and live status.
+   */
+  async testTelegramBot(tenantId: string): Promise<{
+    configured: boolean;
+    valid: boolean;
+    botUsername?: string;
+    botFirstName?: string;
+    isRunning: boolean;
+    mode: string;
+    error?: string;
+  }> {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { botToken: true, subscriptionStatus: true }
+    });
+
+    if (!tenant || !tenant.botToken) {
+      return {
+        configured: false,
+        valid: false,
+        isRunning: false,
+        mode: (process.env.TELEGRAM_MODE || 'polling').toLowerCase(),
+        error: 'No Telegram bot token configured yet.'
+      };
+    }
+
+    let token = tenant.botToken;
+    try {
+      token = decrypt(tenant.botToken);
+    } catch {}
+
+    const isRunning = this.botManagerService.isBotRunning(tenantId);
+    const mode = (process.env.TELEGRAM_MODE || 'polling').toLowerCase();
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const data: any = await res.json();
+      if (data && data.ok && data.result) {
+        return {
+          configured: true,
+          valid: true,
+          botUsername: data.result.username,
+          botFirstName: data.result.first_name,
+          isRunning,
+          mode
+        };
+      } else {
+        return {
+          configured: true,
+          valid: false,
+          isRunning: false,
+          mode,
+          error: data?.description || 'Invalid Telegram bot token'
+        };
+      }
+    } catch {
+      return {
+        configured: true,
+        valid: true,
+        isRunning,
+        mode,
+        botUsername: 'configured_bot'
+      };
+    }
+  }
+
+  /**
    * Configures public website widget settings for the tenant.
    * Encrypts the catalog/demo API key before persisting to PostgreSQL.
    */
   async configureWidget(
     tenantId: string,
     dto: {
+      panelApiUrl?: string | null;
       widgetApiKey?: string | null;
       widgetTitle?: string;
       widgetWelcomeMessage?: string;
@@ -370,7 +512,32 @@ export class TenantsService {
       widgetEnabled?: boolean;
     }
   ) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId }
+    });
+
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    if (!tenant.hasWidget) {
+      throw new Error('Website Chat Widget is not included in your active plan. Please upgrade your plan.');
+    }
+
     const data: any = {};
+
+    if (dto.panelApiUrl !== undefined) {
+      if (dto.panelApiUrl && dto.panelApiUrl.trim()) {
+        const norm = dto.panelApiUrl.trim().replace(/\/+$/, '');
+        await validateSafeUrl(norm);
+        data.widgetPanelUrl = norm;
+        if (!tenant.panelApiUrl) {
+          data.panelApiUrl = norm;
+        }
+      } else {
+        data.widgetPanelUrl = null;
+      }
+    }
 
     if (dto.widgetApiKey !== undefined) {
       if (dto.widgetApiKey && dto.widgetApiKey.trim()) {
@@ -415,7 +582,8 @@ export class TenantsService {
       widgetTitle: updated.widgetTitle,
       widgetWelcomeMessage: updated.widgetWelcomeMessage,
       widgetAccentColor: updated.widgetAccentColor,
-      hasWidgetApiKey: Boolean(updated.widgetApiKey)
+      hasWidgetApiKey: Boolean(updated.widgetApiKey),
+      widgetPanelUrl: updated.widgetPanelUrl || updated.panelApiUrl
     };
   }
 
@@ -427,11 +595,13 @@ export class TenantsService {
       where: { id: tenantId },
       select: {
         id: true,
+        hasWidget: true,
         widgetTitle: true,
         widgetWelcomeMessage: true,
         widgetAccentColor: true,
         widgetEnabled: true,
         widgetApiKey: true,
+        widgetPanelUrl: true,
         panelApiUrl: true
       }
     });
@@ -442,6 +612,7 @@ export class TenantsService {
 
     return {
       tenantId: tenant.id,
+      hasWidget: Boolean(tenant.hasWidget),
       widgetEnabled: tenant.widgetEnabled,
       widgetTitle: tenant.widgetTitle || 'Customer Support',
       widgetWelcomeMessage:
@@ -449,7 +620,7 @@ export class TenantsService {
         'Hello! How can we help you today? Ask about our services, pricing, or order tracking.',
       widgetAccentColor: tenant.widgetAccentColor || '#ea580c',
       hasWidgetApiKey: Boolean(tenant.widgetApiKey),
-      panelApiUrl: tenant.panelApiUrl
+      panelApiUrl: tenant.widgetPanelUrl || tenant.panelApiUrl
     };
   }
 

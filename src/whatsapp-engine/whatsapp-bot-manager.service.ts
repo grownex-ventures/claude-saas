@@ -24,9 +24,22 @@ export function cleanJid(jid: string): string {
 }
 
 export class WhatsAppBotManagerService {
+  private static instance: WhatsAppBotManagerService;
   private activeInstances = new Map<string, WhatsAppService>();
 
-  constructor(private panelCrawlerService: PanelCrawlerService = new PanelCrawlerService()) {}
+  constructor(private panelCrawlerService: PanelCrawlerService = new PanelCrawlerService()) {
+    if (WhatsAppBotManagerService.instance) {
+      return WhatsAppBotManagerService.instance;
+    }
+    WhatsAppBotManagerService.instance = this;
+  }
+
+  public static getInstance(panelCrawlerService?: PanelCrawlerService): WhatsAppBotManagerService {
+    if (!WhatsAppBotManagerService.instance) {
+      WhatsAppBotManagerService.instance = new WhatsAppBotManagerService(panelCrawlerService);
+    }
+    return WhatsAppBotManagerService.instance;
+  }
 
   /**
    * Initializes all active WhatsApp bots on application bootstrap.
@@ -35,7 +48,8 @@ export class WhatsAppBotManagerService {
     const activeTenants = await prisma.tenant.findMany({
       where: {
         subscriptionStatus: 'ACTIVE',
-        whatsAppEnabled: true
+        whatsAppEnabled: true,
+        hasWhatsapp: true
       }
     });
 
@@ -133,12 +147,58 @@ export class WhatsAppBotManagerService {
       where: { id: tenantId }
     });
 
-    if (!tenant || !tenant.panelApiUrl) {
+    if (!tenant || !tenant.hasWhatsapp) {
+      await service.sendReply(senderJid, '⚠️ This WhatsApp support line is currently inactive. Please contact the administrator.');
+      return;
+    }
+
+    const panelApiUrl = tenant.whatsappPanelUrl || tenant.panelApiUrl;
+    if (!panelApiUrl) {
       await service.sendReply(senderJid, '⚠️ This support line is currently unconfigured. Please contact panel admin.');
       return;
     }
 
-    const panelApiUrl = tenant.panelApiUrl;
+    // Auto-upsert customer session for strict per-user multi-tenant isolation
+    const phoneDigits = senderJid.replace(/[^0-9]/g, '');
+    const session = await prisma.whatsAppSession.upsert({
+      where: {
+        tenantId_whatsappJid: {
+          tenantId,
+          whatsappJid: senderJid
+        }
+      },
+      update: {
+        phoneNumber: phoneDigits
+      },
+      create: {
+        tenantId,
+        whatsappJid: senderJid,
+        phoneNumber: phoneDigits
+      }
+    });
+
+    // Persist incoming customer message to isolated chat history
+    await prisma.whatsAppChatMessage.create({
+      data: {
+        tenantId,
+        whatsappJid: senderJid,
+        role: 'user',
+        content: text
+      }
+    });
+
+    // Helper to persist assistant response and send via WhatsApp socket
+    const sendAndRecordReply = async (replyText: string) => {
+      await prisma.whatsAppChatMessage.create({
+        data: {
+          tenantId,
+          whatsappJid: senderJid,
+          role: 'assistant',
+          content: replyText
+        }
+      });
+      await service.sendReply(senderJid, replyText);
+    };
 
     // 1. Detect API Key Authentication: /setkey <KEY>, /login <KEY>, or raw hex token
     const isDirectApiKey = /^[a-f0-9]{16,128}$/i.test(text);
@@ -153,7 +213,7 @@ export class WhatsAppBotManagerService {
       }
 
       if (!rawKey) {
-        await service.sendReply(senderJid, '⚠️ Usage: */setkey <YOUR_PANEL_API_KEY>*');
+        await sendAndRecordReply('⚠️ Usage: */setkey <YOUR_PANEL_API_KEY>*');
         return;
       }
 
@@ -163,8 +223,7 @@ export class WhatsAppBotManagerService {
       try {
         balanceData = await smmClient.getBalance();
       } catch (err: any) {
-        await service.sendReply(
-          senderJid,
+        await sendAndRecordReply(
           `❌ *Invalid API Key:* Could not verify credentials with panel.\n\n_Reason: ${err.message}_`
         );
         return;
@@ -172,22 +231,15 @@ export class WhatsAppBotManagerService {
 
       // Encrypt and persist session
       const encryptedKey = encrypt(rawKey);
-      const phoneDigits = senderJid.replace(/[^0-9]/g, '');
 
-      await prisma.whatsAppSession.upsert({
+      await prisma.whatsAppSession.update({
         where: {
           tenantId_whatsappJid: {
             tenantId,
             whatsappJid: senderJid
           }
         },
-        update: {
-          phoneNumber: phoneDigits,
-          userPanelKey: encryptedKey
-        },
-        create: {
-          tenantId,
-          whatsappJid: senderJid,
+        data: {
           phoneNumber: phoneDigits,
           userPanelKey: encryptedKey
         }
@@ -208,18 +260,18 @@ export class WhatsAppBotManagerService {
         `• */logout* — Unlink account\n\n` +
         `💬 _Or send any question to get instant support!_`;
 
-      await service.sendReply(senderJid, welcome);
+      await sendAndRecordReply(welcome);
       return;
     }
 
     // 2. /logout command
     if (text === '/logout') {
-      await prisma.whatsAppSession.deleteMany({
-        where: { tenantId, whatsappJid: senderJid }
+      await prisma.whatsAppSession.updateMany({
+        where: { tenantId, whatsappJid: senderJid },
+        data: { userPanelKey: null }
       });
-      await service.sendReply(
-        senderJid,
-        '👋 *Logged Out:* Your account has been disconnected and session wiped. Send your API key anytime to reconnect.'
+      await sendAndRecordReply(
+        '👋 *Logged Out:* Your account has been disconnected and your API key unlinked. Send your API key anytime to reconnect.'
       );
       return;
     }
@@ -234,25 +286,14 @@ export class WhatsAppBotManagerService {
         `• */status <order_id>* — Check order status\n` +
         `• */logout* — Disconnect account\n\n` +
         `💬 _You can also ask questions naturally about services or orders!_`;
-      await service.sendReply(senderJid, helpMsg);
+      await sendAndRecordReply(helpMsg);
       return;
     }
 
-    // Resolve user session
-    const session = await prisma.whatsAppSession.findUnique({
-      where: {
-        tenantId_whatsappJid: {
-          tenantId,
-          whatsappJid: senderJid
-        }
-      }
-    });
-
     // 4. /balance command
     if (text === '/balance') {
-      if (!session) {
-        await service.sendReply(
-          senderJid,
+      if (!session || !session.userPanelKey) {
+        await sendAndRecordReply(
           '🔒 *Account Not Linked:* Please connect your account first via */setkey <YOUR_API_KEY>*'
         );
         return;
@@ -266,12 +307,11 @@ export class WhatsAppBotManagerService {
       try {
         const client = new SmmProviderClient(panelApiUrl, rawKey);
         const data = await client.getBalance();
-        await service.sendReply(
-          senderJid,
+        await sendAndRecordReply(
           `💰 *Account Balance:*\n\nAvailable Funds: *${formatCurrencyAmount(data.balance, data.currency)}*`
         );
       } catch (err: any) {
-        await service.sendReply(senderJid, `❌ Failed to fetch balance: ${err.message}`);
+        await sendAndRecordReply(`❌ Failed to fetch balance: ${err.message}`);
       }
       return;
     }
@@ -280,7 +320,7 @@ export class WhatsAppBotManagerService {
     if (text.startsWith('/services')) {
       const keyword = text.replace('/services', '').trim().toLowerCase();
       let rawKey = '';
-      if (session) {
+      if (session && session.userPanelKey) {
         try {
           rawKey = decrypt(session.userPanelKey);
         } catch {}
@@ -298,9 +338,9 @@ export class WhatsAppBotManagerService {
           : allServices.slice(0, 8);
 
         const cardText = formatWhatsAppServicesList(filtered);
-        await service.sendReply(senderJid, cardText);
+        await sendAndRecordReply(cardText);
       } catch (err: any) {
-        await service.sendReply(senderJid, `❌ Failed to fetch services: ${err.message}`);
+        await sendAndRecordReply(`❌ Failed to fetch services: ${err.message}`);
       }
       return;
     }
@@ -309,12 +349,12 @@ export class WhatsAppBotManagerService {
     if (text.startsWith('/status')) {
       const orderId = text.split(/\s+/)[1]?.trim();
       if (!orderId) {
-        await service.sendReply(senderJid, 'Usage: */status <order_id>*');
+        await sendAndRecordReply('Usage: */status <order_id>*');
         return;
       }
 
-      if (!session) {
-        await service.sendReply(senderJid, '🔒 Please link your account first via */setkey <YOUR_API_KEY>*');
+      if (!session || !session.userPanelKey) {
+        await sendAndRecordReply('🔒 Please link your account first via */setkey <YOUR_API_KEY>*');
         return;
       }
 
@@ -332,26 +372,37 @@ export class WhatsAppBotManagerService {
           `• *Start Count:* ${status.start_count ?? 'N/A'}\n` +
           `• *Remains:* ${status.remains ?? 'N/A'}\n` +
           `• *Charge:* ${status.charge ? `${status.charge} ${status.currency || ''}` : 'N/A'}`;
-        await service.sendReply(senderJid, reply);
+        await sendAndRecordReply(reply);
       } catch (err: any) {
-        await service.sendReply(senderJid, `❌ Failed to check order: ${err.message}`);
+        await sendAndRecordReply(`❌ Failed to check order: ${err.message}`);
       }
       return;
     }
 
-    // 7. General inquiries (AI Support Agent)
+    // 7. General inquiries (AI Support Agent with recent conversation history)
     try {
+      const dbHistory = await prisma.whatsAppChatMessage.findMany({
+        where: { tenantId, whatsappJid: senderJid },
+        orderBy: { createdAt: 'desc' },
+        take: 6
+      });
+      const history = dbHistory.reverse().map((h) => ({
+        role: h.role as 'user' | 'assistant',
+        content: h.content
+      }));
+
       const reply = await AiAgentService.getInstance().generateReply({
         tenantId,
         message: text,
         channel: 'whatsapp',
-        userId: senderJid
+        userId: senderJid,
+        history
       });
-      await service.sendReply(senderJid, reply);
+      await sendAndRecordReply(reply);
     } catch (err: any) {
       console.warn(`[WhatsAppBotManager] AI reply error for tenant ${tenantId}:`, err?.message || err);
       const fallback = `Thank you for your message. An agent is reviewing your query. You can check order status with /status <order_id> or view services with /services.`;
-      await service.sendReply(senderJid, fallback);
+      await sendAndRecordReply(fallback);
     }
   }
 }
