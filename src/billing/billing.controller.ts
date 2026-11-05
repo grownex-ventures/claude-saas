@@ -52,25 +52,24 @@ export class BillingController {
       }
     });
 
-    // POST /api/billing/mock-pay/:orderId - Sandbox testing payment trigger
-    this.router.post('/mock-pay/:orderId', async (req: Request, res: Response): Promise<void> => {
-      try {
-        const { orderId } = req.params;
-        const result = await billingService.handleCryptomusWebhook({
-          order_id: orderId,
-          status: 'paid'
-        });
-        res.status(200).json(result);
-      } catch (err: any) {
-        res.status(400).json({ success: false, error: err.message });
-      }
-    });
-
     // -------------------------------------------------------------
     // Authenticated Tenant Endpoints
     // -------------------------------------------------------------
     const authRouter = Router();
     authRouter.use(tenantAccessMiddleware);
+
+    // POST /api/billing/mock-pay/:orderId - Sandbox simulation (Restricted & Authenticated)
+    authRouter.post('/mock-pay/:orderId', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+      try {
+        const tenantId = req.tenantId!;
+        const { orderId } = req.params;
+        const result = await billingService.simulateMockPayment(tenantId, orderId);
+        res.status(200).json(result);
+      } catch (err: any) {
+        const statusCode = err.statusCode || 400;
+        res.status(statusCode).json({ success: false, error: err.message });
+      }
+    });
 
     // POST /api/billing/invoices - Create new invoice
     authRouter.post('/invoices', async (req: AuthenticatedRequest, res: Response): Promise<void> => {

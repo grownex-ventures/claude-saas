@@ -5,6 +5,7 @@
  */
 import { prisma } from '../common/database/prisma.js';
 import { redis } from '../common/redis/redis.js';
+import { tenantStatusKey } from '../common/redis/keys.js';
 import { cryptomusService } from './cryptomus.service.js';
 import { AuditLogService } from '../common/audit/audit-log.service.js';
 import { InvoiceStatus } from '@prisma/client';
@@ -158,7 +159,7 @@ export class BillingService {
         invoice: {
           id: updated.id,
           orderId: updated.orderId,
-          amount: updated.amount,
+          amount: Number(updated.amount).toFixed(2),
           currency: updated.currency,
           channels: updated.selectedChannels,
           durationMonths: updated.durationMonths,
@@ -178,22 +179,100 @@ export class BillingService {
   }
 
   /**
-   * Processes incoming Cryptomus webhook
+   * Private idempotent invoice payment activation shared by all trusted entry points.
+   */
+  private async activateInvoicePayment(
+    invoice: any,
+    details: { gateway: string; paidAt?: Date; externalId?: string; actorIp?: string; adminId?: string }
+  ): Promise<{ success: boolean; message: string }> {
+    if (invoice.status === InvoiceStatus.PAID) {
+      return { success: true, message: 'Invoice already marked as paid' };
+    }
+
+    const channels = (invoice.selectedChannels as string[]) || [];
+    const durationDays = (invoice.durationMonths || 1) * 30;
+
+    // Calculate new expiration date
+    const now = details.paidAt || new Date();
+    let expiresAt: Date;
+    if (invoice.tenant.subscriptionExpiresAt && invoice.tenant.subscriptionExpiresAt > now) {
+      expiresAt = new Date(invoice.tenant.subscriptionExpiresAt.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    } else {
+      expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    }
+
+    // Determine channel updates
+    const hasTelegram = channels.includes('telegram') ? true : invoice.tenant.hasTelegram;
+    const hasWhatsapp = channels.includes('whatsapp') ? true : invoice.tenant.hasWhatsapp;
+    const hasWidget = channels.includes('widget') ? true : invoice.tenant.hasWidget;
+
+    // Update invoice and tenant inside a database transaction
+    await prisma.$transaction([
+      prisma.paymentInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: InvoiceStatus.PAID,
+          paidAt: now,
+          ...(details.externalId ? { gatewayPaymentId: details.externalId } : {})
+        }
+      }),
+      prisma.tenant.update({
+        where: { id: invoice.tenantId },
+        data: {
+          subscriptionStatus: 'ACTIVE',
+          subscriptionExpiresAt: expiresAt,
+          hasTelegram,
+          hasWhatsapp,
+          hasWidget
+        }
+      })
+    ]);
+
+    // Cache active subscription in Redis using canonical key and standard 3600s TTL (best-effort resilience)
+    try {
+      await redis.set(tenantStatusKey(invoice.tenantId), 'ACTIVE', 'EX', 3600);
+    } catch (err: any) {
+      console.warn('[BillingService] Failed to cache subscription status in Redis:', err.message);
+    }
+
+    // Audit log
+    await AuditLogService.record({
+      tenantId: invoice.tenantId,
+      action: details.adminId ? 'SUBSCRIPTION_ADMIN_APPROVAL' : 'SUBSCRIPTION_PAID_CRYPTO',
+      actorIp: details.actorIp || (details.adminId ? 'admin-override' : 'cryptomus-webhook'),
+      metadata: {
+        orderId: invoice.orderId,
+        amount: invoice.amount,
+        channels,
+        durationMonths: invoice.durationMonths,
+        expiresAt: expiresAt.toISOString(),
+        gateway: details.gateway,
+        adminId: details.adminId || null
+      }
+    });
+
+    console.log(`[BillingService] ✅ Subscription activated for tenant ${invoice.tenantId} (${details.gateway}). Channels: [${channels.join(', ')}]. Expires: ${expiresAt.toISOString()}`);
+    return { success: true, message: 'Payment confirmed and subscription activated' };
+  }
+
+  /**
+   * Processes incoming Cryptomus webhook (Fail-Closed)
    */
   public async handleCryptomusWebhook(payload: Record<string, any>, signature?: string): Promise<{ success: boolean; message: string }> {
     if (!payload || typeof payload !== 'object') {
       throw new Error('Invalid webhook payload');
     }
 
-    // Verify webhook cryptographic signature if Cryptomus is configured
-    if (cryptomusService.isConfigured()) {
-      const isValid = cryptomusService.verifyWebhookSignature(payload, signature);
-      if (!isValid) {
-        console.warn('[BillingService] Cryptomus webhook signature verification failed.');
-        throw new Error('Invalid signature');
-      }
-    } else {
-      console.log('[BillingService] Cryptomus credentials not set; running in sandbox webhook mode.');
+    // Fail-closed: Real webhook processing REQUIRES configured credentials
+    if (!cryptomusService.isConfigured()) {
+      throw new Error('Cryptomus gateway is not configured');
+    }
+
+    // Verify cryptographic signature
+    const isValid = cryptomusService.verifyWebhookSignature(payload, signature);
+    if (!isValid) {
+      console.warn('[BillingService] Cryptomus webhook signature verification failed.');
+      throw new Error('Invalid signature');
     }
 
     const orderId = payload.order_id || payload.orderId;
@@ -221,63 +300,11 @@ export class BillingService {
     const isPaid = paymentStatus === 'paid' || paymentStatus === 'paid_over' || paymentStatus === 'success';
 
     if (isPaid) {
-      const channels = (invoice.selectedChannels as string[]) || [];
-      const durationDays = (invoice.durationMonths || 1) * 30;
-
-      // Calculate new expiration date
-      const now = new Date();
-      let expiresAt: Date;
-      if (invoice.tenant.subscriptionExpiresAt && invoice.tenant.subscriptionExpiresAt > now) {
-        expiresAt = new Date(invoice.tenant.subscriptionExpiresAt.getTime() + durationDays * 24 * 60 * 60 * 1000);
-      } else {
-        expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-      }
-
-      // Determine channel updates
-      const hasTelegram = channels.includes('telegram') ? true : invoice.tenant.hasTelegram;
-      const hasWhatsapp = channels.includes('whatsapp') ? true : invoice.tenant.hasWhatsapp;
-      const hasWidget = channels.includes('widget') ? true : invoice.tenant.hasWidget;
-
-      // Update invoice and tenant inside a transaction
-      await prisma.$transaction([
-        prisma.paymentInvoice.update({
-          where: { id: invoice.id },
-          data: {
-            status: InvoiceStatus.PAID,
-            paidAt: now
-          }
-        }),
-        prisma.tenant.update({
-          where: { id: invoice.tenantId },
-          data: {
-            subscriptionStatus: 'ACTIVE',
-            subscriptionExpiresAt: expiresAt,
-            hasTelegram,
-            hasWhatsapp,
-            hasWidget
-          }
-        })
-      ]);
-
-      // Cache active subscription in Redis
-      await redis.set(`tenant:${invoice.tenantId}:subscription`, 'ACTIVE', 'EX', 3600);
-
-      // Audit log
-      await AuditLogService.record({
-        tenantId: invoice.tenantId,
-        action: 'SUBSCRIPTION_PAID_CRYPTO',
-        actorIp: 'cryptomus-webhook',
-        metadata: {
-          orderId: invoice.orderId,
-          amount: invoice.amount,
-          channels,
-          durationMonths: invoice.durationMonths,
-          expiresAt: expiresAt.toISOString()
-        }
+      return this.activateInvoicePayment(invoice, {
+        gateway: 'cryptomus',
+        externalId: payload.uuid,
+        actorIp: 'cryptomus-webhook'
       });
-
-      console.log(`[BillingService] ✅ Subscription activated for tenant ${invoice.tenantId} via Crypto. Channels: [${channels.join(', ')}]. Expires: ${expiresAt.toISOString()}`);
-      return { success: true, message: 'Payment confirmed and subscription activated' };
     }
 
     if (paymentStatus === 'cancel' || paymentStatus === 'fail') {
@@ -292,18 +319,96 @@ export class BillingService {
   }
 
   /**
-   * Retrieves tenant invoices
+   * Explicit Admin Approval Method (Reachable only via guarded admin route)
    */
-  public async getTenantInvoices(tenantId: string): Promise<any[]> {
-    return prisma.paymentInvoice.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: 'desc' },
-      take: 50
+  public async markInvoicePaidByAdmin(orderId: string, adminId?: string): Promise<{ success: boolean; message: string }> {
+    const invoice = await prisma.paymentInvoice.findUnique({
+      where: { orderId },
+      include: { tenant: true }
+    });
+
+    if (!invoice) {
+      const err: any = new Error(`Invoice with orderId ${orderId} not found`);
+      err.statusCode = 404;
+      throw err;
+    }
+
+    return this.activateInvoicePayment(invoice, {
+      gateway: 'admin_override',
+      adminId,
+      actorIp: 'admin-override'
     });
   }
 
   /**
-   * Checks status of an invoice
+   * Sandbox simulation for non-production environments with strict guardrails
+   */
+  public async simulateMockPayment(tenantId: string, orderId: string): Promise<{ success: boolean; message: string }> {
+    if (process.env.NODE_ENV === 'production') {
+      const err: any = new Error('Sandbox simulation is disabled in production');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (cryptomusService.isConfigured()) {
+      const err: any = new Error('Mock simulation is disabled because live Cryptomus gateway is configured');
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const invoice = await prisma.paymentInvoice.findUnique({
+      where: { orderId },
+      include: { tenant: true }
+    });
+
+    if (!invoice) {
+      const err: any = new Error(`Invoice with orderId ${orderId} not found`);
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (invoice.tenantId !== tenantId) {
+      const err: any = new Error('Forbidden: Invoice belongs to another tenant');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    if (invoice.status !== InvoiceStatus.PENDING) {
+      const err: any = new Error(`Invoice cannot be simulated because status is ${invoice.status}`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (invoice.expiresAt && invoice.expiresAt < new Date()) {
+      const err: any = new Error('Invoice has expired');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    return this.activateInvoicePayment(invoice, {
+      gateway: 'sandbox_mock',
+      actorIp: 'sandbox-simulation'
+    });
+  }
+
+  /**
+   * Retrieves tenant invoices with fixed 2-decimal string amounts
+   */
+  public async getTenantInvoices(tenantId: string): Promise<any[]> {
+    const invoices = await prisma.paymentInvoice.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+
+    return invoices.map((inv) => ({
+      ...inv,
+      amount: Number(inv.amount).toFixed(2)
+    }));
+  }
+
+  /**
+   * Checks status of an invoice with fixed 2-decimal string amounts
    */
   public async getInvoiceStatus(tenantId: string, orderId: string): Promise<any> {
     const invoice = await prisma.paymentInvoice.findFirst({
@@ -317,7 +422,7 @@ export class BillingService {
     return {
       orderId: invoice.orderId,
       status: invoice.status,
-      amount: invoice.amount,
+      amount: Number(invoice.amount).toFixed(2),
       currency: invoice.currency,
       channels: invoice.selectedChannels,
       paymentUrl: invoice.paymentUrl,

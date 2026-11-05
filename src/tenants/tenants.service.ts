@@ -1,5 +1,6 @@
 import { prisma } from '../common/database/prisma.js';
 import { redis } from '../common/redis/redis.js';
+import { tenantStatusKey } from '../common/redis/keys.js';
 import { PanelCrawlerService } from '../crawler/panel-crawler.service.js';
 import { BotManagerService } from '../bot-engine/bot-manager.service.js';
 import { WhatsAppBotManagerService } from '../whatsapp-engine/whatsapp-bot-manager.service.js';
@@ -123,9 +124,9 @@ export class TenantsService {
       data: { subscriptionStatus: 'ACTIVE' }
     });
 
-    // 2. Set tenant:${tenantId}:status = 'ACTIVE' in Redis
+    // 2. Set canonical tenant status in Redis with 3600s TTL
     try {
-      await redis.set(`tenant:${tenantId}:status`, 'ACTIVE');
+      await redis.set(tenantStatusKey(tenantId), 'ACTIVE', 'EX', 3600);
     } catch {
       // Redis fallback
     }
@@ -171,9 +172,9 @@ export class TenantsService {
       data: { subscriptionStatus: 'EXPIRED' }
     });
 
-    // 2. Update Redis status
+    // 2. Update canonical Redis status with 3600s TTL
     try {
-      await redis.set(`tenant:${tenantId}:status`, 'EXPIRED');
+      await redis.set(tenantStatusKey(tenantId), 'EXPIRED', 'EX', 3600);
     } catch {
       // Redis fallback
     }
@@ -690,7 +691,7 @@ export class TenantsService {
         });
       }
       // Also explicitly delete critical known keys
-      await redis.del(`tenant:${tenantId}:status`).catch(() => {});
+      await redis.del(tenantStatusKey(tenantId)).catch(() => {});
       await redis.del(`tenant:${tenantId}:catalog:services`).catch(() => {});
       await redis.del(`tenant:${tenantId}:crawl:services`).catch(() => {});
     } catch {

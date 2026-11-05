@@ -2,6 +2,9 @@ import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../common/database/prisma.js';
 import { redis } from '../common/redis/redis.js';
+import { tenantStatusKey } from '../common/redis/keys.js';
+import { BotManagerService } from '../bot-engine/bot-manager.service.js';
+import { WhatsAppBotManagerService } from '../whatsapp-engine/whatsapp-bot-manager.service.js';
 import { getAdminJwtSecret } from './admin.guard.js';
 import { settingsService } from '../common/settings/settings.service.js';
 import { AiProviderClient } from '../ai-engine/ai-provider.client.js';
@@ -20,8 +23,18 @@ export interface AdminSetupDto {
 
 export class AdminService {
   private static instance: AdminService;
+  private botManagerService: BotManagerService = BotManagerService.getInstance();
+  private whatsAppBotManagerService: WhatsAppBotManagerService = WhatsAppBotManagerService.getInstance();
 
   private constructor() {}
+
+  setBotManagerService(service: BotManagerService): void {
+    this.botManagerService = service;
+  }
+
+  setWhatsAppBotManagerService(service: WhatsAppBotManagerService): void {
+    this.whatsAppBotManagerService = service;
+  }
 
   static getInstance(): AdminService {
     if (!AdminService.instance) {
@@ -284,14 +297,93 @@ export class AdminService {
   }
 
   /**
-   * Update tenant subscription status
+   * Update tenant subscription status with Redis caching and channel bot lifecycle synchronization.
+   * - ACTIVE: caches status with 3600s TTL; starts configured and entitled channels.
+   * - INACTIVE / EXPIRED: caches status with 3600s TTL; stops Telegram and WhatsApp bots.
+   * - Failures in Redis or bot startup do not roll back the database update.
    */
-  async updateTenantSubscription(tenantId: string, status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED'): Promise<any> {
+  async updateTenantSubscription(
+    tenantId: string,
+    status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED'
+  ): Promise<{
+    id: string;
+    email: string;
+    subscriptionStatus: string;
+    channelErrors?: string[];
+    warnings?: string[];
+  }> {
+    // 1. Persist DB status
     const updated = await prisma.tenant.update({
       where: { id: tenantId },
       data: { subscriptionStatus: status }
     });
-    return { id: updated.id, email: updated.email, subscriptionStatus: updated.subscriptionStatus };
+
+    // 2. Cache status in Redis with 3,600s TTL using canonical helper
+    try {
+      await redis.set(tenantStatusKey(tenantId), status, 'EX', 3600);
+    } catch (err: any) {
+      console.warn(`[AdminService] Redis failure caching status for ${tenantId}:`, err?.message);
+    }
+
+    const channelErrors: string[] = [];
+
+    // 3. Channel lifecycle transitions
+    if (status === 'ACTIVE') {
+      // Start only configured and entitled channels
+      if (updated.hasTelegram && updated.botToken) {
+        try {
+          await this.botManagerService.startTenantBot({
+            tenantId: updated.id,
+            botToken: updated.botToken,
+            panelApiUrl: updated.telegramPanelUrl || updated.panelApiUrl || '',
+            subscriptionStatus: 'ACTIVE'
+          });
+        } catch (err: any) {
+          const errMsg = `Telegram failed to start: ${err?.message || String(err)}`;
+          console.error(`[AdminService] ${errMsg}`);
+          channelErrors.push(errMsg);
+        }
+      }
+
+      if (updated.hasWhatsapp && updated.whatsAppEnabled) {
+        try {
+          await this.whatsAppBotManagerService.startTenantWhatsApp(
+            updated.id,
+            updated.whatsAppPhoneNumber
+          );
+        } catch (err: any) {
+          const errMsg = `WhatsApp failed to start: ${err?.message || String(err)}`;
+          console.error(`[AdminService] ${errMsg}`);
+          channelErrors.push(errMsg);
+        }
+      }
+    } else {
+      // INACTIVE or EXPIRED: Stop both Telegram and WhatsApp bots
+      try {
+        await this.botManagerService.stopTenantBot(tenantId);
+      } catch (err: any) {
+        console.warn(`[AdminService] Error stopping Telegram bot for ${tenantId}:`, err?.message);
+      }
+
+      try {
+        await this.whatsAppBotManagerService.stopTenantWhatsApp(tenantId);
+      } catch (err: any) {
+        console.warn(`[AdminService] Error stopping WhatsApp bot for ${tenantId}:`, err?.message);
+      }
+    }
+
+    const result: any = {
+      id: updated.id,
+      email: updated.email,
+      subscriptionStatus: updated.subscriptionStatus
+    };
+
+    if (channelErrors.length > 0) {
+      result.channelErrors = channelErrors;
+      result.warnings = channelErrors;
+    }
+
+    return result;
   }
 
   /**
@@ -624,10 +716,10 @@ export class AdminService {
   }
 
   /**
-   * List all platform crypto invoices for admin oversight
+   * List all platform crypto invoices for admin oversight with fixed 2-decimal string amounts
    */
   async getInvoices(limit = 100): Promise<any[]> {
-    return prisma.paymentInvoice.findMany({
+    const invoices = await prisma.paymentInvoice.findMany({
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -636,17 +728,19 @@ export class AdminService {
         }
       }
     });
+
+    return invoices.map((inv) => ({
+      ...inv,
+      amount: Number(inv.amount).toFixed(2)
+    }));
   }
 
   /**
    * Manually approve / mark an invoice as paid (admin override)
    */
-  async markInvoicePaid(orderId: string): Promise<{ success: boolean; message: string }> {
+  async markInvoicePaid(orderId: string, adminId?: string): Promise<{ success: boolean; message: string }> {
     const { billingService } = await import('../billing/billing.service.js');
-    return billingService.handleCryptomusWebhook({
-      order_id: orderId,
-      status: 'paid'
-    });
+    return billingService.markInvoicePaidByAdmin(orderId, adminId);
   }
 }
 

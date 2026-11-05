@@ -226,7 +226,7 @@ model PaymentInvoice {
   orderId          String        @unique // e.g. INV-1741234567-ABCD
   gateway          String        @default("cryptomus")
   gatewayPaymentId String?       // Cryptomus payment UUID
-  amount           Float         // USD equivalent
+  amount           Decimal       @db.Decimal(10, 2) // USD equivalent with exact 2-decimal precision
   currency         String        @default("USD")
   selectedChannels Json          // e.g. ["telegram", "whatsapp"]
   durationMonths   Int           @default(1)

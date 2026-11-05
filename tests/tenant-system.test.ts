@@ -294,7 +294,7 @@ describe('Step 5: Admin Onboarding & Activation Endpoints', () => {
     const result = await tenantsService.activate('tenant-act');
 
     expect(result).toEqual({ status: 'ACTIVE', botRunning: true });
-    expect(redisSetSpy).toHaveBeenCalledWith('tenant:tenant-act:status', 'ACTIVE');
+    expect(redisSetSpy).toHaveBeenCalledWith('tenant:tenant-act:status', 'ACTIVE', 'EX', 3600);
     expect(crawlerMock.crawlAndCachePanel).toHaveBeenCalledWith('tenant-act', 'https://api.panel.com');
     expect(botManagerMock.startTenantBot).toHaveBeenCalled();
   });
@@ -315,7 +315,7 @@ describe('Step 5: Admin Onboarding & Activation Endpoints', () => {
     const result = await tenantsService.deactivate('tenant-deact');
 
     expect(result).toEqual({ status: 'EXPIRED', botRunning: false });
-    expect(redisSetSpy).toHaveBeenCalledWith('tenant:tenant-deact:status', 'EXPIRED');
+    expect(redisSetSpy).toHaveBeenCalledWith('tenant:tenant-deact:status', 'EXPIRED', 'EX', 3600);
     expect(botManagerMock.stopTenantBot).toHaveBeenCalledWith('tenant-deact');
   });
 

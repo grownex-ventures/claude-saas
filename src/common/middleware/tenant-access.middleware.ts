@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../database/prisma.js';
 import { redis } from '../redis/redis.js';
+import { tenantStatusKey } from '../redis/keys.js';
 
 export interface AuthenticatedRequest extends Request {
   tenantId?: string;
@@ -20,7 +21,7 @@ export interface JwtTenantPayload {
  * and caches subscriptionStatus in Redis with TTL 3600 seconds.
  */
 export async function verifyActiveSubscription(tenantId: string): Promise<boolean> {
-  const cacheKey = `tenant:${tenantId}:status`;
+  const cacheKey = tenantStatusKey(tenantId);
 
   try {
     const cachedStatus = await redis.get(cacheKey);

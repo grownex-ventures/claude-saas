@@ -292,7 +292,7 @@ export class AdminController {
     // Invoices Oversight: Manually mark an invoice as paid
     this.router.post('/invoices/:orderId/mark-paid', async (req: Request, res: Response) => {
       try {
-        const result = await adminService.markInvoicePaid(req.params.orderId);
+        const result = await adminService.markInvoicePaid(req.params.orderId, (req as any).adminId);
         res.json(result);
       } catch (err: any) {
         res.status(500).json({ error: err.message });

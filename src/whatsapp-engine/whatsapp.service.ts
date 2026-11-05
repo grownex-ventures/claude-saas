@@ -51,8 +51,10 @@ export class WhatsAppService {
 
   constructor(config: WhatsAppServiceConfig) {
     this.config = config;
-    const baseDir = config.authBaseDir || './baileys_auth';
-    this.authDir = path.resolve(process.cwd(), baseDir, config.tenantId);
+    const baseDir = config.authBaseDir || process.env.WHATSAPP_AUTH_DIR || './baileys_auth';
+    this.authDir = path.isAbsolute(baseDir)
+      ? path.join(baseDir, config.tenantId)
+      : path.resolve(process.cwd(), baseDir, config.tenantId);
   }
 
   public getSocket(): WASocket | null {

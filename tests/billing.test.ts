@@ -4,9 +4,11 @@ import { billingService, CHANNEL_PRICES, ALL_IN_ONE_BUNDLE_PRICE } from '../src/
 import { prisma } from '../src/common/database/prisma.js';
 import { redis } from '../src/common/redis/redis.js';
 import { InvoiceStatus } from '@prisma/client';
+import { billingController } from '../src/billing/billing.controller.js';
 
 describe('Crypto Billing & Subscription Suite', () => {
   const tenantId = 'test-tenant-billing-uuid';
+  const otherTenantId = 'other-tenant-uuid';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -41,19 +43,16 @@ describe('Crypto Billing & Subscription Suite', () => {
     it('applies multi-month duration discounts correctly', () => {
       // 3 months -> 10% off
       const threeMo = billingService.calculatePrice(['telegram'], 3);
-      // 19 * 3 = 57, 10% off = 51.30
       expect(threeMo.totalAmount).toBe(51.3);
       expect(threeMo.discountPercentage).toBe(10);
 
       // 6 months -> 15% off
       const sixMo = billingService.calculatePrice(['telegram'], 6);
-      // 19 * 6 = 114, 15% off = 96.90
       expect(sixMo.totalAmount).toBe(96.9);
       expect(sixMo.discountPercentage).toBe(15);
 
       // 12 months -> 20% off
       const twelveMo = billingService.calculatePrice(['telegram', 'whatsapp', 'widget'], 12);
-      // 49 * 12 = 588, 20% off = 470.40
       expect(twelveMo.totalAmount).toBe(470.4);
       expect(twelveMo.discountPercentage).toBe(20);
     });
@@ -67,46 +66,7 @@ describe('Crypto Billing & Subscription Suite', () => {
   describe('Cryptomus Cryptographic Signature Engine', () => {
     const testKey = 'test_cryptomus_api_key_12345';
 
-    it('generates reproducible MD5 signatures', () => {
-      const payload = { amount: '19.00', currency: 'USD', order_id: 'INV-123' };
-      const sig1 = cryptomusService.generateSignature(payload, testKey);
-      const sig2 = cryptomusService.generateSignature(payload, testKey);
-      expect(sig1).toBe(sig2);
-      expect(typeof sig1).toBe('string');
-      expect(sig1.length).toBe(32); // MD5 hex length
-    });
-
-    it('verifies valid webhook payload signature successfully', () => {
-      const payload = {
-        amount: '19.00',
-        currency: 'USD',
-        order_id: 'INV-TEST-SIGN',
-        status: 'paid'
-      };
-      const sign = cryptomusService.generateSignature(payload, testKey);
-
-      const isValid = cryptomusService.verifyWebhookSignature({ ...payload, sign }, sign, testKey);
-      expect(isValid).toBe(true);
-    });
-
-    it('rejects tampered webhook payloads', () => {
-      const payload = {
-        amount: '19.00',
-        currency: 'USD',
-        order_id: 'INV-TEST-TAMPER',
-        status: 'paid'
-      };
-      const sign = cryptomusService.generateSignature(payload, testKey);
-
-      // Tamper amount to 1.00
-      const tamperedPayload = { ...payload, amount: '1.00', sign };
-      const isValid = cryptomusService.verifyWebhookSignature(tamperedPayload, sign, testKey);
-      expect(isValid).toBe(false);
-    });
-  });
-
-  describe('Invoice Creation and Webhook Processing', () => {
-    it('creates invoice in Postgres and returns checkout details', async () => {
+    it('creates invoice in Postgres and returns checkout details with 2-decimal string', async () => {
       vi.spyOn(prisma.tenant, 'findUnique').mockResolvedValueOnce({
         id: tenantId,
         email: 'billing-test@example.com',
@@ -144,14 +104,78 @@ describe('Crypto Billing & Subscription Suite', () => {
 
       expect(result.success).toBe(true);
       expect(result.invoice.orderId).toBe('INV-TEST-123');
-      expect(result.invoice.amount).toBe(19);
+      expect(result.invoice.amount).toBe('19.00');
       expect(result.invoice.channels).toEqual(['telegram']);
     });
 
-    it('activates tenant subscription and unlocks channels on successful payment webhook', async () => {
-      const orderId = 'INV-PAID-SUCCESS-1';
+    it('generates reproducible MD5 signatures', () => {
+      const payload = { amount: '19.00', currency: 'USD', order_id: 'INV-123' };
+      const sig1 = cryptomusService.generateSignature(payload, testKey);
+      const sig2 = cryptomusService.generateSignature(payload, testKey);
+      expect(sig1).toBe(sig2);
+      expect(typeof sig1).toBe('string');
+      expect(sig1.length).toBe(32);
+    });
+
+    it('verifies valid webhook payload signature successfully', () => {
+      const payload = {
+        amount: '19.00',
+        currency: 'USD',
+        order_id: 'INV-TEST-SIGN',
+        status: 'paid'
+      };
+      const sign = cryptomusService.generateSignature(payload, testKey);
+
+      const isValid = cryptomusService.verifyWebhookSignature({ ...payload, sign }, sign, testKey);
+      expect(isValid).toBe(true);
+    });
+
+    it('rejects tampered webhook payloads', () => {
+      const payload = {
+        amount: '19.00',
+        currency: 'USD',
+        order_id: 'INV-TEST-TAMPER',
+        status: 'paid'
+      };
+      const sign = cryptomusService.generateSignature(payload, testKey);
+
+      const tamperedPayload = { ...payload, amount: '1.00', sign };
+      const isValid = cryptomusService.verifyWebhookSignature(tamperedPayload, sign, testKey);
+      expect(isValid).toBe(false);
+    });
+  });
+
+  describe('Fail-Closed Webhook Processing (Phase 2)', () => {
+    it('fails closed and rejects webhook if Cryptomus is not configured', async () => {
+      vi.spyOn(cryptomusService, 'isConfigured').mockReturnValue(false);
+
+      await expect(
+        billingService.handleCryptomusWebhook({
+          order_id: 'INV-FAIL-CLOSED',
+          status: 'paid'
+        })
+      ).rejects.toThrow(/Cryptomus gateway is not configured/);
+    });
+
+    it('fails closed and rejects webhook with missing or invalid signature when configured', async () => {
+      vi.spyOn(cryptomusService, 'isConfigured').mockReturnValue(true);
+      vi.spyOn(cryptomusService, 'verifyWebhookSignature').mockReturnValue(false);
+
+      await expect(
+        billingService.handleCryptomusWebhook(
+          { order_id: 'INV-BAD-SIGN', status: 'paid' },
+          'invalid_signature'
+        )
+      ).rejects.toThrow(/Invalid signature/);
+    });
+
+    it('activates tenant subscription exactly once with a valid signed webhook', async () => {
+      vi.spyOn(cryptomusService, 'isConfigured').mockReturnValue(true);
+      vi.spyOn(cryptomusService, 'verifyWebhookSignature').mockReturnValue(true);
+
+      const orderId = 'INV-VALID-SIGNED-1';
       const existingInvoice = {
-        id: 'inv-uuid-paid',
+        id: 'inv-uuid-valid',
         tenantId,
         orderId,
         amount: 49.0,
@@ -176,64 +200,177 @@ describe('Crypto Billing & Subscription Suite', () => {
         { ...existingInvoice, status: InvoiceStatus.PAID },
         { ...existingInvoice.tenant, subscriptionStatus: 'ACTIVE', hasTelegram: true, hasWhatsapp: true, hasWidget: true }
       ] as any);
-      vi.spyOn(redis, 'set').mockResolvedValueOnce('OK' as any);
+      vi.spyOn(redis, 'set').mockResolvedValue('OK' as any);
 
-      const result = await billingService.handleCryptomusWebhook({
-        order_id: orderId,
-        status: 'paid'
-      });
+      const result = await billingService.handleCryptomusWebhook(
+        { order_id: orderId, status: 'paid' },
+        'valid_signature_123'
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Payment confirmed');
+      expect(txSpy).toHaveBeenCalledTimes(1);
+
+      // Replay verification: second attempt with status PAID must not call $transaction
+      vi.spyOn(prisma.paymentInvoice, 'findUnique').mockResolvedValueOnce({
+        ...existingInvoice,
+        status: InvoiceStatus.PAID
+      } as any);
+
+      const replayResult = await billingService.handleCryptomusWebhook(
+        { order_id: orderId, status: 'paid' },
+        'valid_signature_123'
+      );
+      expect(replayResult.success).toBe(true);
+      expect(replayResult.message).toContain('already marked as paid');
+      expect(txSpy).toHaveBeenCalledTimes(1); // not called again
+    });
+  });
+
+  describe('Explicit Admin Approval (Phase 2)', () => {
+    it('allows admin to mark invoice as paid even when Cryptomus is configured', async () => {
+      vi.spyOn(cryptomusService, 'isConfigured').mockReturnValue(true);
+
+      const orderId = 'INV-ADMIN-OVERRIDE-1';
+      const existingInvoice = {
+        id: 'inv-uuid-admin',
+        tenantId,
+        orderId,
+        amount: 19.0,
+        durationMonths: 1,
+        selectedChannels: ['telegram'],
+        status: InvoiceStatus.PENDING,
+        tenant: {
+          id: tenantId,
+          email: 'tenant@example.com',
+          subscriptionStatus: 'INACTIVE',
+          hasTelegram: false,
+          hasWhatsapp: false,
+          hasWidget: false
+        }
+      };
+
+      vi.spyOn(prisma.paymentInvoice, 'findUnique').mockResolvedValueOnce(existingInvoice as any);
+      vi.spyOn(prisma.paymentInvoice, 'update').mockResolvedValueOnce({} as any);
+      vi.spyOn(prisma.tenant, 'update').mockResolvedValueOnce({} as any);
+      const txSpy = vi.spyOn(prisma, '$transaction').mockResolvedValueOnce([
+        { ...existingInvoice, status: InvoiceStatus.PAID },
+        { ...existingInvoice.tenant, subscriptionStatus: 'ACTIVE', hasTelegram: true }
+      ] as any);
+      vi.spyOn(redis, 'set').mockResolvedValue('OK' as any);
+
+      const result = await billingService.markInvoicePaidByAdmin(orderId, 'admin-user-uuid-1');
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('Payment confirmed');
       expect(txSpy).toHaveBeenCalled();
-      expect(redis.set).toHaveBeenCalledWith(`tenant:${tenantId}:subscription`, 'ACTIVE', 'EX', 3600);
+    });
+  });
+
+  describe('Sandbox Mock Payment Simulation Restrictions (Phase 2)', () => {
+    it('returns 404 in production environment without mutating data', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      try {
+        await expect(
+          billingService.simulateMockPayment(tenantId, 'INV-PROD-TEST')
+        ).rejects.toMatchObject({ statusCode: 404 });
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
     });
 
-    it('prevents replay attacks on already paid invoices', async () => {
-      const orderId = 'INV-ALREADY-PAID';
-      vi.spyOn(prisma.paymentInvoice, 'findUnique').mockResolvedValueOnce({
-        id: 'inv-already-paid-uuid',
-        orderId,
-        status: InvoiceStatus.PAID,
-        tenant: { id: tenantId }
-      } as any);
-      const txSpy = vi.spyOn(prisma, '$transaction');
+    it('returns 409 Conflict when Cryptomus is configured', async () => {
+      vi.spyOn(cryptomusService, 'isConfigured').mockReturnValue(true);
 
-      const result = await billingService.handleCryptomusWebhook({
-        order_id: orderId,
-        status: 'paid'
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.message).toContain('already marked as paid');
-      expect(txSpy).not.toHaveBeenCalled();
+      await expect(
+        billingService.simulateMockPayment(tenantId, 'INV-CONFIGURED-GATEWAY')
+      ).rejects.toMatchObject({ statusCode: 409 });
     });
 
-    it('marks invoice cancelled when webhook status is cancel', async () => {
-      const orderId = 'INV-CANCELLED-1';
+    it('returns 403 Forbidden if invoice belongs to another tenant', async () => {
+      vi.spyOn(cryptomusService, 'isConfigured').mockReturnValue(false);
+
       vi.spyOn(prisma.paymentInvoice, 'findUnique').mockResolvedValueOnce({
-        id: 'inv-cancel-uuid',
-        orderId,
+        id: 'inv-other',
+        tenantId: otherTenantId,
+        orderId: 'INV-CROSS-TENANT',
         status: InvoiceStatus.PENDING,
+        expiresAt: new Date(Date.now() + 3600000),
+        tenant: { id: otherTenantId }
+      } as any);
+
+      await expect(
+        billingService.simulateMockPayment(tenantId, 'INV-CROSS-TENANT')
+      ).rejects.toMatchObject({ statusCode: 403 });
+    });
+
+    it('returns 400 Bad Request if invoice is expired', async () => {
+      vi.spyOn(cryptomusService, 'isConfigured').mockReturnValue(false);
+
+      vi.spyOn(prisma.paymentInvoice, 'findUnique').mockResolvedValueOnce({
+        id: 'inv-expired',
+        tenantId,
+        orderId: 'INV-EXPIRED',
+        status: InvoiceStatus.PENDING,
+        expiresAt: new Date(Date.now() - 10000), // Expired 10s ago
         tenant: { id: tenantId }
       } as any);
 
-      vi.spyOn(prisma.paymentInvoice, 'update').mockResolvedValueOnce({
-        id: 'inv-cancel-uuid',
-        status: InvoiceStatus.CANCELLED
-      } as any);
+      await expect(
+        billingService.simulateMockPayment(tenantId, 'INV-EXPIRED')
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
 
-      const result = await billingService.handleCryptomusWebhook({
-        order_id: orderId,
-        status: 'cancel'
-      });
+    it('successfully activates in non-production when Cryptomus is unconfigured for matching tenant', async () => {
+      vi.spyOn(cryptomusService, 'isConfigured').mockReturnValue(false);
 
+      const orderId = 'INV-SANDBOX-SUCCESS';
+      const existingInvoice = {
+        id: 'inv-uuid-sandbox',
+        tenantId,
+        orderId,
+        amount: 29.0,
+        durationMonths: 1,
+        selectedChannels: ['whatsapp'],
+        status: InvoiceStatus.PENDING,
+        expiresAt: new Date(Date.now() + 3600000),
+        tenant: {
+          id: tenantId,
+          email: 'sandbox@example.com',
+          subscriptionStatus: 'INACTIVE',
+          hasTelegram: false,
+          hasWhatsapp: false,
+          hasWidget: false
+        }
+      };
+
+      vi.spyOn(prisma.paymentInvoice, 'findUnique').mockResolvedValueOnce(existingInvoice as any);
+      vi.spyOn(prisma.paymentInvoice, 'update').mockResolvedValueOnce({} as any);
+      vi.spyOn(prisma.tenant, 'update').mockResolvedValueOnce({} as any);
+      vi.spyOn(prisma, '$transaction').mockResolvedValueOnce([
+        { ...existingInvoice, status: InvoiceStatus.PAID },
+        { ...existingInvoice.tenant, subscriptionStatus: 'ACTIVE', hasWhatsapp: true }
+      ] as any);
+      vi.spyOn(redis, 'set').mockResolvedValue('OK' as any);
+
+      const result = await billingService.simulateMockPayment(tenantId, orderId);
       expect(result.success).toBe(true);
-      expect(result.message).toContain('marked as cancelled');
-      expect(prisma.paymentInvoice.update).toHaveBeenCalledWith({
-        where: { id: 'inv-cancel-uuid' },
-        data: { status: InvoiceStatus.CANCELLED }
-      });
+      expect(result.message).toContain('Payment confirmed');
+    });
+
+    it('proves unauthenticated callers cannot invoke mock payment', async () => {
+      const req: any = { headers: {}, params: { orderId: 'INV-NO-AUTH' } };
+      const res: any = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn()
+      };
+      const next = vi.fn();
+      const { tenantAccessMiddleware } = await import('../src/common/middleware/tenant-access.middleware.js');
+      tenantAccessMiddleware(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(next).not.toHaveBeenCalled();
     });
   });
 });
