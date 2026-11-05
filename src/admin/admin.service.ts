@@ -9,6 +9,7 @@ import { getAdminJwtSecret } from './admin.guard.js';
 import { settingsService } from '../common/settings/settings.service.js';
 import { AiProviderClient } from '../ai-engine/ai-provider.client.js';
 import { emailService } from '../common/email/email.service.js';
+import { purgeTenantResources } from '../tenants/tenants.service.js';
 
 export interface AdminLoginDto {
   email: string;
@@ -454,12 +455,10 @@ export class AdminService {
   }
 
   /**
-   * Permanently delete a tenant and cascading records
+   * Permanently delete a tenant and cascading records with unified resource cleanup
    */
   async deleteTenant(tenantId: string): Promise<boolean> {
-    await prisma.tenant.delete({
-      where: { id: tenantId }
-    });
+    await purgeTenantResources(tenantId);
     return true;
   }
 

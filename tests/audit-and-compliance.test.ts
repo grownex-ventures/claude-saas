@@ -72,11 +72,18 @@ describe('Audit & Compliance Suite (COMP-01 & COMP-02)', () => {
       const deleteManySpy = vi.spyOn(prisma.webChatMessage, 'deleteMany').mockResolvedValue({
         count: 42
       });
+      const tgDeleteSpy = vi.spyOn(prisma.telegramChatMessage, 'deleteMany').mockResolvedValue({
+        count: 10
+      });
+      const waDeleteSpy = vi.spyOn(prisma.whatsAppChatMessage, 'deleteMany').mockResolvedValue({
+        count: 5
+      });
 
       const result = await RetentionCleanerService.purgeExpiredChatMessages();
 
       expect(result.skipped).toBe(false);
-      expect(result.purgedCount).toBe(42);
+      expect(result.purgedCount).toBe(57);
+      expect(result.details).toEqual({ web: 42, telegram: 10, whatsapp: 5 });
       expect(deleteManySpy).toHaveBeenCalledWith({
         where: {
           createdAt: {
@@ -84,6 +91,8 @@ describe('Audit & Compliance Suite (COMP-01 & COMP-02)', () => {
           }
         }
       });
+      expect(tgDeleteSpy).toHaveBeenCalled();
+      expect(waDeleteSpy).toHaveBeenCalled();
     });
 
     it('skips cleanup if Redis lock is already held by another cluster instance', async () => {

@@ -652,6 +652,10 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async stopBot(tenantId: string): Promise<void> {
+    return this.stopTenantBot(tenantId);
+  }
+
   async saveChatMessage(
     tenantId: string,
     telegramUserId: string,

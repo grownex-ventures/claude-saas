@@ -659,15 +659,7 @@ export class TenantsService {
       throw err;
     }
 
-    // 1. Stop active bot instances
-    try {
-      await this.botManagerService.stopTenantBot(tenantId);
-      await this.whatsAppBotManagerService.stopTenantWhatsApp(tenantId);
-    } catch (err) {
-      console.warn(`[TenantsService] Error stopping bots during account deletion for ${tenantId}:`, err);
-    }
-
-    // 2. Anonymized AuditLog entry before deletion
+    // 1. Anonymized AuditLog entry before deletion
     await AuditLogService.record({
       tenantId,
       action: 'TENANT_ACCOUNT_DELETED',
@@ -676,39 +668,79 @@ export class TenantsService {
       metadata: { tenantId }
     });
 
-    // 3. Purge Redis keys scoped by tenant prefix
-    try {
-      if (typeof redis.scanStream === 'function') {
-        const stream = redis.scanStream({ match: `tenant:${tenantId}:*`, count: 100 });
-        stream.on('data', async (keys: string[]) => {
-          if (keys && keys.length > 0) {
-            await redis.del(...keys).catch(() => {});
-          }
-        });
-        await new Promise<void>((resolve) => {
-          stream.on('end', () => resolve());
-          stream.on('error', () => resolve());
-        });
-      }
-      // Also explicitly delete critical known keys
-      await redis.del(tenantStatusKey(tenantId)).catch(() => {});
-      await redis.del(`tenant:${tenantId}:catalog:services`).catch(() => {});
-      await redis.del(`tenant:${tenantId}:crawl:services`).catch(() => {});
-    } catch {
-      // Non-blocking cleanup error
-    }
-
-    // 4. Atomic cascading deletion via Prisma transaction
-    await prisma.$transaction([
-      prisma.tenant.delete({
-        where: { id: tenantId }
-      })
-    ]);
+    // 2. Unified resource purge (Telegram bot, WhatsApp session & files, Redis keys, DB cascade)
+    await purgeTenantResources(tenantId);
 
     return {
       success: true,
       message: 'Tenant account and all associated data permanently deleted.'
     };
+  }
+}
+
+/**
+ * Unified tenant resource purge routine (Phase 8).
+ * 1. Halts active Telegram bot.
+ * 2. Disconnects WhatsApp socket and permanently cleans up Baileys auth files on disk.
+ * 3. Purges all Redis keys for the tenant.
+ * 4. Atomically cascades PostgreSQL deletion of the tenant and child tables.
+ */
+export async function purgeTenantResources(tenantId: string): Promise<void> {
+  // 1. Stop active Telegram bot instance
+  try {
+    await BotManagerService.getInstance().stopTenantBot(tenantId);
+  } catch (err) {
+    console.warn(`[PurgeTenantResources] Error stopping Telegram bot for ${tenantId}:`, err);
+  }
+
+  // 2. Stop WhatsApp instance and clean up session files on disk
+  try {
+    await WhatsAppBotManagerService.getInstance().deleteSession(tenantId);
+  } catch (err) {
+    console.warn(`[PurgeTenantResources] Error stopping WhatsApp for ${tenantId}:`, err);
+  }
+
+  // 3. Purge Redis keys scoped by tenant prefix
+  try {
+    if (typeof redis.scanStream === 'function') {
+      const stream = redis.scanStream({ match: `tenant:${tenantId}:*`, count: 100 });
+      stream.on('data', async (keys: string[]) => {
+        if (keys && keys.length > 0) {
+          await redis.del(...keys).catch(() => {});
+        }
+      });
+      await new Promise<void>((resolve) => {
+        stream.on('end', () => resolve());
+        stream.on('error', () => resolve());
+      });
+    }
+    // Also explicitly delete critical known keys
+    await redis.del(
+      tenantStatusKey(tenantId),
+      `tenant:${tenantId}:catalog:services`,
+      `tenant:${tenantId}:crawl:services`,
+      `lock:tenant:${tenantId}:bot`,
+      `lock:telegram:poll:${tenantId}`
+    ).catch(() => {});
+  } catch (err) {
+    console.warn(`[PurgeTenantResources] Redis cleanup error for ${tenantId}:`, err);
+  }
+
+  // 4. Atomic cascading deletion via Prisma transaction
+  try {
+    await prisma.$transaction([
+      prisma.tenant.delete({
+        where: { id: tenantId }
+      })
+    ]);
+  } catch (err: any) {
+    if (err?.message?.includes('Prisma Client promises')) {
+      await prisma.tenant.delete({
+        where: { id: tenantId }
+      });
+    } else {
+      throw err;
+    }
   }
 }
 

@@ -122,6 +122,25 @@ export class WhatsAppBotManagerService {
   }
 
   /**
+   * Disconnects a tenant's WhatsApp instance and permanently deletes auth files on disk.
+   */
+  async deleteSession(tenantId: string): Promise<void> {
+    const service = this.activeInstances.get(tenantId);
+    if (service) {
+      await service.stop();
+      service.clearAuth();
+      this.activeInstances.delete(tenantId);
+    } else {
+      const tempService = new WhatsAppService({ tenantId });
+      tempService.clearAuth();
+    }
+  }
+
+  async deleteTenantWhatsApp(tenantId: string): Promise<void> {
+    return this.deleteSession(tenantId);
+  }
+
+  /**
    * Returns an active WhatsAppService instance.
    */
   getService(tenantId: string): WhatsAppService | undefined {

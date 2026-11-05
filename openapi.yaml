@@ -5,15 +5,372 @@ info:
   version: 1.0.0
 servers:
   - url: /api/v1
-    description: Version 1 API
+    description: Version 1 API (Canonical)
   - url: /api
-    description: Backward-compatible alias
+    description: Backward-compatible alias (Deprecated)
+
+tags:
+  - name: Auth
+    description: Authentication, session management, MFA, and OAuth endpoints
+  - name: Tenants
+    description: Tenant configuration, channel management, and lifecycle controls
+  - name: Widget
+    description: Embedded customer web widget chat, configuration, and agent responses
+  - name: Billing
+    description: Subscription pricing, invoices, and payment gateway webhooks
+  - name: Leads
+    description: Landing page inquiry and demo capture
+  - name: Admin
+    description: Super-admin oversight, configuration, and manual overrides
+  - name: Health
+    description: Operational health and diagnostic probes
+
 paths:
+  # ===========================================================================
+  # AUTHENTICATION & IDENTITY
+  # ===========================================================================
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Register a new tenant account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: StrongPass123!
+                name:
+                  type: string
+                  example: SMM Express
+      responses:
+        '201':
+          description: Tenant registered successfully. Returns authentication cookies and session info.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate tenant credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Authenticated successfully or requires MFA verification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Invalidate session and clear authentication cookies
+      responses:
+        '200':
+          description: Successfully logged out.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: Logged out successfully }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request password reset link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Password reset email sent if account exists.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset account password using token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token: { type: string }
+                newPassword: { type: string, format: password, minLength: 8 }
+      responses:
+        '200':
+          description: Password updated successfully.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /auth/csrf:
+    get:
+      tags: [Auth]
+      summary: Fetch fresh CSRF token
+      responses:
+        '200':
+          description: Returns CSRF token matching the csrf_token cookie.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  csrfToken: { type: string }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Fetch currently authenticated tenant profile
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Tenant profile and active subscription details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantProfile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/google:
+    post:
+      tags: [Auth]
+      summary: Authenticate via Google OAuth credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential]
+              properties:
+                credential: { type: string }
+      responses:
+        '200':
+          description: Successfully authenticated with Google OAuth.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /auth/mfa/setup:
+    post:
+      tags: [Auth]
+      summary: Initiate TOTP MFA setup
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Generates TOTP secret and QR code data URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret: { type: string }
+                  qrCodeUrl: { type: string }
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/mfa/enable:
+    post:
+      tags: [Auth]
+      summary: Verify code and enable TOTP MFA on account
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: "123456" }
+      responses:
+        '200':
+          description: MFA enabled successfully.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /auth/mfa/disable:
+    post:
+      tags: [Auth]
+      summary: Disable TOTP MFA on account
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: "123456" }
+      responses:
+        '200':
+          description: MFA disabled successfully.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /auth/mfa/verify-login:
+    post:
+      tags: [Auth]
+      summary: Complete login using second-factor TOTP code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mfaToken, code]
+              properties:
+                mfaToken: { type: string }
+                code: { type: string, example: "123456" }
+      responses:
+        '200':
+          description: MFA challenge verified. Issues standard session cookies.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verify email address with token (POST)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200':
+          description: Email verified successfully.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+    get:
+      tags: [Auth]
+      summary: Verify email address via query link (GET)
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Email verified successfully.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /auth/resend-verification:
+    post:
+      tags: [Auth]
+      summary: Resend email verification link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Verification email resent if account unverified.
+
+  /auth/config:
+    get:
+      tags: [Auth]
+      summary: Retrieve public authentication configuration
+      responses:
+        '200':
+          description: Public client configuration flags (Google SSO enabled, etc.).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  googleClientId: { type: string, nullable: true }
+                  mfaEnabled: { type: boolean }
+
+  # ===========================================================================
+  # TENANT MANAGEMENT & CHANNELS
+  # ===========================================================================
   /tenants/configure:
     post:
+      tags: [Tenants]
       summary: Configure Telegram Bot Token and SMM Panel API URL
       security:
         - BearerAuth: []
+        - CookieAuth: []
       requestBody:
         required: true
         content:
@@ -51,12 +408,14 @@ paths:
 
   /tenants/activate:
     post:
-      summary: Activate tenant subscription and launch bot workers
+      tags: [Tenants]
+      summary: Activate tenant subscription and launch configured bot channels
       security:
         - BearerAuth: []
+        - CookieAuth: []
       responses:
         '200':
-          description: Subscription activated and bot started.
+          description: Subscription activated and bots started.
           content:
             application/json:
               schema:
@@ -69,12 +428,14 @@ paths:
 
   /tenants/deactivate:
     post:
+      tags: [Tenants]
       summary: Deactivate tenant subscription and halt bot workers
       security:
         - BearerAuth: []
+        - CookieAuth: []
       responses:
         '200':
-          description: Subscription marked expired and bot halted.
+          description: Subscription marked expired and bots halted.
           content:
             application/json:
               schema:
@@ -83,11 +444,183 @@ paths:
                   status: { type: string, enum: [ACTIVE, INACTIVE, EXPIRED] }
                   botRunning: { type: boolean }
 
-  /tenants/me:
-    delete:
-      summary: Permanently delete tenant account and cascade delete all tenant data (COMP-02)
+  /tenants/telegram/test:
+    get:
+      tags: [Tenants]
+      summary: Verify configured Telegram bot token with Telegram Bot API
       security:
         - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Bot token verified.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  bot:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      username: { type: string }
+                      first_name: { type: string }
+
+  /tenants/whatsapp/configure:
+    post:
+      tags: [Tenants]
+      summary: Configure WhatsApp customer support line phone and toggle
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phoneNumber: { type: string, nullable: true }
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: WhatsApp settings updated.
+
+  /tenants/whatsapp/start:
+    post:
+      tags: [Tenants]
+      summary: Start WhatsApp Baileys connection engine
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: { type: string, enum: [qr, pairing] }
+                phoneNumber: { type: string, nullable: true }
+                forceRestart: { type: boolean }
+      responses:
+        '200':
+          description: WhatsApp initialization triggered.
+
+  /tenants/whatsapp/pairing-code:
+    post:
+      tags: [Tenants]
+      summary: Request fresh 8-digit WhatsApp pairing code for phone number
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phoneNumber]
+              properties:
+                phoneNumber: { type: string }
+      responses:
+        '200':
+          description: Pairing code generated.
+
+  /tenants/whatsapp/status:
+    get:
+      tags: [Tenants]
+      summary: Get current WhatsApp connection and pairing status
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Status of WhatsApp engine.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [DISCONNECTED, INITIALIZING, QR_READY, CONNECTING, CONNECTED, FAILED] }
+                  phoneNumber: { type: string, nullable: true }
+                  enabled: { type: boolean }
+
+  /tenants/whatsapp/qr-stream:
+    get:
+      tags: [Tenants]
+      summary: Server-Sent Events stream for real-time WhatsApp QR code pairing
+      description: Authenticates strictly via tenant cookie session (URL query parameters rejected).
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: SSE event stream with QR data URLs and connection status updates.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /tenants/whatsapp/disconnect:
+    post:
+      tags: [Tenants]
+      summary: Disconnect WhatsApp session
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clearCredentials: { type: boolean }
+      responses:
+        '200':
+          description: WhatsApp disconnected.
+
+  /tenants/widget/configure:
+    post:
+      tags: [Tenants]
+      summary: Configure website chat widget appearance and public demo API key
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                widgetApiKey: { type: string, nullable: true }
+                widgetTitle: { type: string }
+                widgetWelcomeMessage: { type: string }
+                widgetAccentColor: { type: string }
+                widgetEnabled: { type: boolean }
+      responses:
+        '200':
+          description: Widget settings saved.
+
+  /tenants/widget/settings:
+    get:
+      tags: [Tenants]
+      summary: Get current widget configuration
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Current widget settings.
+
+  /tenants/me:
+    delete:
+      tags: [Tenants]
+      summary: Permanently delete tenant account and purge all resources
+      description: Halts Telegram and WhatsApp bots, purges Redis state, deletes local auth files, and cascades database records.
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
       requestBody:
         required: true
         content:
@@ -107,127 +640,20 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
                   message: { type: string }
         '400':
           $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-  /tenants/whatsapp/configure:
-    post:
-      summary: Configure WhatsApp customer support line phone and toggle
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                phoneNumber: { type: string, nullable: true }
-                enabled: { type: boolean }
-      responses:
-        '200':
-          description: WhatsApp settings updated.
-
-  /tenants/whatsapp/start:
-    post:
-      summary: Start WhatsApp Baileys connection engine
-      security:
-        - BearerAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                mode: { type: string, enum: [qr, pairing] }
-                phoneNumber: { type: string, nullable: true }
-                forceRestart: { type: boolean }
-      responses:
-        '200':
-          description: WhatsApp initialization triggered.
-
-  /tenants/whatsapp/pairing-code:
-    post:
-      summary: Request fresh 8-digit WhatsApp pairing code for phone number
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [phoneNumber]
-              properties:
-                phoneNumber: { type: string }
-      responses:
-        '200':
-          description: Pairing code generated.
-
-  /tenants/whatsapp/status:
-    get:
-      summary: Get current WhatsApp connection and pairing status
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Status of WhatsApp engine.
-
-  /tenants/whatsapp/disconnect:
-    post:
-      summary: Disconnect WhatsApp session
-      security:
-        - BearerAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                clearCredentials: { type: boolean }
-      responses:
-        '200':
-          description: WhatsApp disconnected.
-
-  /tenants/widget/configure:
-    post:
-      summary: Configure website chat widget appearance and public demo API key
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                widgetApiKey: { type: string, nullable: true }
-                widgetTitle: { type: string }
-                widgetWelcomeMessage: { type: string }
-                widgetAccentColor: { type: string }
-                widgetEnabled: { type: boolean }
-      responses:
-        '200':
-          description: Widget settings saved.
-
-  /tenants/widget/settings:
-    get:
-      summary: Get current widget configuration
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Current widget settings.
-
   /tenants/logs:
     get:
+      tags: [Tenants]
       summary: Retrieve real-time operational runtime logs
       security:
         - BearerAuth: []
+        - CookieAuth: []
       parameters:
         - name: channel
           in: query
@@ -245,15 +671,55 @@ paths:
         '200':
           description: List of real-time telemetry events.
     delete:
+      tags: [Tenants]
       summary: Clear tenant runtime log ring buffer
       security:
         - BearerAuth: []
+        - CookieAuth: []
       responses:
         '200':
           description: Runtime logs cleared.
 
+  # ===========================================================================
+  # TELEGRAM WEBHOOK INGESTION
+  # ===========================================================================
+  /telegram/webhook/{tenantId}:
+    post:
+      tags: [Tenants]
+      summary: Telegram webhook update ingestion endpoint
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: x-telegram-bot-api-secret-token
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook update acknowledged and processed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        '403':
+          description: Secret token verification failed.
+
+  # ===========================================================================
+  # PUBLIC CHAT WIDGET & VISITOR ACCESS
+  # ===========================================================================
   /widget/config/{tenantId}:
     get:
+      tags: [Widget]
       summary: Public endpoint to fetch widget UI configuration
       parameters:
         - name: tenantId
@@ -266,7 +732,8 @@ paths:
 
   /widget/chat:
     post:
-      summary: "Send visitor message to AI chat assistant (Rate limited: 20 req/min per IP/session)"
+      tags: [Widget]
+      summary: "Send visitor message to AI chat assistant (Rate limited: 20 req/min)"
       headers:
         RateLimit-Limit:
           schema: { type: integer, example: 20 }
@@ -301,29 +768,724 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimitExceededError'
 
-  /widget/history/{sessionId}:
+  /widget/history/{tenantId}/{sessionId}:
     get:
+      tags: [Widget]
       summary: Public endpoint to restore visitor chat history
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Chat history messages for visitor session.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+
+  /widget/admin/sessions:
+    get:
+      tags: [Widget]
+      summary: List all active web widget visitor sessions for tenant
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: List of visitor chat sessions.
+
+  /widget/admin/session/{sessionId}:
+    get:
+      tags: [Widget]
+      summary: Retrieve message history for a specific visitor session
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
       parameters:
         - name: sessionId
           in: path
           required: true
           schema: { type: string }
-        - name: tenantId
+      responses:
+        '200':
+          description: Transcript of session.
+
+  /widget/admin/reply:
+    post:
+      tags: [Widget]
+      summary: Send agent human-in-the-loop reply to visitor
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId, message]
+              properties:
+                sessionId: { type: string }
+                message: { type: string }
+      responses:
+        '200':
+          description: Reply recorded and dispatched.
+
+  # ===========================================================================
+  # LEADS / DEMO REQUESTS
+  # ===========================================================================
+  /leads:
+    post:
+      tags: [Leads]
+      summary: Submit contact inquiry or demo lead from landing page
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+                panelUrl: { type: string }
+                monthlyOrders: { type: string }
+                notes: { type: string }
+      responses:
+        '201':
+          description: Lead received successfully.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  # ===========================================================================
+  # BILLING & SUBSCRIPTIONS
+  # ===========================================================================
+  /billing/calculate:
+    post:
+      tags: [Billing]
+      summary: Calculate subscription pricing based on selected channels and interval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channels, interval]
+              properties:
+                channels:
+                  type: array
+                  items:
+                    type: string
+                    enum: [telegram, whatsapp, widget]
+                interval:
+                  type: string
+                  enum: [monthly, semi_annual, annual]
+      responses:
+        '200':
+          description: Calculated pricing tier with fixed two-decimal string amounts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingCalculation'
+
+  /billing/invoices:
+    post:
+      tags: [Billing]
+      summary: Create a new pending cryptocurrency payment invoice
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channels, interval]
+              properties:
+                channels:
+                  type: array
+                  items: { type: string, enum: [telegram, whatsapp, widget] }
+                interval:
+                  type: string
+                  enum: [monthly, semi_annual, annual]
+      responses:
+        '201':
+          description: Payment invoice generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInvoice'
+    get:
+      tags: [Billing]
+      summary: List all invoices belonging to authenticated tenant
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: List of invoices.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentInvoice'
+
+  /billing/invoices/{orderId}:
+    get:
+      tags: [Billing]
+      summary: Get details for specific invoice by order ID
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Invoice record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInvoice'
+        '404':
+          description: Invoice not found or belongs to another tenant.
+
+  /billing/webhook/cryptomus:
+    post:
+      tags: [Billing]
+      summary: Cryptomus payment gateway webhook callback
+      description: >
+        Receives signed asynchronous payment status notifications from Cryptomus.
+        Fails closed: requires configured Cryptomus credentials and valid MD5 signature header.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed successfully.
+        '400':
+          description: Missing or invalid signature.
+
+  /billing/mock-pay/{orderId}:
+    post:
+      tags: [Billing]
+      summary: Sandbox payment simulation (Non-production development only)
+      description: >
+        Simulates payment completion for testing.
+        Strict restrictions:
+        - Route requires tenant authentication.
+        - Invoice must belong to the authenticated tenant.
+        - Invoice must be PENDING and unexpired.
+        - NODE_ENV must not be production (returns 404 without data changes in production).
+        - Cryptomus must be unconfigured (returns 409 Conflict if gateway credentials are set).
+        - Expired invoices cannot be simulated.
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Invoice simulated paid and subscription activated.
+        '400':
+          description: Invoice is expired or already paid.
+        '404':
+          description: Route disabled in production or invoice not found.
+        '409':
+          description: Simulation unavailable because real payment gateway is configured.
+
+  # ===========================================================================
+  # ADMIN & SYSTEM OVERSIGHT
+  # ===========================================================================
+  /admin/status:
+    get:
+      tags: [Admin]
+      summary: Check if initial admin account setup has been completed
+      responses:
+        '200':
+          description: Admin initialization status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  initialized: { type: boolean }
+
+  /admin/setup:
+    post:
+      tags: [Admin]
+      summary: Initialize root super-admin credentials (one-time setup)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, minLength: 10 }
+      responses:
+        '200':
+          description: Admin user initialized.
+        '400':
+          description: Admin account already exists or invalid password.
+
+  /admin/login:
+    post:
+      tags: [Admin]
+      summary: Authenticate administrator credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Admin authenticated; sets admin_token and csrf_token HTTP-only cookies.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /admin/logout:
+    post:
+      tags: [Admin]
+      summary: Clear admin session cookies
+      responses:
+        '200':
+          description: Logged out successfully.
+
+  /admin/me:
+    get:
+      tags: [Admin]
+      summary: Fetch current authenticated admin user identity
+      security:
+        - AdminCookieAuth: []
+      responses:
+        '200':
+          description: Administrator profile details.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /admin/telemetry:
+    get:
+      tags: [Admin]
+      summary: Retrieve cluster health, tenant counts, and active bot metrics
+      security:
+        - AdminCookieAuth: []
+      responses:
+        '200':
+          description: System telemetry metrics.
+
+  /admin/tenants:
+    get:
+      tags: [Admin]
+      summary: List all registered platform tenants
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: search
           in: query
-          required: false
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Paginated tenant list.
+
+  /admin/tenants/{id}/subscription:
+    patch:
+      tags: [Admin]
+      summary: Override tenant subscription status
+      description: Setting ACTIVE updates DB and Redis cache and starts bots; INACTIVE/EXPIRED halts channels.
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [ACTIVE, INACTIVE, EXPIRED] }
+      responses:
+        '200':
+          description: Subscription updated.
+
+  /admin/tenants/{id}/plans:
+    patch:
+      tags: [Admin]
+      summary: Update tenant enabled channels and entitlements
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                planChannels:
+                  type: array
+                  items: { type: string, enum: [telegram, whatsapp, widget] }
+      responses:
+        '200':
+          description: Tenant channel plan updated.
+
+  /admin/tenants/{id}/verify-email:
+    patch:
+      tags: [Admin]
+      summary: Manually mark tenant email address as verified
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
           schema: { type: string, format: uuid }
       responses:
         '200':
-          description: Chat history messages for session.
+          description: Email marked verified.
 
+  /admin/tenants/{id}/impersonate:
+    post:
+      tags: [Admin]
+      summary: Generate tenant session cookies to impersonate tenant dashboard
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sets auth_token and csrf_token cookies and returns redirect target.
+
+  /admin/tenants/{id}:
+    delete:
+      tags: [Admin]
+      summary: Permanently purge tenant and all associated data
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Tenant purged from database, bots, and Redis cache.
+
+  /admin/leads:
+    get:
+      tags: [Admin]
+      summary: List all captured prospective customer leads
+      security:
+        - AdminCookieAuth: []
+      responses:
+        '200':
+          description: List of leads.
+
+  /admin/leads/{id}:
+    patch:
+      tags: [Admin]
+      summary: Update status or notes for lead
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string }
+                notes: { type: string }
+      responses:
+        '200':
+          description: Lead updated.
+    delete:
+      tags: [Admin]
+      summary: Delete lead
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Lead deleted.
+
+  /admin/settings:
+    get:
+      tags: [Admin]
+      summary: Retrieve all platform-wide system settings
+      security:
+        - AdminCookieAuth: []
+      responses:
+        '200':
+          description: Key-value map of system settings.
+    post:
+      tags: [Admin]
+      summary: Save or update platform system settings
+      security:
+        - AdminCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Settings persisted.
+
+  /admin/test-ai:
+    post:
+      tags: [Admin]
+      summary: Test AI provider connectivity and response generation
+      security:
+        - AdminCookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt: { type: string }
+      responses:
+        '200':
+          description: AI diagnostic output.
+
+  /admin/test-email:
+    post:
+      tags: [Admin]
+      summary: Dispatch test email via configured SMTP transport
+      security:
+        - AdminCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to]
+              properties:
+                to: { type: string, format: email }
+      responses:
+        '200':
+          description: Email delivery test outcome.
+
+  /admin/invoices:
+    get:
+      tags: [Admin]
+      summary: List all invoices across all tenants
+      security:
+        - AdminCookieAuth: []
+      responses:
+        '200':
+          description: Global invoice ledger.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentInvoice'
+
+  /admin/invoices/{orderId}/mark-paid:
+    post:
+      tags: [Admin]
+      summary: Administratively mark invoice as paid and activate tenant subscription
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Invoice paid and tenant activated.
+
+  # ===========================================================================
+  # OPERATIONAL HEALTH
+  # ===========================================================================
+  /health:
+    servers:
+      - url: /
+        description: Root server
+    get:
+      tags: [Health]
+      summary: Deep Health Check endpoint
+      description: Verifies PostgreSQL and Redis connections, uptime, and system status.
+      responses:
+        '200':
+          description: System healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: System degraded or dependency unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+# =============================================================================
+# REUSABLE COMPONENTS & SCHEMAS
+# =============================================================================
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Enter the tenant JWT token received upon login/signup.
+      description: "Tenant JWT authorization header (Authorization: Bearer <token>)"
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth_token
+      description: HTTP-only tenant authentication cookie
+    AdminCookieAuth:
+      type: apiKey
+      in: cookie
+      name: admin_token
+      description: HTTP-only administrator session cookie
+
+  schemas:
+    TenantProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string, nullable: true }
+        panelApiUrl: { type: string, nullable: true }
+        botTokenConfigured: { type: boolean }
+        botUsername: { type: string, nullable: true }
+        subscriptionStatus: { type: string, enum: [ACTIVE, INACTIVE, EXPIRED] }
+        planChannels:
+          type: array
+          items: { type: string }
+        emailVerified: { type: boolean }
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        token: { type: string }
+        tenant:
+          $ref: '#/components/schemas/TenantProfile'
+        requiresMfa: { type: boolean }
+        mfaToken: { type: string, nullable: true }
+
+    PaymentInvoice:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, example: "INV-1730764800000-ABCDEF" }
+        tenantId: { type: string, format: uuid }
+        amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+          example: "29.99"
+          description: Fixed two-decimal string representation of invoice amount in USD.
+        currency: { type: string, example: "USD" }
+        status:
+          type: string
+          enum: [PENDING, PAID, EXPIRED, CANCELLED]
+        paymentUrl: { type: string, nullable: true }
+        channels:
+          type: array
+          items: { type: string }
+        interval: { type: string, enum: [monthly, semi_annual, annual] }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    PricingCalculation:
+      type: object
+      properties:
+        monthlyBase:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+          example: "29.99"
+        discountPct: { type: number, example: 10 }
+        intervalMultiplier: { type: integer, example: 6 }
+        totalAmount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+          example: "161.95"
+        channels:
+          type: array
+          items: { type: string }
+        interval: { type: string }
+
+    ChatMessage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [user, assistant, system] }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    HealthStatus:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        database: { type: string, enum: [healthy, unhealthy] }
+        redis: { type: string, enum: [healthy, unhealthy] }
+        uptime: { type: number }
+        timestamp: { type: string, format: date-time }
+
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+        code: { type: string, nullable: true }
 
   responses:
     BadRequestError:
@@ -331,18 +1493,14 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              error: { type: string }
+            $ref: '#/components/schemas/ErrorResponse'
 
     UnauthorizedError:
-      description: Authentication required or invalid token.
+      description: Authentication required or invalid/expired session.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              error: { type: string }
+            $ref: '#/components/schemas/ErrorResponse'
 
     RateLimitExceededError:
       description: Rate limit exceeded. Please back off before retrying.
@@ -356,7 +1514,4 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              error: { type: string }
-              code: { type: string, example: RATE_LIMIT_EXCEEDED }
+            $ref: '#/components/schemas/ErrorResponse'
