@@ -1,7 +1,15 @@
 import { Request, Response, Router } from 'express';
+import crypto from 'crypto';
 import { rateLimit } from 'express-rate-limit';
 import { adminService } from './admin.service.js';
 import { adminAuthGuard } from './admin.guard.js';
+import {
+  setAuthCookies,
+  setAdminAuthCookies,
+  clearAdminAuthCookies
+} from '../common/utils/auth-cookies.js';
+
+export { setAdminAuthCookies, clearAdminAuthCookies };
 
 export const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -42,18 +50,14 @@ export class AdminController {
         const { email, password, name } = req.body || {};
         const result = await adminService.setupInitialAdmin({ email, password, name });
 
-        // Set secure HTTP-only cookie
-        res.cookie('admin_token', result.token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          maxAge: 12 * 60 * 60 * 1000 // 12 hours
-        });
+        // Set secure HTTP-only cookie and readable CSRF token cookie
+        const csrfToken = setAdminAuthCookies(res, result.token);
 
         res.status(201).json({
           success: true,
           message: 'Super Admin successfully initialized',
           token: result.token,
+          csrfToken,
           admin: result.admin
         });
       } catch (err: any) {
@@ -67,17 +71,13 @@ export class AdminController {
         const { email, password } = req.body || {};
         const result = await adminService.login({ email, password });
 
-        res.cookie('admin_token', result.token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          maxAge: 12 * 60 * 60 * 1000 // 12 hours
-        });
+        const csrfToken = setAdminAuthCookies(res, result.token);
 
         res.json({
           success: true,
           message: 'Welcome back, Super Admin',
           token: result.token,
+          csrfToken,
           admin: result.admin
         });
       } catch (err: any) {
@@ -87,7 +87,7 @@ export class AdminController {
 
     // 4. Admin Logout
     this.router.post('/logout', (_req: Request, res: Response) => {
-      res.clearCookie('admin_token');
+      clearAdminAuthCookies(res);
       res.json({ success: true, message: 'Logged out successfully' });
     });
 
@@ -172,18 +172,14 @@ export class AdminController {
       try {
         const result = await adminService.impersonateTenant(req.params.id);
 
-        // Set tenant session cookie so browsing directly to /dashboard works
-        res.cookie('token', result.token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 2 * 60 * 60 * 1000
-        });
+        // Issue auth_token and csrf_token cookies via standard setAuthCookies helper
+        const csrfToken = setAuthCookies(res, result.token);
 
         res.json({
           success: true,
           message: `Impersonation session created for ${result.tenant.email}`,
           token: result.token,
+          csrfToken,
           redirectUrl: '/dashboard'
         });
       } catch (err: any) {

@@ -6,39 +6,8 @@ import { prisma } from '../common/database/prisma.js';
 import { AuditLogService } from '../common/audit/audit-log.service.js';
 import { settingsService } from '../common/settings/settings.service.js';
 
-export function setAuthCookies(res: Response, token?: string): string {
-  const csrfToken = crypto.randomBytes(32).toString('hex');
-  const isProd = process.env.NODE_ENV === 'production';
-
-  if (typeof res.cookie === 'function') {
-    if (token) {
-      res.cookie('auth_token', token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'strict',
-        path: '/',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      });
-    }
-
-    res.cookie('csrf_token', csrfToken, {
-      httpOnly: false, // Accessible by JavaScript client to submit in X-CSRF-Token header
-      secure: isProd,
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-  }
-
-  return csrfToken;
-}
-
-export function clearAuthCookies(res: Response): void {
-  if (typeof res.clearCookie === 'function') {
-    res.clearCookie('auth_token', { path: '/' });
-    res.clearCookie('csrf_token', { path: '/' });
-  }
-}
+import { setAuthCookies, clearAuthCookies } from '../common/utils/auth-cookies.js';
+export { setAuthCookies, clearAuthCookies };
 
 export class AuthController {
   public router: Router;

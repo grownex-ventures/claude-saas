@@ -2084,7 +2084,7 @@
 
         // Start SSE stream for real-time QR
         if (waEventSource) waEventSource.close();
-        waEventSource = new EventSource(`/api/tenants/whatsapp/qr-stream?token=${encodeURIComponent(token)}`);
+        waEventSource = new EventSource('/api/tenants/whatsapp/qr-stream');
 
         waEventSource.onmessage = (event) => {
           try {
@@ -2152,7 +2152,7 @@
 
         // Start SSE stream or poll to detect when scan completes
         if (waEventSource) waEventSource.close();
-        waEventSource = new EventSource(`/api/tenants/whatsapp/qr-stream?token=${encodeURIComponent(token || '')}`);
+        waEventSource = new EventSource('/api/tenants/whatsapp/qr-stream');
         waEventSource.onmessage = (event) => {
           try {
             const update = JSON.parse(event.data);
@@ -2434,8 +2434,6 @@
     }
 
     async function fetchRuntimeLogs(showLoading = false) {
-      if (!token) return;
-
       const params = new URLSearchParams();
       params.set('limit', '100');
       if (logsState.activeChannel && logsState.activeChannel !== 'all') {
@@ -2572,7 +2570,6 @@
     }
 
     async function fetchInboxSessions(silent = false) {
-      if (!token) return;
       try {
         const res = await fetch('/api/v1/widget/admin/sessions', {
           headers: getAuthHeaders()
@@ -2675,7 +2672,7 @@
     }
 
     async function fetchActiveSessionMessages(sessionId, silent = false) {
-      if (!sessionId || !token) return;
+      if (!sessionId) return;
       try {
         const res = await fetch(`/api/v1/widget/admin/session/${encodeURIComponent(sessionId)}`, {
           headers: getAuthHeaders()
@@ -2884,7 +2881,6 @@
     }
 
     async function loadBillingData() {
-      if (!token) return;
       try {
         // Fetch Tenant Me
         const meRes = await fetch('/api/v1/auth/me', { headers: getAuthHeaders() });
@@ -3100,7 +3096,7 @@
     }
 
     async function checkInvoiceStatusImmediate(orderId) {
-      if (!orderId || !token) return;
+      if (!orderId) return;
       try {
         const res = await fetch(`/api/v1/billing/invoices/${encodeURIComponent(orderId)}`, {
           headers: getAuthHeaders()

@@ -1142,6 +1142,27 @@
       });
     });
 
+    // Admin CSRF Protection & Fetch Helper
+    function getAdminCsrfToken() {
+      const match = document.cookie.match(/(?:^|;\s*)admin_csrf_token=([^;]*)/);
+      return match ? decodeURIComponent(match[1]) : '';
+    }
+
+    async function adminFetch(url, options = {}) {
+      const opts = { ...options };
+      const method = (opts.method || 'GET').toUpperCase();
+      const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+
+      opts.headers = { ...(opts.headers || {}) };
+      if (isMutating) {
+        const csrf = getAdminCsrfToken();
+        if (csrf) {
+          opts.headers['X-CSRF-Token'] = csrf;
+        }
+      }
+      return fetch(url, opts);
+    }
+
     // Check Setup & Authentication on Load
     async function initApp() {
       try {
@@ -1237,7 +1258,7 @@
 
     // Sign Out Buttons
     const handleSignOut = async () => {
-      await fetch('/api/admin/logout', { method: 'POST' });
+      await adminFetch('/api/admin/logout', { method: 'POST' });
       showToast('Signed out');
       setTimeout(() => location.reload(), 200);
     };
@@ -1313,7 +1334,7 @@
     // Batch Save Helper
     async function saveSettings(updates, msg) {
       try {
-        const res = await fetch('/api/admin/settings', {
+        const res = await adminFetch('/api/admin/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updates)
@@ -1377,7 +1398,7 @@
       outputBox.textContent = '⏳ Dispatching 1-token test prompt to configured AI provider...';
 
       try {
-        const res = await fetch('/api/admin/test-ai', {
+        const res = await adminFetch('/api/admin/test-ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1453,7 +1474,7 @@
       btn.disabled = true;
 
       try {
-        const res = await fetch('/api/admin/test-email', {
+        const res = await adminFetch('/api/admin/test-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to })
@@ -1554,7 +1575,7 @@
     async function updateSubscription(id, status) {
       if (!status) return;
       try {
-        const res = await fetch(`/api/admin/tenants/${id}/subscription`, {
+        const res = await adminFetch(`/api/admin/tenants/${id}/subscription`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status })
@@ -1572,7 +1593,7 @@
     async function togglePlan(id, planKey, value) {
       try {
         const payload = { [planKey]: value };
-        const res = await fetch(`/api/admin/tenants/${id}/plans`, {
+        const res = await adminFetch(`/api/admin/tenants/${id}/plans`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1591,7 +1612,7 @@
 
     async function toggleVerifyEmail(id, verified) {
       try {
-        const res = await fetch(`/api/admin/tenants/${id}/verify-email`, {
+        const res = await adminFetch(`/api/admin/tenants/${id}/verify-email`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ verified })
@@ -1607,7 +1628,7 @@
 
     async function impersonateTenant(id) {
       try {
-        const res = await fetch(`/api/admin/tenants/${id}/impersonate`, { method: 'POST' });
+        const res = await adminFetch(`/api/admin/tenants/${id}/impersonate`, { method: 'POST' });
         const data = await res.json();
         if (data.redirectUrl) {
           showToast('Opening tenant dashboard in new tab...', 'info');
@@ -1621,7 +1642,7 @@
     async function deleteTenant(id) {
       if (!confirm('Are you sure you want to permanently delete this tenant? All bots, webchat sessions, and logs will be permanently deleted.')) return;
       try {
-        const res = await fetch(`/api/admin/tenants/${id}`, { method: 'DELETE' });
+        const res = await adminFetch(`/api/admin/tenants/${id}`, { method: 'DELETE' });
         if (res.ok) {
           showToast('Tenant deleted successfully', 'success');
           loadTenants();
@@ -1690,7 +1711,7 @@
 
     async function updateLeadStatus(id, status) {
       try {
-        await fetch(`/api/admin/leads/${id}`, {
+        await adminFetch(`/api/admin/leads/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status })
@@ -1704,7 +1725,7 @@
 
     async function updateLeadNotes(id, notes) {
       try {
-        await fetch(`/api/admin/leads/${id}`, {
+        await adminFetch(`/api/admin/leads/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notes })
@@ -1718,7 +1739,7 @@
     async function deleteLead(id) {
       if (!confirm('Delete this inquiry?')) return;
       try {
-        await fetch(`/api/admin/leads/${id}`, { method: 'DELETE' });
+        await adminFetch(`/api/admin/leads/${id}`, { method: 'DELETE' });
         showToast('Inquiry deleted', 'success');
         loadLeads();
         loadTelemetry();
@@ -1779,7 +1800,7 @@
     async function adminMarkInvoicePaid(orderId) {
       if (!confirm(`Manually mark invoice ${orderId} as PAID and activate tenant channels?`)) return;
       try {
-        const res = await fetch(`/api/admin/invoices/${encodeURIComponent(orderId)}/mark-paid`, {
+        const res = await adminFetch(`/api/admin/invoices/${encodeURIComponent(orderId)}/mark-paid`, {
           method: 'POST'
         });
         const data = await res.json();

@@ -77,6 +77,24 @@ export async function adminAuthGuard(req: Request, res: Response, next: NextFunc
       role: 'superadmin'
     };
 
+    // Double-submit CSRF protection for cookie-authenticated mutating requests (POST, PUT, PATCH, DELETE)
+    const method = (req.method || 'GET').toUpperCase();
+    const isMutatingMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+    const authHeader = req.headers.authorization;
+    const isCookieAuth = Boolean(!authHeader && req.cookies && req.cookies.admin_token);
+
+    if (isMutatingMethod && isCookieAuth) {
+      const headerCsrf = req.headers['x-csrf-token'];
+      const cookieCsrf = req.cookies?.admin_csrf_token;
+      if (!headerCsrf || !cookieCsrf || headerCsrf !== cookieCsrf) {
+        res.status(403).json({
+          error: 'Forbidden: Admin CSRF token missing or mismatch',
+          code: 'EBADCSRFTOKEN'
+        });
+        return;
+      }
+    }
+
     next();
   } catch (err: any) {
     if (err.name === 'TokenExpiredError') {

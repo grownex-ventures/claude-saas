@@ -64,8 +64,6 @@ export function tenantAccessMiddleware(
     token = authHeader.substring(7).trim();
   } else if (req.cookies && typeof req.cookies.auth_token === 'string' && req.cookies.auth_token.trim()) {
     token = req.cookies.auth_token.trim();
-  } else if (typeof req.query?.token === 'string' && req.query.token.trim()) {
-    token = req.query.token.trim();
   }
 
   if (!token) {
