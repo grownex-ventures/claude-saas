@@ -61,7 +61,7 @@ export class WidgetService {
   }
 
   /**
-   * Retrieves the SMM service catalog with Redis caching, TTL 900s,
+   * Retrieves the SMM service catalog with Redis caching, TTL 300s,
    * error resilience, and in-flight promise deduplication to prevent cache stampedes.
    */
   async getCachedServices(tenantId: string, panelApiUrl: string, catalogKey: string): Promise<SmmService[]> {
@@ -92,7 +92,7 @@ export class WidgetService {
         const liveServices = await client.getServices();
         if (Array.isArray(liveServices) && liveServices.length > 0) {
           try {
-            await redis.setex(cacheKey, 900, JSON.stringify(liveServices));
+            await redis.setex(cacheKey, 300, JSON.stringify(liveServices));
           } catch (err) {
             console.warn(`[WidgetService] Redis setex failed for ${cacheKey}:`, err);
           }

@@ -299,10 +299,15 @@ export class WhatsAppBotManagerService {
         return;
       }
 
-      let rawKey = session.userPanelKey;
+      let rawKey = '';
       try {
         rawKey = decrypt(session.userPanelKey);
-      } catch {}
+      } catch {
+        await sendAndRecordReply(
+          '⚠️ *API Key Error:* Your saved API key could not be decrypted. Please reconnect your account using */setkey <YOUR_API_KEY>*'
+        );
+        return;
+      }
 
       try {
         const client = new SmmProviderClient(panelApiUrl, rawKey);
@@ -323,7 +328,12 @@ export class WhatsAppBotManagerService {
       if (session && session.userPanelKey) {
         try {
           rawKey = decrypt(session.userPanelKey);
-        } catch {}
+        } catch {
+          await sendAndRecordReply(
+            '⚠️ *API Key Error:* Your saved API key could not be decrypted. Please reconnect your account using */setkey <YOUR_API_KEY>*'
+          );
+          return;
+        }
       }
 
       try {
@@ -361,7 +371,12 @@ export class WhatsAppBotManagerService {
       let rawKey = '';
       try {
         rawKey = decrypt(session.userPanelKey);
-      } catch {}
+      } catch {
+        await sendAndRecordReply(
+          '⚠️ *API Key Error:* Your saved API key could not be decrypted. Please reconnect your account using */setkey <YOUR_API_KEY>*'
+        );
+        return;
+      }
 
       try {
         const client = new SmmProviderClient(panelApiUrl, rawKey);

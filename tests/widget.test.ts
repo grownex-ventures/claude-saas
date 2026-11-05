@@ -198,7 +198,7 @@ describe('Public SMM Website Widget Suite', () => {
     expect(liveFetchSpy).not.toHaveBeenCalled();
   });
 
-  it('fetches live services and sets Redis cache with 900s TTL on cache miss', async () => {
+  it('fetches live services and sets Redis cache with 300s TTL on cache miss', async () => {
     const liveServices = [
       { service: '20', name: 'Live YouTube Views', rate: '1.20', min: '100', max: '50000', category: 'YouTube' }
     ];
@@ -209,7 +209,7 @@ describe('Public SMM Website Widget Suite', () => {
 
     const result = await service.getCachedServices(testTenantId, 'https://mypanel.com/api/v2', 'key123');
     expect(result).toEqual(liveServices);
-    expect(setexSpy).toHaveBeenCalledWith(`tenant:${testTenantId}:catalog:services`, 900, JSON.stringify(liveServices));
+    expect(setexSpy).toHaveBeenCalledWith(`tenant:${testTenantId}:catalog:services`, 300, JSON.stringify(liveServices));
   });
 
   it('deduplicates in-flight catalog fetches for the same tenant', async () => {

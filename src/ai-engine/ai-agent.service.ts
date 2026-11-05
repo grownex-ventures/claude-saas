@@ -79,15 +79,21 @@ export class AiAgentService {
       return 'I am the dedicated AI assistant for this panel only. I cannot discuss or assist with other SMM panels. How can I help you with our services?';
     }
 
-    // 1. Check Redis Query Cache for instant (< 15ms) response on identical queries
+    const isDynamic = AiAgentService.isDynamicQuery(cleanQuery);
+    let usedDynamicTool = false;
+    const DYNAMIC_TOOLS = new Set(['place_order', 'check_order_status', 'check_balance', 'escalate_to_human']);
+
+    // 1. Check Redis Query Cache for instant (< 15ms) response on identical static queries
     const cacheKey = `tenant:${tenantId}:qcache:${this.hashQuery(cleanQuery)}`;
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return cached;
+    if (!isDynamic) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+      } catch {
+        // Non-blocking Redis cache read failure
       }
-    } catch {
-      // Non-blocking Redis cache read failure
     }
 
     let catalogKey: string | undefined;
@@ -104,6 +110,7 @@ export class AiAgentService {
 
     // 4. Resolve customer API key (if customer linked an account via Telegram or WhatsApp session)
     let customerApiKey: string | undefined;
+    let customerKeyCorrupted = false;
     if (params.channel === 'telegram' && params.userId) {
       const session = await prisma.botUserSession.findUnique({
         where: { tenantId_telegramUserId: { tenantId, telegramUserId: params.userId } }
@@ -111,7 +118,10 @@ export class AiAgentService {
       if (session?.userPanelKey) {
         try {
           customerApiKey = decrypt(session.userPanelKey);
-        } catch {}
+        } catch {
+          customerKeyCorrupted = true;
+          customerApiKey = undefined;
+        }
       }
     } else if (params.channel === 'whatsapp' && params.userId) {
       const session = await prisma.whatsAppSession.findUnique({
@@ -120,7 +130,10 @@ export class AiAgentService {
       if (session?.userPanelKey) {
         try {
           customerApiKey = decrypt(session.userPanelKey);
-        } catch {}
+        } catch {
+          customerKeyCorrupted = true;
+          customerApiKey = undefined;
+        }
       }
     }
 
@@ -146,13 +159,17 @@ export class AiAgentService {
         // Execute tools
         const toolResults: string[] = [];
         for (const tc of initialResponse.toolCalls) {
+          if (DYNAMIC_TOOLS.has(tc.name)) {
+            usedDynamicTool = true;
+          }
           const toolResult = await this.executeTool(
             tc.name,
             tc.arguments,
             tenant,
             services,
             catalogKey,
-            customerApiKey
+            customerApiKey,
+            customerKeyCorrupted
           );
           toolResults.push(`Tool ${tc.name} output:\n${toolResult}`);
         }
@@ -178,19 +195,49 @@ export class AiAgentService {
 
     // 7. Fallback to catalog matching if LLM produced empty or offline output
     if (!reply || reply.includes('[Platform AI Assistant]')) {
-      reply = await this.deterministicFallback(cleanQuery, tenant, services, catalogKey);
+      reply = await this.deterministicFallback(cleanQuery, tenant, services, catalogKey, customerKeyCorrupted);
     }
 
-    // 8. Cache response in Redis (24-hour TTL)
-    try {
-      await redis.setex(cacheKey, 86400, reply);
-    } catch {}
+    // 8. Cache response in Redis (300-second TTL). Never cache dynamic requests or responses using dynamic AI tools.
+    if (!isDynamic && !usedDynamicTool) {
+      try {
+        await redis.setex(cacheKey, 300, reply);
+      } catch {}
+    }
 
     return reply;
   }
 
   private hashQuery(query: string): string {
     return crypto.createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
+  }
+
+  public static isDynamicQuery(query: string): boolean {
+    const q = (query || '').trim().toLowerCase();
+    // Order status/tracking: /status, status 1234, track 1234, order 1234, #1234, order status
+    if (
+      /^\/status/i.test(q) ||
+      /(?:(?:order|status|track)\s*#?\s*\d+)/i.test(q) ||
+      /(?:^|\s)#\d+/i.test(q) ||
+      /\b(order\s*status|track\s*order|check\s*order|order\s*details|my\s*order)\b/i.test(q)
+    ) {
+      return true;
+    }
+    // Balance: /balance, check balance, my balance, remaining funds
+    if (
+      /^\/balance/i.test(q) ||
+      /\b(balance|funds|account\s*balance|my\s*balance|check\s*balance|wallet)\b/i.test(q)
+    ) {
+      return true;
+    }
+    // Order placement: /order, place order, buy followers, etc.
+    if (
+      /^\/order/i.test(q) ||
+      /\b(place\s*order|order\s*now|create\s*order|submit\s*order)\b/i.test(q)
+    ) {
+      return true;
+    }
+    return false;
   }
 
   public isCompetitorQuery(text: string, currentPanelUrl?: string): boolean {
@@ -334,7 +381,8 @@ When a user asks to track an order, search services, check balance, or place an 
     tenant: any,
     services: SmmService[],
     catalogKey?: string,
-    customerApiKey?: string
+    customerApiKey?: string,
+    customerKeyCorrupted?: boolean
   ): Promise<string> {
     switch (name) {
       case 'place_order': {
@@ -342,6 +390,9 @@ When a user asks to track an order, search services, check balance, or place an 
         const link = String(args.link || '').trim();
         const quantity = Number(args.quantity);
 
+        if (customerKeyCorrupted) {
+          return '⚠️ Your saved API key could not be decrypted. Please reconnect your account using /setkey <YOUR_API_KEY>.';
+        }
         if (!customerApiKey || !tenant.panelApiUrl) {
           return 'To place an order directly via chat, please link your panel account first using /setkey <YOUR_API_KEY>.';
         }
@@ -379,6 +430,10 @@ When a user asks to track an order, search services, check balance, or place an 
         const orderId = String(args.orderId || '').replace(/[^\d]/g, '');
         if (!orderId) return 'Please provide a valid numeric order ID.';
 
+        if (customerKeyCorrupted && !catalogKey) {
+          return '⚠️ Your saved API key could not be decrypted. Please reconnect your account using /setkey <YOUR_API_KEY>.';
+        }
+
         const key = customerApiKey || catalogKey;
         if (!tenant.panelApiUrl || !key) {
           return `Order #${orderId}: To track this order live, please ensure your panel API key is connected or log in to your dashboard.`;
@@ -398,6 +453,9 @@ When a user asks to track an order, search services, check balance, or place an 
       }
 
       case 'check_balance': {
+        if (customerKeyCorrupted) {
+          return '⚠️ Your saved API key could not be decrypted. Please reconnect your account using /setkey <YOUR_API_KEY>.';
+        }
         if (!customerApiKey || !tenant.panelApiUrl) {
           return 'No linked customer API key found. Guest users can log in to check balance.';
         }
@@ -419,7 +477,7 @@ When a user asks to track an order, search services, check balance, or place an 
     }
   }
 
-  private async deterministicFallback(query: string, tenant: any, services: SmmService[], catalogKey?: string): Promise<string> {
+  private async deterministicFallback(query: string, tenant: any, services: SmmService[], catalogKey?: string, customerKeyCorrupted?: boolean): Promise<string> {
     const lower = query.toLowerCase();
 
     // 1. Order tracking (/status 12345, order 12345, #12345)
@@ -430,6 +488,9 @@ When a user asks to track an order, search services, check balance, or place an 
 
     if (orderMatch && orderMatch[1]) {
       const orderId = orderMatch[1];
+      if (customerKeyCorrupted && !catalogKey) {
+        return '⚠️ Your saved API key could not be decrypted. Please reconnect your API key using /setkey <YOUR_API_KEY>.';
+      }
       if (tenant.panelApiUrl && catalogKey) {
         try {
           const client = new SmmProviderClient(tenant.panelApiUrl, catalogKey);

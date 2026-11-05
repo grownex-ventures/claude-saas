@@ -110,12 +110,12 @@ describe('Step 3: PanelCrawlerService Tenant Isolation & Query Cache', () => {
 
     expect(redisSetexSpy).toHaveBeenCalledWith(
       'tenant:tenant-1:crawl:services',
-      86400,
+      300,
       expect.any(String)
     );
   });
 
-  it('normalizes queries and enforces strict tenant-isolated cache keys with 86400s TTL', async () => {
+  it('normalizes queries and enforces strict tenant-isolated cache keys with 300s TTL', async () => {
     const redisSetexSpy = vi.spyOn(redis, 'setex').mockResolvedValueOnce('OK' as any);
     const redisGetSpy = vi.spyOn(redis, 'get').mockResolvedValueOnce('Cached Instagram answer');
 
@@ -127,7 +127,7 @@ describe('Step 3: PanelCrawlerService Tenant Isolation & Query Cache', () => {
     // SHA-256 of 'how to order followers?'
     expect(redisSetexSpy).toHaveBeenCalledWith(
       expect.stringMatching(/^tenant:tenant-A:qcache:[a-f0-9]{64}$/),
-      86400,
+      300,
       'Cached Instagram answer'
     );
 

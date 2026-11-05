@@ -258,73 +258,44 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      let rawKey = session.userPanelKey;
+      let rawKey: string;
       try {
         rawKey = decrypt(session.userPanelKey);
       } catch {
-        // Plaintext fallback
+        const reconnectMsg = '⚠️ Your saved API key could not be decrypted. Please reconnect your API key using /setkey <YOUR_API_KEY>.';
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', reconnectMsg);
+        await ctx.reply(reconnectMsg);
+        return;
       }
 
       try {
-        const baseUrl = panelApiUrl.replace(/\/+$/, '').replace(/\/api\/v2$/, '');
-        const balanceEndpoint = `${baseUrl}/api/v2?key=${encodeURIComponent(rawKey)}&action=balance`;
+        const client = new SmmProviderClient(panelApiUrl, rawKey);
+        const data = await client.getBalance();
 
-        const safeEndpoint = await validateSafeUrl(balanceEndpoint);
-
-        const res = await fetch(safeEndpoint);
-        if (res.ok) {
-          const data: any = await res.json();
-          if (data && data.error) {
-            RuntimeLogService.record({
-              tenantId,
-              channel: 'telegram',
-              level: 'warn',
-              event: 'BALANCE_CHECK_PANEL_ERROR',
-              message: `Balance lookup for user ${telegramUserId} returned error: ${data.error}`,
-              details: { userId: telegramUserId }
-            }).catch(() => {});
-            const errMsg = `Panel error: ${data.error}`;
-            await this.saveChatMessage(tenantId, telegramUserId, 'assistant', errMsg);
-            await ctx.reply(errMsg);
-          } else {
-            RuntimeLogService.record({
-              tenantId,
-              channel: 'telegram',
-              level: 'success',
-              event: 'BALANCE_CHECK_SUCCESS',
-              message: `User ${telegramUserId} checked balance: ${data.balance ?? 0} ${data.currency || 'USD'}`,
-              details: { userId: telegramUserId, balance: data.balance, currency: data.currency }
-            }).catch(() => {});
-            const balMsg = `💰 **Your current balance:** ${data.balance ?? 0} ${data.currency || 'USD'}`;
-            await this.saveChatMessage(tenantId, telegramUserId, 'assistant', balMsg);
-            await ctx.reply(balMsg, { parse_mode: 'Markdown' }).catch(() => ctx.reply(balMsg));
-          }
-        } else {
-          RuntimeLogService.record({
-            tenantId,
-            channel: 'telegram',
-            level: 'warn',
-            event: 'BALANCE_CHECK_HTTP_FAILED',
-            message: `Panel returned HTTP ${res.status} for balance lookup`,
-            details: { userId: telegramUserId, status: res.status }
-          }).catch(() => {});
-          const failMsg = 'Failed to fetch balance from panel. Please verify your API key.';
-          await this.saveChatMessage(tenantId, telegramUserId, 'assistant', failMsg);
-          await ctx.reply(failMsg);
-        }
+        RuntimeLogService.record({
+          tenantId,
+          channel: 'telegram',
+          level: 'success',
+          event: 'BALANCE_CHECK_SUCCESS',
+          message: `User ${telegramUserId} checked balance: ${data.balance ?? 0} ${data.currency || 'USD'}`,
+          details: { userId: telegramUserId, balance: data.balance, currency: data.currency }
+        }).catch(() => {});
+        const balMsg = `💰 **Your current balance:** ${data.balance ?? 0} ${data.currency || 'USD'}`;
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', balMsg);
+        await ctx.reply(balMsg, { parse_mode: 'Markdown' }).catch(() => ctx.reply(balMsg));
       } catch (e: any) {
         console.error(`Balance error for tenant ${tenantId}:`, e?.message || e);
         RuntimeLogService.record({
           tenantId,
           channel: 'telegram',
-          level: 'error',
-          event: 'BALANCE_CHECK_EXCEPTION',
-          message: `Network error connecting to panel for user ${telegramUserId}`,
+          level: 'warn',
+          event: 'BALANCE_CHECK_FAILED',
+          message: `Balance lookup for user ${telegramUserId} returned error: ${e?.message || e}`,
           details: { userId: telegramUserId, error: e?.message }
         }).catch(() => {});
-        const unreachMsg = 'Panel server is currently unreachable. Please try again later.';
-        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', unreachMsg);
-        await ctx.reply(unreachMsg);
+        const failMsg = `Failed to fetch balance: ${e?.message || 'Please verify your API key or try again later.'}`;
+        await this.saveChatMessage(tenantId, telegramUserId, 'assistant', failMsg);
+        await ctx.reply(failMsg);
       }
     });
 
@@ -352,7 +323,12 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
       if (session?.userPanelKey) {
         try {
           rawKey = decrypt(session.userPanelKey);
-        } catch {}
+        } catch {
+          const reconnectMsg = '⚠️ Your saved API key could not be decrypted. Please reconnect your API key using /setkey <YOUR_API_KEY>.';
+          await this.saveChatMessage(tenantId, telegramUserId, 'assistant', reconnectMsg);
+          await ctx.reply(reconnectMsg);
+          return;
+        }
       }
 
       try {

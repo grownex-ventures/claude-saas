@@ -3,6 +3,7 @@ import { prisma } from '../common/database/prisma.js';
 import { redis } from '../common/redis/redis.js';
 import { validateSafeUrl, validateSafeUrlWithDispatcher } from '../common/security/url-validator.js';
 import { fetch as undiciFetch } from 'undici';
+import { AiAgentService } from '../ai-engine/ai-agent.service.js';
 
 export class PanelCrawlerService {
   /**
@@ -51,8 +52,8 @@ export class PanelCrawlerService {
         }
       });
 
-      // 2. Cache in Redis for lightning-fast lookups by the bot (24-hour TTL)
-      await redis.setex(`tenant:${tenantId}:crawl:services`, 86400, JSON.stringify(servicesData));
+      // 2. Cache in Redis for lightning-fast lookups by the bot (300s TTL)
+      await redis.setex(`tenant:${tenantId}:crawl:services`, 300, JSON.stringify(servicesData));
 
       return { success: true, count: Array.isArray(servicesData) ? servicesData.length : 0 };
     } catch (error: any) {
@@ -65,6 +66,9 @@ export class PanelCrawlerService {
    * Retrieves a pre-generated AI reply for identical recurring user queries.
    */
   static async getCachedReply(tenantId: string, userText: string): Promise<string | null> {
+    if (AiAgentService.isDynamicQuery(userText)) {
+      return null;
+    }
     const hash = crypto.createHash('sha256').update(userText.trim().toLowerCase()).digest('hex');
     try {
       const cached = await redis.get(`tenant:${tenantId}:qcache:${hash}`);
@@ -78,9 +82,12 @@ export class PanelCrawlerService {
    * Caches a successful AI generation to save token costs on repetitive questions.
    */
   static async setCachedReply(tenantId: string, userText: string, replyText: string): Promise<void> {
+    if (AiAgentService.isDynamicQuery(userText)) {
+      return;
+    }
     const hash = crypto.createHash('sha256').update(userText.trim().toLowerCase()).digest('hex');
     try {
-      await redis.setex(`tenant:${tenantId}:qcache:${hash}`, 86400, replyText);
+      await redis.setex(`tenant:${tenantId}:qcache:${hash}`, 300, replyText);
     } catch {
       // Non-blocking error
     }
