@@ -327,6 +327,12 @@ ${categories.join(', ') || 'Instagram, YouTube, Telegram, TikTok, Facebook, Twit
 Sample Featured Services:
 ${serviceSample || 'Wide catalog of social media growth services'}
 
+Visual Presentation & Formatting Rules for Chat:
+- Always format currency balances and rates with exactly 2 decimal places (e.g. "$27.51" or "12.34 INR", NEVER long floating decimals like "12.3395550").
+- When presenting services or options, use clean, well-spaced cards with visual emojis (📦, 🔹, 💰, ⚡, 🛡️).
+- Separate each service card with a blank line for easy reading on mobile chat screens.
+- Avoid dense walls of text; keep each item visually scannable with bullet points and bold titles.
+
 When a user asks to track an order, search services, check balance, or place an order, use the appropriate live tools to provide real-time information.`;
   }
 
@@ -439,8 +445,12 @@ When a user asks to track an order, search services, check balance, or place an 
         }
 
         return top
-          .map((s) => `• ID ${s.service}: **${s.name}** | Rate: $${s.rate}/1,000 | Min: ${s.min} | Max: ${s.max}`)
-          .join('\n');
+          .map((s) => {
+            const numRate = Number(s.rate);
+            const rateStr = !isNaN(numRate) ? numRate.toFixed(2) : s.rate;
+            return `📦 **ID ${s.service}** — ${s.name}\n💰 **Rate:** $${rateStr} / 1k • **Min/Max:** ${s.min} / ${s.max}`;
+          })
+          .join('\n\n');
       }
 
       case 'check_order_status': {
@@ -479,7 +489,9 @@ When a user asks to track an order, search services, check balance, or place an 
         try {
           const client = new SmmProviderClient(tenant.panelApiUrl, customerApiKey);
           const bal = await client.getBalance();
-          return `Current Account Balance: ${bal.balance} ${bal.currency || 'USD'}`;
+          const numBal = Number(bal.balance);
+          const formattedBal = !isNaN(numBal) ? numBal.toFixed(2) : bal.balance;
+          return `Current Account Balance: ${formattedBal} ${bal.currency || 'USD'}`;
         } catch (err: any) {
           return `Unable to fetch balance: ${err.message || 'Error connecting to panel'}`;
         }

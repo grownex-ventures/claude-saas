@@ -8,6 +8,7 @@ import { validateSafeUrl } from '../common/security/url-validator.js';
 import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
 import { AiAgentService } from '../ai-engine/ai-agent.service.js';
 import { SmmProviderClient, SmmService } from '../smm-core/smm-client.js';
+import { formatTelegramHtml, cleanPlainText } from '../common/utils/telegram-format.js';
 
 function resolveBotToken(token: string): string {
   if (!token) return '';
@@ -116,6 +117,19 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Helper to send HTML-formatted Telegram messages with safe fallback to clean plain text.
+   */
+  async sendFormattedReply(ctx: any, text: string): Promise<void> {
+    const formatted = formatTelegramHtml(text);
+    try {
+      await ctx.reply(formatted, { parse_mode: 'HTML', disable_web_page_preview: true });
+    } catch (_err) {
+      const plain = cleanPlainText(text);
+      await ctx.reply(plain, { disable_web_page_preview: true }).catch(() => ctx.reply(text));
+    }
+  }
+
+  /**
    * Factory method to build a Grammy Bot with all multi-tenant commands and handlers.
    */
   buildBot(tenantId: string, botToken: string, panelApiUrl: string): Bot {
@@ -160,7 +174,7 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
       await this.saveChatMessage(tenantId, telegramUserId, 'user', '/start');
       await this.saveChatMessage(tenantId, telegramUserId, 'assistant', welcomeText);
 
-      await ctx.reply(welcomeText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(welcomeText));
+      await this.sendFormattedReply(ctx, welcomeText);
     });
 
     // Command: /help
@@ -180,7 +194,7 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
       await this.saveChatMessage(tenantId, telegramUserId, 'user', '/help');
       await this.saveChatMessage(tenantId, telegramUserId, 'assistant', helpText);
 
-      await ctx.reply(helpText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(helpText));
+      await this.sendFormattedReply(ctx, helpText);
     });
 
     // Command: /setkey <key> (Tenant isolated upsert with AES-256 encryption)
@@ -280,9 +294,11 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
           message: `User ${telegramUserId} checked balance: ${data.balance ?? 0} ${data.currency || 'USD'}`,
           details: { userId: telegramUserId, balance: data.balance, currency: data.currency }
         }).catch(() => {});
-        const balMsg = `💰 **Your current balance:** ${data.balance ?? 0} ${data.currency || 'USD'}`;
+        const numBal = Number(data.balance);
+        const formattedBal = !isNaN(numBal) ? numBal.toFixed(2) : (data.balance ?? 0);
+        const balMsg = `💰 **Your current balance:** ${formattedBal} ${data.currency || 'USD'}`;
         await this.saveChatMessage(tenantId, telegramUserId, 'assistant', balMsg);
-        await ctx.reply(balMsg, { parse_mode: 'Markdown' }).catch(() => ctx.reply(balMsg));
+        await this.sendFormattedReply(ctx, balMsg);
       } catch (e: any) {
         console.error(`Balance error for tenant ${tenantId}:`, e?.message || e);
         RuntimeLogService.record({
@@ -353,7 +369,7 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
           `• **Charge:** ${order.charge !== undefined && order.charge !== null ? `${order.charge} ${order.currency || 'USD'}`.trim() : 'N/A'}`;
 
         await this.saveChatMessage(tenantId, telegramUserId, 'assistant', statusText);
-        await ctx.reply(statusText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(statusText));
+        await this.sendFormattedReply(ctx, statusText);
       } catch (err: any) {
         const errText = `❌ Could not retrieve status for Order #${orderId}: ${err?.message || 'Server unreachable or invalid order ID'}`;
         await this.saveChatMessage(tenantId, telegramUserId, 'assistant', errText);
@@ -408,15 +424,19 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
         }
 
         const formatted = top
-          .map((s) => `• ID ${s.service}: **${s.name}** | Rate: $${s.rate}/1k | Min: ${s.min} | Max: ${s.max}`)
-          .join('\n');
+          .map((s) => {
+            const rateNum = Number(s.rate);
+            const rateStr = !isNaN(rateNum) ? rateNum.toFixed(2) : s.rate;
+            return `📦 **ID ${s.service}** — ${s.name}\n💰 **Rate:** $${rateStr}/1k • **Min:** ${s.min} • **Max:** ${s.max}`;
+          })
+          .join('\n\n');
 
         const replyText =
           `⚡ **Matching Services (${matches.length} found):**\n\n${formatted}\n\n` +
-          `💡 *To search specifically, use:* \`/services <keyword>\``;
+          `💡 *To search specifically, use:* \`/services <keyword or ID>\``;
 
         await this.saveChatMessage(tenantId, telegramUserId, 'assistant', replyText);
-        await ctx.reply(replyText, { parse_mode: 'Markdown' }).catch(() => ctx.reply(replyText));
+        await this.sendFormattedReply(ctx, replyText);
       } catch (err: any) {
         const errText = `Could not load services catalog: ${err?.message || 'Catalog unavailable'}`;
         await this.saveChatMessage(tenantId, telegramUserId, 'assistant', errText);
@@ -462,7 +482,7 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
         // 3. Save bot response to database
         await this.saveChatMessage(tenantId, telegramUserId, 'assistant', reply);
 
-        await ctx.reply(reply);
+        await this.sendFormattedReply(ctx, reply);
       } catch (err: any) {
         console.warn(`[BotManager] Telegram AI reply error for tenant ${tenantId}:`, err?.message || err);
         const fallback = `Thank you for your message. An agent is reviewing your query. You can check order status with /status <order_id> or view services with /services.`;
