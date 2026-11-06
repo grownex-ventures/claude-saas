@@ -103,7 +103,21 @@ export function formatWhatsAppMessage(raw: string): string {
 
   let out = raw;
 
-  // 1. Convert markdown pipe tables into WhatsApp card blocks if present
+  // 1. Protect code blocks ```code```
+  const codeBlocks: string[] = [];
+  out = out.replace(/```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, (_m, code) => {
+    codeBlocks.push(`\`\`\`${code.trim()}\`\`\``);
+    return `@@@WA_CODEBLOCK_${codeBlocks.length - 1}@@@`;
+  });
+
+  // 2. Protect inline code `code`
+  const inlineCodes: string[] = [];
+  out = out.replace(/`([^`\n]+)`/g, (_m, code) => {
+    inlineCodes.push(`\`${code}\``);
+    return `@@@WA_INLINE_${inlineCodes.length - 1}@@@`;
+  });
+
+  // 3. Convert markdown pipe tables into WhatsApp card blocks if present
   const lines = out.split('\n');
   const tableLines: string[] = [];
   let inTable = false;
@@ -127,7 +141,27 @@ export function formatWhatsAppMessage(raw: string): string {
   }
   out = processedLines.join('\n');
 
-  // 2. Convert standard HTML tags to WhatsApp formatting
+  // 4. Convert markdown links [label](url) -> label (url)
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1 ($2)');
+
+  // 5. Convert markdown list bullets (* or - at start of line) to clean bullet symbols
+  out = out.replace(/^[*-]\s+/gm, '• ');
+
+  // 6. Round floating decimal balances/rates with >=3 decimals down to 2 decimals
+  out = out.replace(/(\d+\.\d{3,})\s*(INR|USD|EUR|RUB)/gi, (_m, num, curr) => {
+    const rounded = Number(num).toFixed(2);
+    return `${rounded} ${curr.toUpperCase()}`;
+  });
+
+  // 7. Convert markdown single-asterisk italics (*text*) to WhatsApp italics (_text_)
+  // Note: Uses lookahead/lookbehind so it does not touch markdown double asterisks (**bold**)
+  out = out.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '_$1_');
+
+  // 8. Convert markdown bold (**text** or __text__) to WhatsApp bold (*text*)
+  out = out.replace(/\*\*(.*?)\*\*/g, '*$1*');
+  out = out.replace(/__(.*?)__/g, '*$1*');
+
+  // 9. Convert standard HTML tags to WhatsApp formatting
   out = out
     .replace(/<b>(.*?)<\/b>/gi, '*$1*')
     .replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
@@ -139,10 +173,14 @@ export function formatWhatsAppMessage(raw: string): string {
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, ''); // Strip any remaining tags
 
-  // 3. Unescape HTML entities
+  // 10. Restore protected code blocks and inline code
+  out = out.replace(/@@@WA_INLINE_(\d+)@@@/g, (_m, idx) => inlineCodes[Number(idx)] || '');
+  out = out.replace(/@@@WA_CODEBLOCK_(\d+)@@@/g, (_m, idx) => codeBlocks[Number(idx)] || '');
+
+  // 11. Unescape HTML entities
   out = unescapeHtml(out);
 
-  // 4. Clean consecutive empty lines
+  // 12. Clean consecutive empty lines
   out = out.replace(/\n{3,}/g, '\n\n').trim();
 
   return out;

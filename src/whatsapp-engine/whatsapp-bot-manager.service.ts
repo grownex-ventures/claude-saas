@@ -5,7 +5,7 @@ import { encrypt, decrypt } from '../common/crypto/encryption.js';
 import { PanelCrawlerService } from '../crawler/panel-crawler.service.js';
 import { SmmProviderClient } from '../smm-core/smm-client.js';
 import { WhatsAppService } from './whatsapp.service.js';
-import { formatCurrencyAmount, formatWhatsAppServicesList } from './formatter.js';
+import { formatCurrencyAmount, formatWhatsAppServicesList, formatWhatsAppMessage } from './formatter.js';
 import { AiAgentService } from '../ai-engine/ai-agent.service.js';
 
 export function extractMessageText(message: proto.IMessage | null | undefined): string {
@@ -209,6 +209,7 @@ export class WhatsAppBotManagerService {
 
     // Helper to persist assistant response and send via WhatsApp socket
     const sendAndRecordReply = async (replyText: string) => {
+      const formatted = formatWhatsAppMessage(replyText);
       await prisma.whatsAppChatMessage.create({
         data: {
           tenantId,
@@ -217,7 +218,7 @@ export class WhatsAppBotManagerService {
           content: replyText
         }
       });
-      await service.sendReply(senderJid, replyText);
+      await service.sendReply(senderJid, formatted);
     };
 
     // 1. Detect API Key Authentication: /setkey <KEY>, /login <KEY>, or raw hex token

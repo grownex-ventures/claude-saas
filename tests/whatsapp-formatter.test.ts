@@ -45,4 +45,22 @@ describe('WhatsApp Formatter Suite', () => {
     expect(result).toContain('📁 _YouTube_');
     expect(result).toContain('💰 *Rate:* $2.5 / 1k');
   });
+
+  it('converts markdown bold, italics, bullets and long decimal balances for WhatsApp', () => {
+    const input =
+      'Your account balance is **12.3395550 INR**.\n\n' +
+      '* **ID 4511:** Includes Likes + 5% Reposts — *Rate: $27.51 / 1k*\n' +
+      '* **ID 4512:** Includes Likes + 10% Reposts — *Rate: $31.21 / 1k*';
+
+    const formatted = formatWhatsAppMessage(input);
+    expect(formatted).toContain('Your account balance is *12.34 INR*.');
+    expect(formatted).toContain('• *ID 4511:* Includes Likes + 5% Reposts — _Rate: $27.51 / 1k_');
+    expect(formatted).toContain('• *ID 4512:* Includes Likes + 10% Reposts — _Rate: $31.21 / 1k_');
+  });
+
+  it('preserves code blocks and inline code while converting markdown links', () => {
+    const input = 'Use `/services 4511` to inspect or visit [Panel](https://example.com).';
+    const formatted = formatWhatsAppMessage(input);
+    expect(formatted).toBe('Use `/services 4511` to inspect or visit Panel (https://example.com).');
+  });
 });

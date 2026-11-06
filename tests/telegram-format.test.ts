@@ -44,3 +44,4 @@ describe('Telegram Message Styler & Formatter Suite', () => {
     expect(clean).toBe('ID 4511: Rate: $27.51 code link');
   });
 });
+
