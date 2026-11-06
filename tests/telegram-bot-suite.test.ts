@@ -146,4 +146,54 @@ describe('Telegram Bot & Multi-Tenant Support Suite', () => {
       expect(instance1).toBe(instance2);
     });
   });
+
+  describe('5. User Linked API Key Catalog Resolution & Numeric ID Lookup', () => {
+    const botManager = BotManagerService.getInstance();
+    const aiService = AiAgentService.getInstance();
+
+    it('resolves tenant services using caller userApiKey when tenant catalog key is missing', async () => {
+      vi.spyOn(prisma.tenant, 'findUnique').mockResolvedValue({
+        id: 'tenant-dynamic',
+        crawledData: null,
+        widgetApiKey: null
+      } as any);
+
+      // Mock SmmProviderClient.prototype.getServices
+      const { SmmProviderClient } = await import('../src/smm-core/smm-client.js');
+      const getServicesSpy = vi.spyOn(SmmProviderClient.prototype, 'getServices').mockResolvedValue([
+        {
+          service: 4343,
+          name: 'Instagram Likes + Views Combo',
+          type: 'Default',
+          rate: '1.39',
+          min: 100,
+          max: 10000,
+          category: 'Instagram Packages'
+        }
+      ]);
+
+      const services = await (botManager as any).resolveTenantServices('tenant-dynamic', 'https://panel.com', 'user-secret-key-123');
+      expect(getServicesSpy).toHaveBeenCalled();
+      expect(services.length).toBe(1);
+      expect(services[0].service).toBe(4343);
+    });
+
+    it('matches services by numeric service ID in search_services tool', async () => {
+      const mockServices = [
+        { service: 4343, name: 'Instagram Likes + Views', rate: '1.39', min: 100, max: 10000, category: 'Reels' },
+        { service: 9999, name: 'YouTube Subscribers', rate: '5.00', min: 50, max: 5000, category: 'YouTube' }
+      ];
+
+      const result = await (aiService as any).executeTool(
+        'search_services',
+        { query: '4343' },
+        { id: 'tenant-1', panelApiUrl: 'https://panel.com' },
+        mockServices
+      );
+
+      expect(result).toContain('ID 4343');
+      expect(result).toContain('Instagram Likes + Views');
+      expect(result).not.toContain('YouTube Subscribers');
+    });
+  });
 });

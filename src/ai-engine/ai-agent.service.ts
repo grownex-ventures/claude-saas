@@ -105,10 +105,7 @@ export class AiAgentService {
       }
     }
 
-    // 3. Resolve active catalog (from DB crawledData or Redis cache)
-    let services = await this.resolveServicesCatalog(tenantId, tenant);
-
-    // 4. Resolve customer API key (if customer linked an account via Telegram or WhatsApp session)
+    // 3. Resolve customer API key (if customer linked an account via Telegram or WhatsApp session)
     let customerApiKey: string | undefined;
     let customerKeyCorrupted = false;
     if (params.channel === 'telegram' && params.userId) {
@@ -136,6 +133,10 @@ export class AiAgentService {
         }
       }
     }
+
+    // 4. Resolve active catalog (from Redis, Postgres crawledData, or live panel with effective key)
+    const effectiveKey = catalogKey || customerApiKey;
+    let services = await this.resolveServicesCatalog(tenantId, tenant, effectiveKey);
 
     // 5. Build Tools & System Prompt
     const tools = this.getTools();
@@ -275,7 +276,7 @@ export class AiAgentService {
     });
   }
 
-  private async resolveServicesCatalog(tenantId: string, tenant: any): Promise<SmmService[]> {
+  private async resolveServicesCatalog(tenantId: string, tenant: any, fallbackKey?: string): Promise<SmmService[]> {
     // Check Redis first
     try {
       const cached = await redis.get(`tenant:${tenantId}:crawl:services`);
@@ -288,6 +289,20 @@ export class AiAgentService {
     // Check Postgres crawledData
     if (tenant.crawledData && Array.isArray(tenant.crawledData) && tenant.crawledData.length > 0) {
       return tenant.crawledData as SmmService[];
+    }
+
+    // Fallback: fetch live from panel provider if key is available
+    if (fallbackKey && tenant.panelApiUrl) {
+      try {
+        const client = new SmmProviderClient(tenant.panelApiUrl, fallbackKey);
+        const fetched = await client.getServices();
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          await redis.setex(`tenant:${tenantId}:crawl:services`, 300, JSON.stringify(fetched)).catch(() => {});
+          return fetched;
+        }
+      } catch (err: any) {
+        console.warn(`[AiAgentService] Failed to fetch services with key for tenant ${tenantId}:`, err?.message || err);
+      }
     }
 
     return [];
@@ -409,10 +424,12 @@ When a user asks to track an order, search services, check balance, or place an 
         }
       }
       case 'search_services': {
-        const query = (args.query || '').toLowerCase();
-        const tokens = query.split(/\s+/).filter((t: string) => t.length > 2);
+        const query = (args.query || '').toLowerCase().trim();
+        const tokens = query.split(/\s+/).filter((t: string) => t.length > 0);
         const matches = services.filter((s) => {
-          const text = `${s.name} ${s.category}`.toLowerCase();
+          const idStr = String(s.service || '');
+          if (idStr === query || (query.length >= 2 && idStr.includes(query))) return true;
+          const text = `${idStr} ${s.name} ${s.category}`.toLowerCase();
           return tokens.some((t: string) => text.includes(t));
         });
 

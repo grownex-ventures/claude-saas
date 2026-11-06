@@ -372,14 +372,30 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
       await this.saveChatMessage(tenantId, telegramUserId, 'user', ctx.message?.text || '/services');
 
       try {
-        const services = await this.resolveTenantServices(tenantId, panelApiUrl);
+        const session = await prisma.botUserSession.findUnique({
+          where: {
+            tenantId_telegramUserId: {
+              tenantId,
+              telegramUserId
+            }
+          }
+        });
+        let userApiKey: string | undefined;
+        if (session?.userPanelKey) {
+          try {
+            userApiKey = decrypt(session.userPanelKey);
+          } catch {}
+        }
+
+        const services = await this.resolveTenantServices(tenantId, panelApiUrl, userApiKey);
         let matches = services;
 
         if (query) {
           matches = services.filter((s) => {
             const name = (s.name || '').toLowerCase();
             const cat = (s.category || '').toLowerCase();
-            return name.includes(query) || cat.includes(query);
+            const idStr = String(s.service || '');
+            return idStr === query || idStr.includes(query) || name.includes(query) || cat.includes(query);
           });
         }
 
@@ -719,7 +735,7 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
     return '';
   }
 
-  private async resolveTenantServices(tenantId: string, panelApiUrl: string): Promise<SmmService[]> {
+  private async resolveTenantServices(tenantId: string, panelApiUrl: string, userApiKey?: string): Promise<SmmService[]> {
     try {
       const cached = await redis.get(`tenant:${tenantId}:crawl:services`);
       if (cached) {
@@ -737,12 +753,19 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
       return tenant.crawledData as unknown as SmmService[];
     }
 
-    if (tenant?.widgetApiKey && panelApiUrl) {
+    const effectiveKey = (tenant?.widgetApiKey ? (() => { try { return decrypt(tenant.widgetApiKey!); } catch { return ''; } })() : '') || userApiKey;
+
+    if (effectiveKey && panelApiUrl) {
       try {
-        const key = decrypt(tenant.widgetApiKey);
-        const client = new SmmProviderClient(panelApiUrl, key);
-        return await client.getServices();
-      } catch {}
+        const client = new SmmProviderClient(panelApiUrl, effectiveKey);
+        const fetched = await client.getServices();
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          await redis.setex(`tenant:${tenantId}:crawl:services`, 300, JSON.stringify(fetched)).catch(() => {});
+          return fetched;
+        }
+      } catch (err: any) {
+        console.warn(`[BotManager] Failed to fetch services with key for tenant ${tenantId}:`, err?.message || err);
+      }
     }
 
     return [];

@@ -1,5 +1,6 @@
 import { proto, WASocket } from '@whiskeysockets/baileys';
 import { prisma } from '../common/database/prisma.js';
+import { redis } from '../common/redis/redis.js';
 import { encrypt, decrypt } from '../common/crypto/encryption.js';
 import { PanelCrawlerService } from '../crawler/panel-crawler.service.js';
 import { SmmProviderClient } from '../smm-core/smm-client.js';
@@ -358,12 +359,19 @@ export class WhatsAppBotManagerService {
       try {
         const client = new SmmProviderClient(panelApiUrl, rawKey);
         const allServices = await client.getServices();
+        if (Array.isArray(allServices) && allServices.length > 0) {
+          await redis.setex(`tenant:${tenantId}:crawl:services`, 300, JSON.stringify(allServices)).catch(() => {});
+        }
         const filtered = keyword
-          ? allServices.filter(
-              (s) =>
+          ? allServices.filter((s) => {
+              const idStr = String(s.service || '');
+              return (
+                idStr === keyword ||
+                idStr.includes(keyword) ||
                 s.name.toLowerCase().includes(keyword) ||
                 (s.category && s.category.toLowerCase().includes(keyword))
-            ).slice(0, 8)
+              );
+            }).slice(0, 8)
           : allServices.slice(0, 8);
 
         const cardText = formatWhatsAppServicesList(filtered);
