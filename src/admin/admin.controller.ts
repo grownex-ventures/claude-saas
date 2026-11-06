@@ -156,6 +156,22 @@ export class AdminController {
       }
     });
 
+    // Tenant Management: Grant Free / Complimentary Agent Access (No Pay)
+    this.router.post('/tenants/:id/grant-access', async (req: Request, res: Response) => {
+      try {
+        const { hasTelegram, hasWhatsapp, hasWidget, durationDays } = req.body || {};
+        const result = await adminService.grantFreeAccess(req.params.id, {
+          hasTelegram,
+          hasWhatsapp,
+          hasWidget,
+          durationDays: typeof durationDays === 'number' ? durationDays : 0
+        });
+        res.json({ success: true, ...result });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
     // Tenant Management: Email Verification Toggle
     this.router.patch('/tenants/:id/verify-email', async (req: Request, res: Response) => {
       try {

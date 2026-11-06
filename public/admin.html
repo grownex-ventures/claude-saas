@@ -1004,6 +1004,50 @@
     </div>
   </div>
 
+  <!-- MODAL: GRANT COMPLIMENTARY AGENT ACCESS -->
+  <div class="modal-backdrop" id="grantAccessModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="grantAccessModalTitle">
+    <div class="modal-box" style="max-width: 480px;">
+      <h3 id="grantAccessModalTitle" style="font-size: var(--font-h3); font-weight: 700; margin-bottom: var(--space-2);">🎁 Grant Free Agent Access</h3>
+      <p style="font-size: var(--font-sm); color: var(--color-text-muted); margin-bottom: var(--space-4); line-height: var(--lh-normal);">
+        Allow <strong id="grantAccessTargetEmail" style="color: var(--color-text-main);">user@domain.com</strong> to use support agents without requiring payment.
+      </p>
+
+      <div class="form-group" style="margin-bottom: var(--space-4);">
+        <label class="form-label" style="margin-bottom: var(--space-2); font-weight: 600;">Support Agents to Unlock:</label>
+        <div style="display: flex; flex-direction: column; gap: var(--space-2); background: var(--color-surface-subtle); padding: var(--space-3); border-radius: var(--radius-md); border: 1px solid var(--color-border-subtle);">
+          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: var(--font-sm);">
+            <input type="checkbox" id="grantTelegram" checked />
+            <span>🤖 <strong>Telegram Bot</strong> (Full AI Auto-Reply & Catalog)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: var(--font-sm);">
+            <input type="checkbox" id="grantWhatsapp" checked />
+            <span>💬 <strong>WhatsApp Support Line</strong> (Multi-tenant AI Agent)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: var(--font-sm);">
+            <input type="checkbox" id="grantWidget" checked />
+            <span>🌐 <strong>Website Live Widget</strong> (Embeddable Chat)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: var(--space-4);">
+        <label class="form-label" for="grantDuration" style="font-weight: 600;">Access Duration:</label>
+        <select class="select" id="grantDuration" style="width: 100%;">
+          <option value="0" selected>♾️ Lifetime Free Access (Unlimited)</option>
+          <option value="30">📅 30 Days Trial / Comp</option>
+          <option value="90">📅 90 Days Free Access</option>
+          <option value="180">📅 6 Months Free Access</option>
+          <option value="365">📅 1 Year Free Access</option>
+        </select>
+      </div>
+
+      <div style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-6);">
+        <button type="button" class="btn btn-secondary" onclick="closeGrantAccessModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmGrantAccessBtn" onclick="submitGrantAccess()">🎁 Grant Access Now</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
@@ -1460,8 +1504,10 @@
 
     // Dismiss modal on Escape key (WCAG 2.1.2)
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && testEmailModal.style.display === 'flex') {
-        closeTestEmailModal();
+      if (e.key === 'Escape') {
+        if (testEmailModal && testEmailModal.style.display === 'flex') closeTestEmailModal();
+        const grantModal = document.getElementById('grantAccessModal');
+        if (grantModal && grantModal.style.display === 'flex') closeGrantAccessModal();
       }
     });
 
@@ -1547,6 +1593,7 @@
               <td style="text-align: right;">
                 <div style="display: inline-flex; gap: 0.35rem; align-items: center;">
                   <button type="button" class="btn btn-secondary btn-sm" onclick="impersonateTenant('${safeId}')" aria-label="Log in as tenant ${safeEmail}" title="Log into tenant dashboard">🚀 Impersonate</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="openGrantAccessModal('${safeId}', '${safeEmail}')" aria-label="Grant free agent access to ${safeEmail}" title="Grant free agent access without payment" style="border-color: rgba(99, 102, 241, 0.4); color: var(--color-accent); font-weight: 600;">🎁 Free Access</button>
                   <select class="select" style="width: 105px; padding: 0.25rem 0.5rem; font-size: var(--font-xs); min-height: 32px;" aria-label="Subscription status for ${safeEmail}" onchange="updateSubscription('${safeId}', this.value)">
                     <option value="">Status...</option>
                     <option value="ACTIVE" ${t.subscriptionStatus === 'ACTIVE' ? 'selected' : ''}>Active</option>
@@ -1636,6 +1683,58 @@
         }
       } catch (err) {
         showToast(err.message, 'error');
+      }
+    }
+
+    let grantTargetTenantId = null;
+
+    function openGrantAccessModal(id, email) {
+      grantTargetTenantId = id;
+      document.getElementById('grantAccessTargetEmail').textContent = email;
+      document.getElementById('grantTelegram').checked = true;
+      document.getElementById('grantWhatsapp').checked = true;
+      document.getElementById('grantWidget').checked = true;
+      document.getElementById('grantDuration').value = '0';
+      document.getElementById('grantAccessModal').style.display = 'flex';
+    }
+
+    function closeGrantAccessModal() {
+      grantTargetTenantId = null;
+      document.getElementById('grantAccessModal').style.display = 'none';
+    }
+
+    async function submitGrantAccess() {
+      if (!grantTargetTenantId) return;
+      const btn = document.getElementById('confirmGrantAccessBtn');
+      btn.disabled = true;
+      btn.textContent = 'Granting...';
+
+      try {
+        const hasTelegram = document.getElementById('grantTelegram').checked;
+        const hasWhatsapp = document.getElementById('grantWhatsapp').checked;
+        const hasWidget = document.getElementById('grantWidget').checked;
+        const durationDays = parseInt(document.getElementById('grantDuration').value, 10);
+
+        const res = await adminFetch(`/api/admin/tenants/${grantTargetTenantId}/grant-access`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hasTelegram, hasWhatsapp, hasWidget, durationDays })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          showToast('🎁 Complimentary access granted successfully!', 'success');
+          closeGrantAccessModal();
+          loadTenants();
+          loadTelemetry();
+        } else {
+          showToast(data.error || 'Failed to grant access', 'error');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🎁 Grant Access Now';
       }
     }
 

@@ -413,6 +413,113 @@ export class AdminService {
   }
 
   /**
+   * Grant free/complimentary agent access to a tenant without requiring payment.
+   * Enables specified support channels (Telegram, WhatsApp, Widget), sets subscriptionStatus to ACTIVE,
+   * configures expiration date (or lifetime ~100 years), refreshes Redis cache, and starts any configured bots.
+   */
+  async grantFreeAccess(
+    tenantId: string,
+    options: {
+      hasTelegram?: boolean;
+      hasWhatsapp?: boolean;
+      hasWidget?: boolean;
+      durationDays?: number;
+    } = {}
+  ): Promise<{
+    id: string;
+    email: string;
+    subscriptionStatus: string;
+    subscriptionExpiresAt: Date | null;
+    hasTelegram: boolean;
+    hasWhatsapp: boolean;
+    hasWidget: boolean;
+    channelErrors?: string[];
+  }> {
+    const days = typeof options.durationDays === 'number' && options.durationDays > 0 ? options.durationDays : 36500;
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    const hasTelegram = options.hasTelegram !== false;
+    const hasWhatsapp = options.hasWhatsapp !== false;
+    const hasWidget = options.hasWidget !== false;
+
+    // 1. Update DB record
+    const updated = await prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        subscriptionStatus: 'ACTIVE',
+        subscriptionExpiresAt: expiresAt,
+        hasTelegram,
+        hasWhatsapp,
+        hasWidget
+      }
+    });
+
+    // 2. Set status in Redis with 3600s TTL using canonical helper
+    try {
+      await redis.set(tenantStatusKey(tenantId), 'ACTIVE', 'EX', 3600);
+    } catch (err: any) {
+      console.warn(`[AdminService] Redis failure caching status for ${tenantId}:`, err?.message);
+    }
+
+    const channelErrors: string[] = [];
+
+    // 3. Channel lifecycle: Start any configured and entitled bots
+    if (updated.hasTelegram && updated.botToken) {
+      try {
+        await this.botManagerService.startTenantBot({
+          tenantId: updated.id,
+          botToken: updated.botToken,
+          panelApiUrl: updated.telegramPanelUrl || updated.panelApiUrl || '',
+          subscriptionStatus: 'ACTIVE'
+        });
+      } catch (err: any) {
+        channelErrors.push(`Telegram startup error: ${err?.message || err}`);
+      }
+    }
+
+    if (updated.hasWhatsapp && updated.whatsAppEnabled) {
+      try {
+        await this.whatsAppBotManagerService.startTenantWhatsApp(
+          updated.id,
+          updated.whatsAppPhoneNumber
+        );
+      } catch (err: any) {
+        channelErrors.push(`WhatsApp startup error: ${err?.message || err}`);
+      }
+    }
+
+    // 4. Log audit trail
+    try {
+      await prisma.auditLog.create({
+        data: {
+          tenantId: updated.id,
+          action: 'ADMIN_GRANT_FREE_ACCESS',
+          actorIp: '127.0.0.1',
+          userAgent: 'SuperAdmin/Dashboard',
+          metadata: {
+            durationDays: options.durationDays || 'lifetime',
+            expiresAt: expiresAt.toISOString(),
+            hasTelegram,
+            hasWhatsapp,
+            hasWidget
+          }
+        }
+      });
+    } catch {}
+
+    return {
+      id: updated.id,
+      email: updated.email,
+      subscriptionStatus: updated.subscriptionStatus,
+      subscriptionExpiresAt: updated.subscriptionExpiresAt,
+      hasTelegram: updated.hasTelegram,
+      hasWhatsapp: updated.hasWhatsapp,
+      hasWidget: updated.hasWidget,
+      channelErrors: channelErrors.length > 0 ? channelErrors : undefined
+    };
+  }
+
+  /**
    * Toggle tenant email verification status
    */
   async toggleTenantEmailVerified(tenantId: string, verified: boolean): Promise<any> {
