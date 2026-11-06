@@ -1502,12 +1502,36 @@
       if (openTestEmailModalBtn) openTestEmailModalBtn.focus();
     }
 
-    // Dismiss modal on Escape key (WCAG 2.1.2)
+    // Modal focus trap & Escape key handler (WCAG 2.1.2 & 2.4.3)
     window.addEventListener('keydown', (e) => {
+      const activeModal = [testEmailModal, document.getElementById('grantAccessModal')].find(
+        (m) => m && m.style.display === 'flex'
+      );
+      if (!activeModal) return;
+
       if (e.key === 'Escape') {
-        if (testEmailModal && testEmailModal.style.display === 'flex') closeTestEmailModal();
-        const grantModal = document.getElementById('grantAccessModal');
-        if (grantModal && grantModal.style.display === 'flex') closeGrantAccessModal();
+        if (activeModal === testEmailModal) closeTestEmailModal();
+        if (activeModal.id === 'grantAccessModal') closeGrantAccessModal();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const focusable = activeModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       }
     });
 
@@ -1578,9 +1602,9 @@
                 <div style="font-weight: 700;">${safeEmail}</div>
                 <div style="font-size: var(--font-xs); color: var(--color-text-muted); font-family: var(--font-family-mono);">${safeId.slice(0, 8)}...</div>
                 <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.35rem;">
-                  <button type="button" class="btn btn-xs ${t.hasTelegram ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasTelegram', ${!t.hasTelegram})" title="Toggle Telegram Bot plan entitlement">🤖 TG ${t.hasTelegram ? '✓' : '✗'}</button>
-                  <button type="button" class="btn btn-xs ${t.hasWhatsapp ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasWhatsapp', ${!t.hasWhatsapp})" title="Toggle WhatsApp Support Line plan entitlement">💬 WA ${t.hasWhatsapp ? '✓' : '✗'}</button>
-                  <button type="button" class="btn btn-xs ${t.hasWidget ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasWidget', ${!t.hasWidget})" title="Toggle Website Widget plan entitlement">🌐 Widget ${t.hasWidget ? '✓' : '✗'}</button>
+                  <button type="button" class="btn btn-xs ${t.hasTelegram ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasTelegram', ${!t.hasTelegram})" aria-pressed="${Boolean(t.hasTelegram)}" title="Toggle Telegram Bot plan entitlement">🤖 TG ${t.hasTelegram ? '✓' : '✗'}</button>
+                  <button type="button" class="btn btn-xs ${t.hasWhatsapp ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasWhatsapp', ${!t.hasWhatsapp})" aria-pressed="${Boolean(t.hasWhatsapp)}" title="Toggle WhatsApp Support Line plan entitlement">💬 WA ${t.hasWhatsapp ? '✓' : '✗'}</button>
+                  <button type="button" class="btn btn-xs ${t.hasWidget ? 'btn-primary' : 'btn-secondary'}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px;" onclick="togglePlan('${safeId}', 'hasWidget', ${!t.hasWidget})" aria-pressed="${Boolean(t.hasWidget)}" title="Toggle Website Widget plan entitlement">🌐 Widget ${t.hasWidget ? '✓' : '✗'}</button>
                 </div>
               </td>
               <td>
@@ -1593,7 +1617,7 @@
               <td style="text-align: right;">
                 <div style="display: inline-flex; gap: 0.35rem; align-items: center;">
                   <button type="button" class="btn btn-secondary btn-sm" onclick="impersonateTenant('${safeId}')" aria-label="Log in as tenant ${safeEmail}" title="Log into tenant dashboard">🚀 Impersonate</button>
-                  <button type="button" class="btn btn-secondary btn-sm" onclick="openGrantAccessModal('${safeId}', '${safeEmail}')" aria-label="Grant free agent access to ${safeEmail}" title="Grant free agent access without payment" style="border-color: rgba(99, 102, 241, 0.4); color: var(--color-accent); font-weight: 600;">🎁 Free Access</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="openGrantAccessModal('${safeId}', '${safeEmail}', this)" aria-haspopup="dialog" aria-label="Grant free agent access to ${safeEmail}" title="Grant free agent access without payment" style="border-color: rgba(99, 102, 241, 0.4); color: var(--color-accent); font-weight: 600;">🎁 Free Access</button>
                   <select class="select" style="width: 105px; padding: 0.25rem 0.5rem; font-size: var(--font-xs); min-height: 32px;" aria-label="Subscription status for ${safeEmail}" onchange="updateSubscription('${safeId}', this.value)">
                     <option value="">Status...</option>
                     <option value="ACTIVE" ${t.subscriptionStatus === 'ACTIVE' ? 'selected' : ''}>Active</option>
@@ -1687,20 +1711,29 @@
     }
 
     let grantTargetTenantId = null;
+    let grantAccessTriggerEl = null;
 
-    function openGrantAccessModal(id, email) {
+    function openGrantAccessModal(id, email, triggerBtn) {
       grantTargetTenantId = id;
+      grantAccessTriggerEl = triggerBtn || document.activeElement;
       document.getElementById('grantAccessTargetEmail').textContent = email;
       document.getElementById('grantTelegram').checked = true;
       document.getElementById('grantWhatsapp').checked = true;
       document.getElementById('grantWidget').checked = true;
       document.getElementById('grantDuration').value = '0';
-      document.getElementById('grantAccessModal').style.display = 'flex';
+      const modal = document.getElementById('grantAccessModal');
+      modal.style.display = 'flex';
+      setTimeout(() => {
+        document.getElementById('grantTelegram').focus();
+      }, 50);
     }
 
     function closeGrantAccessModal() {
       grantTargetTenantId = null;
       document.getElementById('grantAccessModal').style.display = 'none';
+      if (grantAccessTriggerEl && typeof grantAccessTriggerEl.focus === 'function') {
+        grantAccessTriggerEl.focus();
+      }
     }
 
     async function submitGrantAccess() {

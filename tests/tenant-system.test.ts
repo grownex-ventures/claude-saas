@@ -74,7 +74,10 @@ describe('Step 1 & 2: Tenant Access Middleware & Subscription Verification', () 
     const setSpy = vi.spyOn(redis, 'set').mockResolvedValueOnce('OK' as any);
 
     const isActive = await verifyActiveSubscription('tenant-xyz');
-    expect(prisma.tenant.findUnique).toHaveBeenCalledWith({ where: { id: 'tenant-xyz' } });
+    expect(prisma.tenant.findUnique).toHaveBeenCalledWith({
+      where: { id: 'tenant-xyz' },
+      select: { subscriptionStatus: true }
+    });
     expect(setSpy).toHaveBeenCalledWith('tenant:tenant-xyz:status', 'ACTIVE', 'EX', 3600);
     expect(isActive).toBe(true);
   });

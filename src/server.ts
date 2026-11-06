@@ -282,6 +282,14 @@ export async function bootstrap(): Promise<{
 
   const shutdown = async (signal: string) => {
     console.log(`[Server] Received ${signal}. Starting graceful shutdown...`);
+
+    // Hard kill timer to prevent container/process hang during graceful shutdown
+    const forceExitTimeout = setTimeout(() => {
+      console.error('[Server] Graceful shutdown timed out after 10s. Forcing exit.');
+      process.exit(1);
+    }, 10000);
+    forceExitTimeout.unref();
+
     server.close(async () => {
       try {
         await botManager.onModuleDestroy();

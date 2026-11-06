@@ -1170,6 +1170,33 @@ paths:
         '200':
           description: Tenant channel plan updated.
 
+  /admin/tenants/{id}/grant-access:
+    post:
+      tags: [Admin]
+      summary: Grant free complimentary support agent access without payment
+      description: Activates tenant subscription, configures duration, updates Redis cache, and starts entitled bots.
+      security:
+        - AdminCookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hasTelegram: { type: boolean, default: true }
+                hasWhatsapp: { type: boolean, default: true }
+                hasWidget: { type: boolean, default: true }
+                durationDays: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Complimentary access granted successfully.
+
   /admin/tenants/{id}/verify-email:
     patch:
       tags: [Admin]

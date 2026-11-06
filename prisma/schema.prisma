@@ -53,6 +53,8 @@ model Tenant {
   mfaBackupCodes     Json?              // Array of SHA-256 hashed 10-char backup codes
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
+
+  @@index([subscriptionStatus, subscriptionExpiresAt])
 }
 
 model BotUserSession {
@@ -124,7 +126,6 @@ model WebChatSession {
   updatedAt       DateTime         @updatedAt
 
   @@unique([tenantId, sessionId])
-  @@index([tenantId, sessionId])
 }
 
 model WebChatMessage {
@@ -238,7 +239,6 @@ model PaymentInvoice {
   updatedAt        DateTime      @updatedAt
 
   @@index([tenantId, createdAt])
-  @@index([orderId])
   @@index([status])
 }
 

@@ -622,7 +622,13 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
     let bot = this.activeBots.get(tenantId);
     if (!bot) {
       const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId }
+        where: { id: tenantId },
+        select: {
+          id: true,
+          botToken: true,
+          subscriptionStatus: true,
+          panelApiUrl: true
+        }
       });
       if (!tenant || !tenant.botToken || tenant.subscriptionStatus !== 'ACTIVE') {
         return { success: false, error: 'Tenant bot not active' };

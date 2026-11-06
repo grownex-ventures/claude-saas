@@ -164,7 +164,12 @@ export class WhatsAppBotManagerService {
 
     // Fetch tenant details for panel URL
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: {
+        hasWhatsapp: true,
+        whatsappPanelUrl: true,
+        panelApiUrl: true
+      }
     });
 
     if (!tenant || !tenant.hasWhatsapp) {

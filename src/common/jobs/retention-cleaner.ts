@@ -39,16 +39,17 @@ export class RetentionCleanerService {
     try {
       const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
-      const [webCount, tgCount, waCount] = await Promise.all([
+      const [webCount, tgCount, waCount, auditCount] = await Promise.all([
         prisma.webChatMessage.deleteMany({ where: { createdAt: { lt: cutoff } } }),
         prisma.telegramChatMessage.deleteMany({ where: { createdAt: { lt: cutoff } } }),
-        prisma.whatsAppChatMessage.deleteMany({ where: { createdAt: { lt: cutoff } } })
+        prisma.whatsAppChatMessage.deleteMany({ where: { createdAt: { lt: cutoff } } }),
+        prisma.auditLog.deleteMany({ where: { createdAt: { lt: cutoff } } }).catch(() => ({ count: 0 }))
       ]);
 
-      const total = (webCount?.count || 0) + (tgCount?.count || 0) + (waCount?.count || 0);
+      const total = (webCount?.count || 0) + (tgCount?.count || 0) + (waCount?.count || 0) + (auditCount?.count || 0);
 
       console.log(
-        `[RetentionCleaner] Successfully purged ${total} chat records (${webCount?.count || 0} web, ${tgCount?.count || 0} telegram, ${waCount?.count || 0} whatsapp) older than ${retentionDays} days (cutoff: ${cutoff.toISOString()})`
+        `[RetentionCleaner] Successfully purged ${total} records (${webCount?.count || 0} web, ${tgCount?.count || 0} telegram, ${waCount?.count || 0} whatsapp, ${auditCount?.count || 0} audit logs) older than ${retentionDays} days (cutoff: ${cutoff.toISOString()})`
       );
 
       return {

@@ -103,7 +103,14 @@ export class TenantsService {
    */
   async activate(tenantId: string): Promise<ActivationResult> {
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: {
+        id: true,
+        hasTelegram: true,
+        botToken: true,
+        panelApiUrl: true,
+        telegramPanelUrl: true
+      }
     });
 
     if (!tenant) {
@@ -159,7 +166,8 @@ export class TenantsService {
    */
   async deactivate(tenantId: string): Promise<ActivationResult> {
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: { id: true, botToken: true }
     });
 
     if (!tenant) {
@@ -193,7 +201,8 @@ export class TenantsService {
    */
   async configureWhatsApp(tenantId: string, dto: ConfigureWhatsAppDto & { panelApiUrl?: string }) {
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: { id: true, hasWhatsapp: true, panelApiUrl: true }
     });
 
     if (!tenant) {
@@ -245,7 +254,14 @@ export class TenantsService {
    */
   async startWhatsApp(tenantId: string, options?: { mode?: 'qr' | 'pairing'; phoneNumber?: string; forceRestart?: boolean; panelApiUrl?: string }) {
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: {
+        id: true,
+        hasWhatsapp: true,
+        whatsAppPhoneNumber: true,
+        panelApiUrl: true,
+        whatsappPanelUrl: true
+      }
     });
 
     if (!tenant) {
@@ -308,7 +324,14 @@ export class TenantsService {
    */
   async requestPairingCode(tenantId: string, phoneNumber: string, panelApiUrl?: string) {
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: {
+        id: true,
+        hasWhatsapp: true,
+        whatsAppPhoneNumber: true,
+        panelApiUrl: true,
+        whatsappPanelUrl: true
+      }
     });
 
     if (!tenant) {
@@ -372,7 +395,14 @@ export class TenantsService {
    */
   async getWhatsAppStatus(tenantId: string) {
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: {
+        hasWhatsapp: true,
+        whatsAppEnabled: true,
+        whatsAppPhoneNumber: true,
+        whatsappPanelUrl: true,
+        panelApiUrl: true
+      }
     });
 
     if (!tenant) {
@@ -514,7 +544,8 @@ export class TenantsService {
     }
   ) {
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: { id: true, hasWidget: true, panelApiUrl: true }
     });
 
     if (!tenant) {
@@ -643,7 +674,8 @@ export class TenantsService {
     }
 
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: { id: true, passwordHash: true }
     });
 
     if (!tenant) {

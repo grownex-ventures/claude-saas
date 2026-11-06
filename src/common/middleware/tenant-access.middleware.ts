@@ -33,7 +33,8 @@ export async function verifyActiveSubscription(tenantId: string): Promise<boolea
   }
 
   const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId }
+    where: { id: tenantId },
+    select: { subscriptionStatus: true }
   });
 
   if (!tenant) {
