@@ -204,7 +204,11 @@ const addLog = (...args) => {
 
 const isSetUp = (s, ch) => s[ch].status !== "not_setup";
 const planOf = (s) => PLANS.find((p) => p.id === s.plan) || PLANS[0];
-const isLocked = (s, ch) => !planOf(s).channels.includes(ch);
+const isLocked = (s, ch) => {
+    if (ch === "whatsapp" && (s.hasWhatsapp || s.whatsapp?.status === "live")) return false;
+    if (ch === "widget" && (s.hasWidget || s.widget?.status === "live")) return false;
+    return !planOf(s).channels.includes(ch);
+};
 
 /** No synthetic mock traffic — real production state only */
 function seedTraffic(s) {
@@ -221,13 +225,17 @@ export const getAccount = async () => {
             const s = load();
             s.tenantId = me.id;
             s.emailVerified = Boolean(me.emailVerified);
+            s.hasWhatsapp = Boolean(me.hasWhatsapp);
+            s.hasWidget = Boolean(me.hasWidget);
+            const isPro = me.subscriptionStatus === "ACTIVE" || Boolean(me.hasWhatsapp);
+            s.plan = isPro ? "pro" : "starter";
             save(s);
             return {
                 tenantId: me.id,
                 email: me.email,
                 emailVerified: Boolean(me.emailVerified),
                 verificationSentAt: null,
-                plan: PLANS.find((p) => p.id === (me.subscriptionStatus === "ACTIVE" ? "pro" : "starter")) || PLANS[1],
+                plan: PLANS.find((p) => p.id === (isPro ? "pro" : "starter")) || PLANS[1],
                 trial: me.subscriptionStatus !== "ACTIVE",
                 trialEndsAt: me.subscriptionExpiresAt ? new Date(me.subscriptionExpiresAt).getTime() : Date.now() + 14 * DAY,
             };
@@ -309,9 +317,17 @@ export const getChannels = async () => {
                 s.panel.connected = true;
                 s.panel.url = me.panelApiUrl;
             }
-            if (me.whatsAppPhoneNumber || me.hasWhatsapp) {
+            if (me.hasWhatsapp) {
+                s.hasWhatsapp = true;
+            }
+            if (me.hasWidget) {
+                s.hasWidget = true;
+            }
+            if (me.whatsAppPhoneNumber && (me.hasWhatsapp || me.whatsAppEnabled)) {
                 s.whatsapp.status = "live";
-                s.whatsapp.number = me.whatsAppPhoneNumber || null;
+                s.whatsapp.number = me.whatsAppPhoneNumber;
+            } else if (!s.whatsapp.qr && s.whatsapp.status !== "pending") {
+                s.whatsapp.status = "not_setup";
             }
             if (me.hasWidget || me.widgetEnabled) {
                 s.widget.status = "live";
@@ -460,14 +476,18 @@ export const markShared = () =>
 
 export const startWhatsAppSession = async () => {
     try {
+        const s = load();
+        const panelUrl = s.panel?.url || "https://indianprovider.com/api/v2";
         const res = await apiRequest("/api/v1/tenants/whatsapp/start", {
             method: "POST",
-            body: { mode: "qr" },
+            body: { mode: "qr", panelApiUrl: panelUrl },
         });
-        const s = load();
-        s.whatsapp.status = "pending";
+        s.whatsapp.status = res.connected ? "live" : "pending";
+        if (res.connected && res.phoneNumber) {
+            s.whatsapp.number = res.phoneNumber;
+        }
         s.whatsapp.qr = {
-            value: res.qr || res.qrDataUrl || `ysmm-wa-session`,
+            value: res.lastQR || res.qrDataUrl || `ysmm-wa-session`,
             qrDataUrl: res.qrDataUrl || null,
             createdAt: now(),
             expiresAt: now() + 60_000,
@@ -481,12 +501,27 @@ export const startWhatsAppSession = async () => {
     }
 };
 
-export const getWhatsAppQR = () =>
-    call((s) => {
+export const getWhatsAppQR = async () => {
+    try {
+        const res = await apiRequest("/api/v1/tenants/whatsapp/status");
+        if (res && res.qrDataUrl) {
+            const s = load();
+            s.whatsapp.qr = {
+                value: res.lastQR || res.qrDataUrl,
+                qrDataUrl: res.qrDataUrl,
+                createdAt: now(),
+                expiresAt: now() + 60_000,
+            };
+            save(s);
+            return s.whatsapp.qr;
+        }
+    } catch (_) {}
+    return call((s) => {
         const qr = s.whatsapp.qr;
         if (!qr) fail("No active linking session. Click Generate QR.");
         return { ...qr, expired: now() > qr.expiresAt };
     }, 250);
+};
 
 export const getWhatsAppStatus = async () => {
     try {
@@ -495,11 +530,21 @@ export const getWhatsAppStatus = async () => {
         if (res && res.connected) {
             Object.assign(s.whatsapp, {
                 status: "live",
-                number: res.phoneNumber || res.number || null,
-                connectedAt: now(),
+                number: res.phoneNumber || s.whatsapp.number || null,
+                connectedAt: s.whatsapp.connectedAt || now(),
                 lastActivity: now(),
                 qr: null,
             });
+            save(s);
+            return { ...s.whatsapp };
+        } else if (res && res.qrDataUrl) {
+            s.whatsapp.status = "pending";
+            s.whatsapp.qr = {
+                value: res.lastQR || res.qrDataUrl,
+                qrDataUrl: res.qrDataUrl,
+                createdAt: now(),
+                expiresAt: now() + 60_000,
+            };
             save(s);
             return { ...s.whatsapp };
         } else if (res && !res.connected && s.whatsapp.status === "live") {
@@ -515,14 +560,24 @@ export const getWhatsAppStatus = async () => {
     }, 250);
 };
 
-export const sendWhatsAppTest = () =>
-    call((s) => {
-        if (s.whatsapp.status !== "live") fail("Connect WhatsApp before sending a test.");
+export const sendWhatsAppTest = async () => {
+    const s = load();
+    if (s.whatsapp.status !== "live") fail("Connect WhatsApp before sending a test.");
+    try {
+        const res = await apiRequest("/api/v1/tenants/whatsapp/test", { method: "POST" });
         s.whatsapp.lastActivity = now();
         s.onboarding.testSent = true;
-        addLog("info", "whatsapp", `Test message sent to ${s.whatsapp.number}`, { event: "wa.test" });
-        return { message: `Test message sent to ${s.whatsapp.number}.` };
-    }, 1000);
+        addLog("info", "whatsapp", res.message || `Test message sent to ${s.whatsapp.number}`, { event: "wa.test" });
+        save(s);
+        return { message: res.message || `WhatsApp is active and connected as ${s.whatsapp.number}.` };
+    } catch (err) {
+        s.whatsapp.lastActivity = now();
+        s.onboarding.testSent = true;
+        addLog("info", "whatsapp", `WhatsApp test checked (${err.message})`, { event: "wa.test" });
+        save(s);
+        throw err;
+    }
+};
 
 export const disconnectWhatsApp = async () => {
     try {

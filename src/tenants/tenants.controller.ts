@@ -217,6 +217,17 @@ export class TenantsController {
       }
     });
 
+    // POST /api/tenants/whatsapp/test
+    this.router.post('/whatsapp/test', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await this.tenantsService.testWhatsApp(tenantId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'WhatsApp test failed' });
+      }
+    });
+
     // POST /api/tenants/widget/configure
     this.router.post('/widget/configure', async (req: AuthenticatedRequest, res: Response) => {
       try {

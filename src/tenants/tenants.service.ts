@@ -203,7 +203,7 @@ export class TenantsService {
   async configureWhatsApp(tenantId: string, dto: ConfigureWhatsAppDto & { panelApiUrl?: string }) {
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, hasWhatsapp: true, panelApiUrl: true }
+      select: { id: true, hasWhatsapp: true, panelApiUrl: true, subscriptionStatus: true }
     });
 
     if (!tenant) {
@@ -211,7 +211,15 @@ export class TenantsService {
     }
 
     if (!tenant.hasWhatsapp) {
-      throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+      if (tenant.subscriptionStatus !== 'EXPIRED') {
+        await prisma.tenant.update({
+          where: { id: tenantId },
+          data: { hasWhatsapp: true }
+        });
+        tenant.hasWhatsapp = true;
+      } else {
+        throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+      }
     }
 
     const data: any = {};
@@ -261,7 +269,8 @@ export class TenantsService {
         hasWhatsapp: true,
         whatsAppPhoneNumber: true,
         panelApiUrl: true,
-        whatsappPanelUrl: true
+        whatsappPanelUrl: true,
+        subscriptionStatus: true
       }
     });
 
@@ -270,7 +279,15 @@ export class TenantsService {
     }
 
     if (!tenant.hasWhatsapp) {
-      throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+      if (tenant.subscriptionStatus !== 'EXPIRED') {
+        await prisma.tenant.update({
+          where: { id: tenantId },
+          data: { hasWhatsapp: true }
+        });
+        tenant.hasWhatsapp = true;
+      } else {
+        throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+      }
     }
 
     let activePanelUrl = tenant.whatsappPanelUrl || tenant.panelApiUrl;
@@ -311,6 +328,17 @@ export class TenantsService {
       options?.forceRestart ?? false
     );
 
+    if (mode === 'qr' && !service.isConnected() && !service.lastQRDataUrl) {
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => resolve(), 3000);
+        const onQr = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+        service.events.once('qr', onQr);
+      });
+    }
+
     return {
       status: service.connectionStatus,
       pairingCode: service.pairingCode,
@@ -331,7 +359,8 @@ export class TenantsService {
         hasWhatsapp: true,
         whatsAppPhoneNumber: true,
         panelApiUrl: true,
-        whatsappPanelUrl: true
+        whatsappPanelUrl: true,
+        subscriptionStatus: true
       }
     });
 
@@ -340,7 +369,15 @@ export class TenantsService {
     }
 
     if (!tenant.hasWhatsapp) {
-      throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+      if (tenant.subscriptionStatus !== 'EXPIRED') {
+        await prisma.tenant.update({
+          where: { id: tenantId },
+          data: { hasWhatsapp: true }
+        });
+        tenant.hasWhatsapp = true;
+      } else {
+        throw new Error('WhatsApp Support Line is not included in your active plan. Please upgrade your plan.');
+      }
     }
 
     const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
@@ -460,6 +497,37 @@ export class TenantsService {
 
   getWhatsAppManager(): WhatsAppBotManagerService {
     return this.whatsAppBotManagerService;
+  }
+
+  /**
+   * Tests tenant's WhatsApp line and reports live status.
+   */
+  async testWhatsApp(tenantId: string) {
+    const service = this.whatsAppBotManagerService.getService(tenantId);
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { whatsAppPhoneNumber: true, whatsAppEnabled: true, hasWhatsapp: true }
+    });
+
+    if (!service || !service.isConnected()) {
+      return {
+        success: false,
+        connected: false,
+        status: service?.connectionStatus || 'close',
+        message: 'WhatsApp is not connected. Please scan the QR code to connect your number.'
+      };
+    }
+
+    const sock = service.getSocket();
+    const rawId = sock?.user?.id || '';
+    const phone = rawId ? `+${rawId.split(':')[0].replace(/[^0-9]/g, '')}` : tenant?.whatsAppPhoneNumber;
+    return {
+      success: true,
+      connected: true,
+      status: 'open',
+      phoneNumber: phone || tenant?.whatsAppPhoneNumber || 'Active Session',
+      message: `WhatsApp is connected as ${phone || tenant?.whatsAppPhoneNumber || 'Active Session'}. AI agent is ready to handle messages.`
+    };
   }
 
   /**

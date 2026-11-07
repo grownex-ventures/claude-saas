@@ -24,8 +24,8 @@ model Tenant {
   whatsappPanelUrl   String?
   widgetPanelUrl     String?
   hasTelegram        Boolean            @default(true)
-  hasWhatsapp        Boolean            @default(false)
-  hasWidget          Boolean            @default(false)
+  hasWhatsapp        Boolean            @default(true)
+  hasWidget          Boolean            @default(true)
   subscriptionStatus SubscriptionStatus @default(INACTIVE)
   subscriptionExpiresAt DateTime?
   invoices           PaymentInvoice[]

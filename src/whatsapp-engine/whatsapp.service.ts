@@ -13,6 +13,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { formatWhatsAppMessage } from './formatter.js';
 import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
+import { prisma } from '../common/database/prisma.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'silent' });
 
@@ -152,6 +153,19 @@ export class WhatsAppService {
         this.lastQRDataUrl = null;
         this.pairingCode = null;
         this.connectionStatus = 'open';
+
+        const rawId = this.sock?.user?.id || '';
+        const phone = rawId.split(':')[0].replace(/[^0-9]/g, '');
+        if (phone) {
+          prisma.tenant.update({
+            where: { id: this.config.tenantId },
+            data: {
+              whatsAppPhoneNumber: `+${phone}`,
+              whatsAppEnabled: true,
+              hasWhatsapp: true
+            }
+          }).catch(() => null);
+        }
 
         RuntimeLogService.record({
           tenantId: this.config.tenantId,

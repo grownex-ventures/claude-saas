@@ -26,7 +26,15 @@ export default function WhatsAppFlow({ data }) {
 }
 
 function GenerateStep() {
-    const start = useAppMutation(startWhatsAppSession, { success: "QR code ready — scan it with WhatsApp" });
+    const qc = useQueryClient();
+    const start = useAppMutation(startWhatsAppSession, {
+        success: "QR code ready — scan it with WhatsApp",
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["channels"] });
+            qc.invalidateQueries({ queryKey: ["wa-qr"] });
+            qc.invalidateQueries({ queryKey: ["wa-status"] });
+        },
+    });
     return (
         <div data-testid="whatsapp-step-generate">
             <h3 className="text-base font-semibold app-heading">Link your support number</h3>
@@ -41,35 +49,46 @@ function GenerateStep() {
 function ScanStep() {
     const qc = useQueryClient();
     const qr = useAppQuery(["wa-qr"], getWhatsAppQR, { staleTime: 0 });
-    const refresh = useAppMutation(startWhatsAppSession, { success: "New QR code generated" });
+    const refresh = useAppMutation(startWhatsAppSession, {
+        success: "New QR code generated",
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["wa-qr"] });
+            qc.invalidateQueries({ queryKey: ["wa-status"] });
+        },
+    });
     const [left, setLeft] = useState(60);
 
     // Poll for the scan.
     const status = useAppQuery(["wa-status"], getWhatsAppStatus, { refetchInterval: 2000, staleTime: 0 });
     useEffect(() => {
         if (status.data?.status !== "live") return;
-        toast.success(`WhatsApp connected as ${status.data.number}`);
+        toast.success(`WhatsApp connected as ${status.data.number || "Active Session"}`);
         qc.invalidateQueries({ queryKey: ["app"] });
+        qc.invalidateQueries({ queryKey: ["channels"] });
+        qc.invalidateQueries({ queryKey: ["account"] });
     }, [status.data?.status, status.data?.number, qc]);
 
+    const activeQR = qr.data?.qrDataUrl ? qr.data : (status.data?.qrDataUrl ? status.data : qr.data);
+
     useEffect(() => {
-        if (!qr.data) return undefined;
-        const tick = () => setLeft(Math.max(0, Math.round((qr.data.expiresAt - Date.now()) / 1000)));
+        if (!activeQR?.expiresAt) return undefined;
+        const tick = () => setLeft(Math.max(0, Math.round((activeQR.expiresAt - Date.now()) / 1000)));
         tick();
         const t = setInterval(tick, 1000);
         return () => clearInterval(t);
-    }, [qr.data]);
+    }, [activeQR]);
 
     const expired = left === 0;
+    const qrUrl = activeQR?.qrDataUrl;
     return (
         <div className="grid gap-6 sm:grid-cols-[auto_1fr] sm:items-start" data-testid="whatsapp-step-scan">
             <div className="relative mx-auto w-[220px] rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700">
-                {qr.isLoading || !qr.data ? (
+                {qr.isLoading && !qrUrl ? (
                     <Skeleton className="h-[188px] w-[188px]" />
-                ) : qr.data.qrDataUrl ? (
-                    <img src={qr.data.qrDataUrl} alt="WhatsApp linking QR code" className="h-[188px] w-[188px] object-contain" data-testid="whatsapp-qr" />
+                ) : qrUrl ? (
+                    <img src={qrUrl} alt="WhatsApp linking QR code" className="h-[188px] w-[188px] object-contain" data-testid="whatsapp-qr" />
                 ) : (
-                    <FakeQR value={qr.data.value} />
+                    <FakeQR value={activeQR?.value || "ysmm-wa-session"} />
                 )}
                 {expired && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl bg-white/90 backdrop-blur-sm dark:bg-slate-900/90" data-testid="whatsapp-qr-expired">
@@ -102,10 +121,25 @@ function ScanStep() {
 }
 
 function ConnectedStep({ data }) {
+    const qc = useQueryClient();
     const [confirm, setConfirm] = useState(false);
     const test = useAppMutation(sendWhatsAppTest, { success: (r) => r.message });
-    const disconnect = useAppMutation(disconnectWhatsApp, { success: "WhatsApp disconnected", onSuccess: () => setConfirm(false) });
-    const reconnect = useAppMutation(startWhatsAppSession, { success: "Scan the new QR to reconnect" });
+    const disconnect = useAppMutation(disconnectWhatsApp, {
+        success: "WhatsApp disconnected",
+        onSuccess: () => {
+            setConfirm(false);
+            qc.invalidateQueries({ queryKey: ["channels"] });
+            qc.invalidateQueries({ queryKey: ["wa-status"] });
+        },
+    });
+    const reconnect = useAppMutation(startWhatsAppSession, {
+        success: "Scan the new QR to reconnect",
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["channels"] });
+            qc.invalidateQueries({ queryKey: ["wa-qr"] });
+            qc.invalidateQueries({ queryKey: ["wa-status"] });
+        },
+    });
     return (
         <div data-testid="whatsapp-step-connected">
             <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">

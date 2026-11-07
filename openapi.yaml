@@ -602,6 +602,27 @@ paths:
         '200':
           description: WhatsApp disconnected.
 
+  /tenants/whatsapp/test:
+    post:
+      tags: [Tenants]
+      summary: Test tenant WhatsApp connection status
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: WhatsApp status test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  connected: { type: boolean }
+                  status: { type: string }
+                  phoneNumber: { type: string, nullable: true }
+                  message: { type: string }
+
   /tenants/widget/configure:
     post:
       tags: [Tenants]
