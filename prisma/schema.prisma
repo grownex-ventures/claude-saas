@@ -18,6 +18,7 @@ model Tenant {
   email              String             @unique
   passwordHash       String
   botToken           String?            @unique
+  botUsername        String?
   panelApiUrl        String?
   telegramPanelUrl   String?
   whatsappPanelUrl   String?

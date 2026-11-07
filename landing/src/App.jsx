@@ -1,21 +1,22 @@
-import { Component, useEffect } from "react";
-import Lenis from "lenis";
-import Header from "@/components/landing/Header";
-import Hero from "@/components/landing/Hero";
-import Marquee from "@/components/landing/Marquee";
-import PainPoints from "@/components/landing/PainPoints";
-import Introducing from "@/components/landing/Introducing";
-import Channels from "@/components/landing/Channels";
-import Integration from "@/components/landing/Integration";
-import HowItWorks from "@/components/landing/HowItWorks";
-import Capabilities from "@/components/landing/Capabilities";
-import ConversationsDemo from "@/components/landing/ConversationsDemo";
-import Benefits from "@/components/landing/Benefits";
-import WhoItsFor from "@/components/landing/WhoItsFor";
-import TrustSecurity from "@/components/landing/TrustSecurity";
-import FAQ from "@/components/landing/FAQ";
-import FinalCTA from "@/components/landing/FinalCTA";
-import Footer from "@/components/landing/Footer";
+import { Component } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import Signup from "@/pages/Signup";
+import ForgotPassword from "@/pages/ForgotPassword";
+import AuthCallback from "@/pages/AuthCallback";
+import AppShell from "@/components/app/AppShell";
+import Overview from "@/pages/app/Overview";
+import Channels from "@/pages/app/Channels";
+import Inbox from "@/pages/app/Inbox";
+import AIKnowledge from "@/pages/app/AIKnowledge";
+import PanelConnection from "@/pages/app/PanelConnection";
+import Logs from "@/pages/app/Logs";
+import Billing from "@/pages/app/Billing";
+import Settings from "@/pages/app/Settings";
+import Support from "@/pages/app/Support";
+import { GuestOnly, RequireAuth } from "@/lib/auth";
+import { IS_APP_HOST, ROUTES } from "@/lib/site";
 
 class ErrorBoundary extends Component {
     constructor(props) {
@@ -37,69 +38,52 @@ class ErrorBoundary extends Component {
     }
 }
 
-function useSmoothScroll() {
-    useEffect(() => {
-        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-        const lenis = new Lenis({ duration: 1.1, smoothWheel: true });
-        let raf = requestAnimationFrame(function loop(t) {
-            lenis.raf(t);
-            raf = requestAnimationFrame(loop);
-        });
-        const onClick = (e) => {
-            const a = e.target.closest ? e.target.closest('a[href^="#"]') : null;
-            if (!a) return;
-            const hash = a.getAttribute("href");
-            if (!hash || hash.length < 2) return;
-            const el = document.querySelector(hash);
-            if (!el) return;
-            e.preventDefault();
-            lenis.scrollTo(el, { offset: -72 });
-        };
-        document.addEventListener("click", onClick);
-        return () => {
-            cancelAnimationFrame(raf);
-            lenis.destroy();
-            document.removeEventListener("click", onClick);
-        };
-    }, []);
-}
-
-function Home() {
-    useSmoothScroll();
-    return (
-        <div id="top" className="min-h-screen bg-white text-slate-900">
-            <a
-                href="#main-content"
-                className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-indigo-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
-            >
-                Skip to content
-            </a>
-            <Header />
-            <main id="main-content">
-                <Hero />
-                <Marquee />
-                <PainPoints />
-                <Introducing />
-                <Channels />
-                <Integration />
-                <HowItWorks />
-                <Capabilities />
-                <ConversationsDemo />
-                <Benefits />
-                <WhoItsFor />
-                <TrustSecurity />
-                <FAQ />
-                <FinalCTA />
-            </main>
-            <Footer />
-        </div>
-    );
-}
+const loginPage = (
+    <GuestOnly>
+        <Login />
+    </GuestOnly>
+);
 
 export default function App() {
     return (
         <ErrorBoundary>
-            <Home />
+            <Routes>
+                {/* app.yoursmmagent.com/ -> Login, yoursmmagent.com/ -> Landing */}
+                <Route path="/" element={IS_APP_HOST ? loginPage : <Landing />} />
+                <Route path="/login" element={IS_APP_HOST ? <Navigate to="/" replace /> : loginPage} />
+                <Route
+                    path={ROUTES.signup}
+                    element={
+                        <GuestOnly>
+                            <Signup />
+                        </GuestOnly>
+                    }
+                />
+                <Route path={ROUTES.forgotPassword} element={<ForgotPassword />} />
+                <Route path={ROUTES.authCallback} element={<AuthCallback />} />
+                <Route
+                    path="/dashboard"
+                    element={
+                        <RequireAuth>
+                            <AppShell />
+                        </RequireAuth>
+                    }
+                >
+                    <Route index element={<Overview />} />
+                    <Route path="channels" element={<Channels />} />
+                    <Route path="inbox" element={<Inbox />} />
+                    <Route path="ai" element={<AIKnowledge />} />
+                    <Route path="panel" element={<PanelConnection />} />
+                    <Route path="logs" element={<Logs />} />
+                    <Route path="billing" element={<Billing />} />
+                    <Route path="settings" element={<Settings />} />
+                    <Route path="support" element={<Support />} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Route>
+                <Route path="/app/*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/app" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
         </ErrorBoundary>
     );
 }

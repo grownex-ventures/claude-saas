@@ -37,12 +37,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/client"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/client", "https://static.cloudflareinsights.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com/gsi/style"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", 'data:', 'https:'],
         frameSrc: ["'self'", "https://accounts.google.com/gsi/"],
-        connectSrc: ["'self'", "https://accounts.google.com/gsi/"],
+        connectSrc: ["'self'", "https://accounts.google.com/gsi/", "https://cloudflareinsights.com", "https://static.cloudflareinsights.com"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],
       },
@@ -125,17 +125,36 @@ if (fs.existsSync(landingDist)) {
 // Serve public static assets (disabling automatic index.html)
 app.use(express.static('public', { index: false }));
 
-// Separate page slugs for UI
+// Separate page slugs for UI (served from modern React SPA if built, otherwise legacy public)
 app.get('/login', (_req, res) => {
+  if (fs.existsSync(landingDist)) {
+    return res.sendFile(path.join(landingDist, 'index.html'));
+  }
   res.sendFile(path.join(process.cwd(), 'public', 'login.html'));
 });
 
 app.get('/signup', (_req, res) => {
+  if (fs.existsSync(landingDist)) {
+    return res.sendFile(path.join(landingDist, 'index.html'));
+  }
   res.sendFile(path.join(process.cwd(), 'public', 'signup.html'));
 });
 
-app.get('/dashboard', (_req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'dashboard.html'));
+// Modern React User Dashboard SPA (served from landing/dist)
+app.get(['/dashboard', '/dashboard/*'], (_req, res) => {
+  if (fs.existsSync(landingDist)) {
+    return res.sendFile(path.join(landingDist, 'index.html'));
+  }
+  const oldDash = path.join(process.cwd(), 'public', 'dashboard.html');
+  if (fs.existsSync(oldDash)) {
+    return res.sendFile(oldDash);
+  }
+  return res.redirect('/login');
+});
+
+// Redirect legacy /app requests straight to /dashboard
+app.get(['/app', '/app/*'], (_req, res) => {
+  return res.redirect('/dashboard');
 });
 
 app.get('/reset-password', (_req, res) => {

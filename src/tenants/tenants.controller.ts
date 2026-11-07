@@ -274,6 +274,34 @@ export class TenantsController {
       }
     });
 
+    // GET /api/tenants/conversations
+    this.router.get('/conversations', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { channel, search, limit } = (req.query || {}) as Record<string, string>;
+        const conversations = await this.tenantsService.getConversations(tenantId, {
+          channel,
+          search,
+          limit: limit ? parseInt(limit, 10) : 50
+        });
+        res.status(200).json({ success: true, conversations });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to fetch conversations' });
+      }
+    });
+
+    // GET /api/tenants/overview-stats
+    this.router.get('/overview-stats', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const range = req.query.range ? parseInt(req.query.range as string, 10) : 7;
+        const stats = await this.tenantsService.getOverviewStats(tenantId, range);
+        res.status(200).json({ success: true, ...stats });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to fetch overview stats' });
+      }
+    });
+
     // GET /api/tenants/logs
     this.router.get('/logs', (req: AuthenticatedRequest, res: Response) => this.getLogs(req, res));
 

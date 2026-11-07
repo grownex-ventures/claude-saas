@@ -23,6 +23,7 @@ export class AuthController {
     this.router.post('/logout', this.logout.bind(this));
     this.router.post('/forgot-password', this.forgotPassword.bind(this));
     this.router.post('/reset-password', this.resetPassword.bind(this));
+    this.router.post('/change-password', tenantAccessMiddleware, this.changePassword.bind(this));
     this.router.get('/csrf', this.getCsrf.bind(this));
     this.router.get('/me', tenantAccessMiddleware, this.getMe.bind(this));
 
@@ -424,6 +425,22 @@ export class AuthController {
   }
 
   /**
+   * POST /api/auth/change-password
+   * Updates password for authenticated tenant after verifying current password
+   */
+  async changePassword(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const tenantId = req.tenantId!;
+      const { current, next } = req.body || {};
+      const result = await authService.changePassword(tenantId, current, next);
+      res.status(200).json(result);
+    } catch (err: any) {
+      const statusCode = err.statusCode || 400;
+      res.status(statusCode).json({ success: false, error: err.message || 'Failed to change password' });
+    }
+  }
+
+  /**
    * GET /api/auth/me
    * Fetches session profile for currently authenticated tenant
    */
@@ -447,6 +464,7 @@ export class AuthController {
           subscriptionStatus: tenant.subscriptionStatus,
           subscriptionExpiresAt: tenant.subscriptionExpiresAt,
           botToken: tenant.botToken,
+          botUsername: tenant.botUsername || null,
           panelApiUrl: tenant.panelApiUrl,
           telegramPanelUrl: tenant.telegramPanelUrl || tenant.panelApiUrl,
           whatsappPanelUrl: tenant.whatsappPanelUrl || tenant.panelApiUrl,

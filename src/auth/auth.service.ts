@@ -25,6 +25,7 @@ export interface SafeTenant {
   email: string;
   subscriptionStatus: string;
   botToken: string | null;
+  botUsername: string | null;
   panelApiUrl: string | null;
   emailVerified: boolean;
   emailVerifiedAt: Date | null;
@@ -143,9 +144,21 @@ export class AuthService {
       throw error;
     }
 
-    const tenant = await prisma.tenant.findUnique({
+    let tenant = await prisma.tenant.findUnique({
       where: { email }
     });
+
+    if (!tenant && !email.includes('@')) {
+      // Allow login by username / email prefix (e.g., 'grownexventures')
+      tenant = await prisma.tenant.findFirst({
+        where: {
+          email: {
+            startsWith: `${email}@`,
+            mode: 'insensitive'
+          }
+        }
+      });
+    }
 
     if (!tenant) {
       // Execute dummy verify to equalize response latency against timing attacks
@@ -731,6 +744,51 @@ export class AuthService {
   }
 
   /**
+   * Authenticated password change verifying current password before hashing new password
+   */
+  async changePassword(tenantId: string, currentPass: string, newPass: string): Promise<{ success: boolean; message: string }> {
+    if (!currentPass) {
+      const error: any = new Error('Current password is required.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (!newPass || newPass.length < 8) {
+      const error: any = new Error('New password must be at least 8 characters long.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId }
+    });
+
+    if (!tenant) {
+      const error: any = new Error('Tenant not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const valid = await this.verifyPassword(tenant.passwordHash, currentPass);
+    if (!valid) {
+      const error: any = new Error('Current password is incorrect.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const passwordHash = await this.hashPassword(newPass);
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { passwordHash }
+    });
+
+    return {
+      success: true,
+      message: 'Password changed successfully.'
+    };
+  }
+
+  /**
    * Generates a signed JWT for the authenticated tenant.
    */
   generateToken(tenantId: string, email: string): string {
@@ -751,6 +809,7 @@ export class AuthService {
       email: tenant.email,
       subscriptionStatus: tenant.subscriptionStatus,
       botToken: tenant.botToken ?? null,
+      botUsername: tenant.botUsername ?? null,
       panelApiUrl: tenant.panelApiUrl ?? null,
       emailVerified: Boolean(tenant.emailVerified),
       emailVerifiedAt: tenant.emailVerifiedAt ?? null,

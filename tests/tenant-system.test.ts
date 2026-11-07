@@ -255,6 +255,7 @@ describe('Step 5: Admin Onboarding & Activation Endpoints', () => {
       where: { id: 'tenant-cfg' },
       data: {
         botToken: expect.stringMatching(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/),
+        botUsername: 'test_bot',
         panelApiUrl: 'https://api.panel.com',
         telegramPanelUrl: 'https://api.panel.com'
       }

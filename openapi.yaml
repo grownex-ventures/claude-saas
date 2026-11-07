@@ -155,6 +155,29 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequestError'
 
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Update password for authenticated tenant
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current, next]
+              properties:
+                current: { type: string, format: password }
+                next: { type: string, format: password, minLength: 8 }
+      responses:
+        '200':
+          description: Password changed successfully.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
   /auth/csrf:
     get:
       tags: [Auth]
@@ -644,6 +667,46 @@ paths:
                   message: { type: string }
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/conversations:
+    get:
+      tags: [Tenants]
+      summary: Retrieve real multi-channel customer conversations
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: channel
+          in: query
+          schema: { type: string, enum: [all, telegram, whatsapp, widget] }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        '200':
+          description: List of active customer conversations across channels.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/overview-stats:
+    get:
+      tags: [Tenants]
+      summary: Retrieve aggregated conversation metrics and trend series
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: range
+          in: query
+          schema: { type: integer, default: 7 }
+      responses:
+        '200':
+          description: Operational volume and conversation count statistics.
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
