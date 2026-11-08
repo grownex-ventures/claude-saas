@@ -329,8 +329,13 @@ export const getChannels = async () => {
             } else if (!s.whatsapp.qr && s.whatsapp.status !== "pending") {
                 s.whatsapp.status = "not_setup";
             }
-            if (me.hasWidget || me.widgetEnabled) {
+            if (typeof me.widgetEnabled === "boolean") {
+                s.widget.status = me.widgetEnabled ? "live" : "offline";
+            } else if (me.hasWidget && s.widget.status !== "offline") {
                 s.widget.status = "live";
+            }
+            if (typeof me.whatsAppEnabled === "boolean" && !me.whatsAppEnabled) {
+                s.whatsapp.status = "offline";
             }
             save(s);
         }
@@ -626,7 +631,7 @@ export const getWidgetConfig = async () => {
         if (res) {
             const s = load();
             return {
-                status: res.widgetEnabled ? "live" : "not_setup",
+                status: res.widgetEnabled ? "live" : "offline",
                 tenantId: res.tenantId || s.tenantId,
                 panelUrl: res.panelApiUrl || s.panel.url,
                 config: {

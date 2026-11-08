@@ -472,6 +472,8 @@ export class AuthController {
           hasTelegram: Boolean(tenant.hasTelegram),
           hasWhatsapp: Boolean(tenant.hasWhatsapp),
           hasWidget: Boolean(tenant.hasWidget),
+          widgetEnabled: Boolean(tenant.widgetEnabled),
+          whatsAppEnabled: Boolean(tenant.whatsAppEnabled),
           emailVerified: Boolean(tenant.emailVerified),
           emailVerifiedAt: tenant.emailVerifiedAt,
           googleId: tenant.googleId,
