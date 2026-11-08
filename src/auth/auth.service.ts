@@ -282,7 +282,10 @@ export class AuthService {
    * Initializes MFA setup for an authenticated tenant.
    */
   async setupMfa(tenantId: string): Promise<Omit<TotpSetupResult, 'encryptedSecret' | 'hashedBackupCodes'>> {
-    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, email: true, mfaEnabled: true, passwordHash: true, mfaSecret: true }
+    });
     if (!tenant) {
       const error: any = new Error('Tenant not found');
       error.statusCode = 404;
@@ -382,7 +385,10 @@ export class AuthService {
       throw error;
     }
 
-    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, email: true, mfaEnabled: true, passwordHash: true, mfaSecret: true }
+    });
     if (!tenant) {
       const error: any = new Error('Tenant not found');
       error.statusCode = 404;
@@ -654,7 +660,8 @@ export class AuthService {
     }
 
     const tenant = await prisma.tenant.findUnique({
-      where: { email: cleanEmail }
+      where: { email: cleanEmail },
+      select: { id: true, email: true }
     });
 
     if (!tenant) {
@@ -760,7 +767,8 @@ export class AuthService {
     }
 
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: { id: true, passwordHash: true }
     });
 
     if (!tenant) {

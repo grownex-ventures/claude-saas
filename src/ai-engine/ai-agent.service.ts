@@ -204,6 +204,8 @@ export class AiAgentService {
     if (!isDynamic && !usedDynamicTool) {
       try {
         await redis.setex(cacheKey, 300, reply);
+        await redis.sadd(`tenant:${tenantId}:qcache_keys`, cacheKey);
+        await redis.expire(`tenant:${tenantId}:qcache_keys`, 360);
       } catch {}
     }
 

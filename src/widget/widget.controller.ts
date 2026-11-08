@@ -16,10 +16,9 @@ export const widgetChatLimiter = rateLimit({
   },
   keyGenerator: (req) => {
     const body = req.body || {};
-    const tenantId = body.tenantId || '';
-    const sessionId = body.sessionId || '';
-    const ip = req.ip || 'unknown';
-    return `${ip}:${tenantId}:${sessionId}`;
+    const tenantId = body.tenantId || 'global';
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    return `${ip}:${tenantId}`;
   },
   validate: false,
   skip: () => process.env.NODE_ENV === 'test'

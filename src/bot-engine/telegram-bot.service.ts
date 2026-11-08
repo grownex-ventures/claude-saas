@@ -55,7 +55,13 @@ export class TelegramBotService {
    */
   static async getDecryptedBotConfig(tenantId: string) {
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: {
+        id: true,
+        botToken: true,
+        panelApiUrl: true,
+        subscriptionStatus: true
+      }
     });
 
     if (!tenant || !tenant.botToken) return null;

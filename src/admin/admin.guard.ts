@@ -18,14 +18,23 @@ declare global {
 }
 
 export function getAdminJwtSecret(): string {
-  const secret = process.env.ADMIN_JWT_SECRET || (process.env.JWT_SECRET ? `${process.env.JWT_SECRET}_admin` : '');
-  if (!secret || secret.length < 32) {
-    if (process.env.NODE_ENV === 'test') {
-      return 'super_admin_test_secret_key_minimum_32_chars';
+  const secret = process.env.ADMIN_JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    if (!secret || secret.length < 32 || secret === process.env.JWT_SECRET) {
+      throw new Error('[FATAL] ADMIN_JWT_SECRET must be configured independently with at least 32 characters in production.');
     }
-    throw new Error('ADMIN_JWT_SECRET or JWT_SECRET must be configured with at least 32 characters');
+    return secret;
   }
-  return secret;
+  if (secret && secret.length >= 32) {
+    return secret;
+  }
+  if (process.env.NODE_ENV === 'test') {
+    return 'super_admin_test_secret_key_minimum_32_chars';
+  }
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 32) {
+    return `${process.env.JWT_SECRET}_admin`;
+  }
+  return 'super_admin_dev_secret_key_minimum_32_chars';
 }
 
 /**

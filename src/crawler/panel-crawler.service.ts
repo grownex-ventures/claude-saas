@@ -72,13 +72,23 @@ export class PanelCrawlerService {
       // 2. Cache in Redis for lightning-fast lookups by the bot (300s TTL)
       await redis.setex(`tenant:${tenantId}:crawl:services`, 300, JSON.stringify(servicesData));
 
-      // 3. Invalidate any cached AI queries for this tenant
+      // 3. Invalidate any cached AI queries for this tenant via tracked set and non-blocking SCAN (eliminates blocking redis.keys)
       try {
         if (redis.status === 'ready' || redis.status === 'connect') {
-          const keys = await redis.keys(`tenant:${tenantId}:qcache:*`);
-          if (keys && keys.length > 0) {
-            await redis.del(...keys);
+          const setKey = `tenant:${tenantId}:qcache_keys`;
+          const trackedKeys = await redis.smembers(setKey);
+          if (trackedKeys && trackedKeys.length > 0) {
+            await redis.del(...trackedKeys, setKey);
           }
+          // Non-blocking SCAN for any legacy or untracked keys
+          let cursor = '0';
+          do {
+            const [nextCursor, matchedKeys] = await redis.scan(cursor, 'MATCH', `tenant:${tenantId}:qcache:*`, 'COUNT', 100);
+            cursor = nextCursor;
+            if (matchedKeys.length > 0) {
+              await redis.del(...matchedKeys);
+            }
+          } while (cursor !== '0');
         }
       } catch {}
 

@@ -448,7 +448,30 @@ export class AuthController {
     try {
       const tenantId = req.tenantId!;
       const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId }
+        where: { id: tenantId },
+        select: {
+          id: true,
+          email: true,
+          subscriptionStatus: true,
+          subscriptionExpiresAt: true,
+          botToken: true,
+          botUsername: true,
+          panelApiUrl: true,
+          telegramPanelUrl: true,
+          whatsappPanelUrl: true,
+          widgetPanelUrl: true,
+          hasTelegram: true,
+          hasWhatsapp: true,
+          hasWidget: true,
+          widgetEnabled: true,
+          whatsAppEnabled: true,
+          emailVerified: true,
+          emailVerifiedAt: true,
+          googleId: true,
+          mfaEnabled: true,
+          createdAt: true,
+          updatedAt: true
+        }
       });
 
       if (!tenant) {
