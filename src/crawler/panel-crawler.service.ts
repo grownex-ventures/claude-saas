@@ -112,7 +112,7 @@ export class PanelCrawlerService {
         method: 'GET',
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
         dispatcher,
-        redirect: 'follow'
+        redirect: 'error'
       });
 
       if (!res.ok) return [];
