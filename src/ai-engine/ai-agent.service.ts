@@ -139,8 +139,8 @@ export class AiAgentService {
     let services = await this.resolveServicesCatalog(tenantId, tenant, effectiveKey);
 
     // 5. Build Tools & System Prompt
-    const tools = this.getTools();
-    const systemPrompt = this.buildSystemPrompt(tenant, services);
+    const tools = this.getTools(channel);
+    const systemPrompt = this.buildSystemPrompt(tenant, services, channel);
 
     const messages: AiChatMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -170,7 +170,8 @@ export class AiAgentService {
             services,
             catalogKey,
             customerApiKey,
-            customerKeyCorrupted
+            customerKeyCorrupted,
+            channel
           );
           toolResults.push(`Tool ${tc.name} output:\n${toolResult}`);
         }
@@ -308,9 +309,17 @@ export class AiAgentService {
     return [];
   }
 
-  private buildSystemPrompt(tenant: any, services: SmmService[]): string {
+  private buildSystemPrompt(tenant: any, services: SmmService[], channel?: string): string {
     const categories = Array.from(new Set(services.map((s) => s.category).filter(Boolean))).slice(0, 15);
     const serviceSample = services.slice(0, 8).map((s) => `ID ${s.service}: ${s.name} (Rate: $${s.rate}/1k)`).join('\n');
+
+    const widgetNotice = channel === 'widget'
+      ? `\n5. Channel Scope (Website Chat Widget):
+   - You are answering public visitors on the website.
+   - You CANNOT place orders or take money through this chat widget.
+   - If a visitor asks to place an order, buy a service, or add balance, politely direct them: "To place an order or add funds, please sign in or register directly on our panel website at ${tenant.panelApiUrl || 'our website'}."
+   - You are here to answer questions, search services, quote rates, explain features, and check order statuses by Order ID.`
+      : '';
 
     return `You are YourSMMagent, an expert, professional, 24/7 AI Customer Support Representative for the SMM panel at ${tenant.panelApiUrl || 'our panel'}.
 
@@ -326,6 +335,7 @@ ${categories.join(', ') || 'Instagram, YouTube, Telegram, TikTok, Facebook, Twit
 
 Sample Featured Services:
 ${serviceSample || 'Wide catalog of social media growth services'}
+${widgetNotice}
 
 Visual Presentation & Formatting Rules for Chat:
 - Always format currency balances and rates with exactly 2 decimal places (e.g. "$27.51" or "12.34 INR", NEVER long floating decimals like "12.3395550").
@@ -336,8 +346,8 @@ Visual Presentation & Formatting Rules for Chat:
 When a user asks to track an order, search services, check balance, or place an order, use the appropriate live tools to provide real-time information.`;
   }
 
-  private getTools(): AiToolDefinition[] {
-    return [
+  private getTools(channel?: string): AiToolDefinition[] {
+    const tools: AiToolDefinition[] = [
       {
         name: 'search_services',
         description: 'Searches the panel service catalog for matching social media services, IDs, rates per 1,000, and limits.',
@@ -368,8 +378,12 @@ When a user asks to track an order, search services, check balance, or place an 
           type: 'object',
           properties: {}
         }
-      },
-      {
+      }
+    ];
+
+    // Widget is strictly for public inquiry and support - ordering is reserved for direct authenticated bot channels
+    if (channel !== 'widget') {
+      tools.push({
         name: 'place_order',
         description: 'Places a new social media order on the panel using the linked customer account.',
         parameters: {
@@ -381,19 +395,22 @@ When a user asks to track an order, search services, check balance, or place an 
           },
           required: ['serviceId', 'link', 'quantity']
         }
-      },
-      {
-        name: 'escalate_to_human',
-        description: 'Escalates an issue to human support staff when the user demands human intervention or has a billing dispute.',
-        parameters: {
-          type: 'object',
-          properties: {
-            reason: { type: 'string', description: 'Reason for human support escalation' }
-          },
-          required: ['reason']
-        }
+      });
+    }
+
+    tools.push({
+      name: 'escalate_to_human',
+      description: 'Escalates an issue to human support staff when the user demands human intervention or has a billing dispute.',
+      parameters: {
+        type: 'object',
+        properties: {
+          reason: { type: 'string', description: 'Reason for human support escalation' }
+        },
+        required: ['reason']
       }
-    ];
+    });
+
+    return tools;
   }
 
   private async executeTool(
@@ -403,10 +420,14 @@ When a user asks to track an order, search services, check balance, or place an 
     services: SmmService[],
     catalogKey?: string,
     customerApiKey?: string,
-    customerKeyCorrupted?: boolean
+    customerKeyCorrupted?: boolean,
+    channel?: string
   ): Promise<string> {
     switch (name) {
       case 'place_order': {
+        if (channel === 'widget') {
+          return `To place an order, please sign in or register directly on our panel website at ${tenant.panelApiUrl || 'our website'}. The chat widget is for public customer support and inquiries only.`;
+        }
         const serviceId = String(args.serviceId || '').trim();
         const link = String(args.link || '').trim();
         const quantity = Number(args.quantity);

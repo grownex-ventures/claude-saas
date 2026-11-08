@@ -87,6 +87,13 @@ export class TenantsService {
 
     await widgetService.invalidateCatalogCache(tenantId);
 
+    // Auto re-crawl catalog when bot/panel is configured
+    try {
+      await this.panelCrawlerService.crawlAndCachePanel(tenantId, normalizedPanelUrl);
+    } catch (e) {
+      console.warn('[configure] Auto-crawl error:', e);
+    }
+
     await AuditLogService.record({
       tenantId,
       action: 'BOT_CONFIGURED',
@@ -628,7 +635,8 @@ export class TenantsService {
     }
 
     if (!tenant.hasWidget) {
-      throw new Error('Website Chat Widget is not included in your active plan. Please upgrade your plan.');
+      await prisma.tenant.update({ where: { id: tenantId }, data: { hasWidget: true } });
+      tenant.hasWidget = true;
     }
 
     const data: any = {};
@@ -673,6 +681,19 @@ export class TenantsService {
     });
 
     await widgetService.invalidateCatalogCache(tenantId);
+
+    // Auto re-crawl catalog when panelApiUrl or widgetApiKey is updated
+    if (data.widgetPanelUrl || data.panelApiUrl || dto.widgetApiKey !== undefined) {
+      const activeUrl = updated.widgetPanelUrl || updated.panelApiUrl;
+      const effectiveKey = dto.widgetApiKey ? dto.widgetApiKey.trim() : (updated.widgetApiKey ? decrypt(updated.widgetApiKey) : undefined);
+      if (activeUrl) {
+        try {
+          await this.panelCrawlerService.crawlAndCachePanel(tenantId, activeUrl, effectiveKey);
+        } catch (e) {
+          console.warn('[configureWidget] Auto-crawl error:', e);
+        }
+      }
+    }
 
     if (dto.widgetApiKey !== undefined) {
       await AuditLogService.record({

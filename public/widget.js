@@ -131,11 +131,12 @@
       return safe;
     }
 
-    // Inject host container into DOM
+    // Inject host container into DOM (starts hidden until verified enabled by backend)
     var host = document.createElement('div');
     host.id = 'smm-support-widget-root';
     host.style.position = 'relative';
     host.style.zIndex = '2147483647';
+    host.style.display = 'none';
     document.body.appendChild(host);
 
   // Shadow DOM for total isolation from host page styles
@@ -772,6 +773,7 @@
         host.style.display = 'none';
         return;
       }
+      host.style.display = 'block';
       if (cfg.title) {
         dialogTitle.textContent = cfg.title;
         launcherTitle.textContent = cfg.title;

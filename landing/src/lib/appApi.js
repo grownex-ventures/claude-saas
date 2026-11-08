@@ -344,12 +344,38 @@ export const getChannels = async () => {
     }, 400);
 };
 
-export const setChannelEnabled = ({ channel, enabled }) =>
-    call((s) => {
-        if (!isSetUp(s, channel)) fail("Finish setting up this channel first.");
+export const setChannelEnabled = async ({ channel, enabled }) => {
+    try {
+        if (channel === "widget") {
+            await apiRequest("/api/v1/tenants/widget/configure", {
+                method: "POST",
+                body: { widgetEnabled: enabled },
+            });
+        } else if (channel === "telegram") {
+            if (enabled) {
+                await apiRequest("/api/v1/tenants/activate", { method: "POST" });
+            } else {
+                await apiRequest("/api/v1/tenants/deactivate", { method: "POST" });
+            }
+        } else if (channel === "whatsapp") {
+            await apiRequest("/api/v1/tenants/whatsapp/configure", {
+                method: "POST",
+                body: { enabled },
+            });
+        }
+    } catch (err) {
+        console.warn(`[setChannelEnabled] Backend toggle failed for ${channel}:`, err?.message);
+        throw err;
+    }
+
+    const s = load();
+    if (s[channel]) {
         s[channel].status = enabled ? "live" : "offline";
-        addLog(enabled ? "info" : "warn", channel, `Channel switched ${enabled ? "ON" : "OFF"}`, { event: "channel.toggle", enabled });
-    });
+    }
+    addLog(enabled ? "info" : "warn", channel, `Channel switched ${enabled ? "ON" : "OFF"}`, { event: "channel.toggle", enabled });
+    save(s);
+    return { channel, enabled };
+};
 
 export const TELEGRAM_TOKEN_RE = /^\d{6,12}:[A-Za-z0-9_-]{30,}$/;
 
@@ -696,8 +722,15 @@ export const testPanelConnection = (input) =>
 export const connectPanel = async (input) => {
     const info = checkPanel(input);
     const s = load();
-    const token = s.telegram?.token;
     try {
+        await apiRequest("/api/v1/tenants/widget/configure", {
+            method: "POST",
+            body: {
+                panelApiUrl: input.url.trim(),
+                widgetApiKey: input.apiKey && input.apiKey.trim() ? input.apiKey.trim() : undefined,
+            },
+        });
+        const token = s.telegram?.token;
         if (token) {
             await apiRequest("/api/v1/tenants/configure", {
                 method: "POST",
@@ -713,7 +746,7 @@ export const connectPanel = async (input) => {
 
     Object.assign(s.panel, {
         url: input.url.trim(),
-        apiKeyLast4: input.apiKey.trim().slice(-4),
+        apiKeyLast4: input.apiKey ? input.apiKey.trim().slice(-4) : s.panel.apiKeyLast4,
         connected: true,
         lastSync: now(),
         name: info.name,
@@ -724,13 +757,24 @@ export const connectPanel = async (input) => {
     return s.panel;
 };
 
-export const syncPanel = () =>
-    call((s) => {
-        if (!s.panel.connected) fail("Connect your panel first.");
-        s.panel.lastSync = now();
-        addLog("info", "panel", `Synced ${s.panel.services} services`, { event: "panel.synced" });
-        return s.panel;
-    }, 1000);
+export const syncPanel = async () => {
+    const s = load();
+    if (!s.panel.url) fail("Connect your panel first.");
+    try {
+        await apiRequest("/api/v1/tenants/widget/configure", {
+            method: "POST",
+            body: {
+                panelApiUrl: s.panel.url,
+            },
+        });
+    } catch (e) {
+        console.warn("Backend panel sync:", e?.message);
+    }
+    s.panel.lastSync = now();
+    addLog("info", "panel", `Synced ${s.panel.services} services`, { event: "panel.synced" });
+    save(s);
+    return s.panel;
+};
 
 export const disconnectPanel = () =>
     call((s) => {
