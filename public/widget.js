@@ -2,7 +2,6 @@
   'use strict';
 
   if (window.__SMM_SUPPORT_WIDGET_LOADED__) return;
-  window.__SMM_SUPPORT_WIDGET_LOADED__ = true;
 
   var currentScript =
     document.currentScript ||
@@ -10,87 +9,134 @@
     document.querySelector('script[src*="widget.js"]');
 
   var hostUrl = '';
+  var scriptParams = null;
   if (currentScript && currentScript.src) {
     try {
-      var parsed = new URL(currentScript.src);
+      var parsed = new URL(currentScript.src, window.location.href);
       hostUrl = parsed.origin;
+      scriptParams = parsed.searchParams;
     } catch (e) {
-      hostUrl = window.location.origin;
+      hostUrl = 'https://app.yoursmmagent.com';
     }
-  } else {
-    hostUrl = window.location.origin;
   }
 
-  var tenantId = currentScript ? currentScript.getAttribute('data-tenant') || currentScript.getAttribute('data-tenant-id') : null;
-  if (!tenantId) {
-    console.warn('[SupportWidget] Missing data-tenant attribute on script tag.');
-    return;
+  // Fallback hostUrl: If origin is invalid or points to an external customer panel
+  if (!hostUrl || hostUrl === 'null' || (typeof window !== 'undefined' && hostUrl === window.location.origin && !window.location.hostname.includes('yoursmmagent') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'))) {
+    hostUrl = 'https://app.yoursmmagent.com';
   }
 
-  var accentColor = (currentScript && currentScript.getAttribute('data-accent')) || '#4f46e5';
-  var customTitle = (currentScript && currentScript.getAttribute('data-title')) || 'Customer Support';
+  var tenantId =
+    (currentScript && (currentScript.getAttribute('data-tenant') || currentScript.getAttribute('data-tenant-id'))) ||
+    (scriptParams && (scriptParams.get('tenant') || scriptParams.get('tenantId') || scriptParams.get('id'))) ||
+    window.__SMM_TENANT_ID__ ||
+    null;
+
+  var accentColor =
+    (currentScript && currentScript.getAttribute('data-accent')) ||
+    (scriptParams && scriptParams.get('accent')) ||
+    '#4f46e5';
+  var customTitle =
+    (currentScript && currentScript.getAttribute('data-title')) ||
+    (scriptParams && scriptParams.get('title')) ||
+    'Customer Support';
   var customWelcome =
     (currentScript && currentScript.getAttribute('data-welcome')) ||
+    (scriptParams && scriptParams.get('welcome')) ||
     'Hello! Welcome to 24/7 Support. How can we help you today? Ask about our services, pricing, or order status.';
 
   // Session ID per tenant
   function getSessionId(tid) {
     var key = 'smm_chat_session_' + tid;
-    var sid = localStorage.getItem(key);
+    var sid = '';
+    try {
+      sid = localStorage.getItem(key);
+    } catch (e) {}
     if (!sid || sid.length < 16) {
       sid =
         'web_' +
         Math.random().toString(36).substring(2, 12) +
         Date.now().toString(36) +
         Math.random().toString(36).substring(2, 8);
-      localStorage.setItem(key, sid);
+      try {
+        localStorage.setItem(key, sid);
+      } catch (e) {}
     }
     return sid;
   }
 
-  var sessionId = getSessionId(tenantId);
-  var isChatOpen = false;
-  var hasLoadedHistory = false;
+  function initWidget() {
+    if (window.__SMM_SUPPORT_WIDGET_LOADED__) return;
+    if (!document.body) {
+      setTimeout(initWidget, 50);
+      return;
+    }
 
-  function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
+    // Try finding tenantId again if script tag was injected dynamically or deferred
+    if (!tenantId) {
+      var sc = document.querySelector('script[data-tenant], script[src*="widget.js"]');
+      if (sc) {
+        tenantId = sc.getAttribute('data-tenant') || sc.getAttribute('data-tenant-id');
+        if (!tenantId && sc.src) {
+          try {
+            var p = new URL(sc.src, window.location.href);
+            tenantId = p.searchParams.get('tenant') || p.searchParams.get('tenantId') || p.searchParams.get('id');
+            if (p.origin && (!hostUrl || hostUrl === window.location.origin)) {
+              hostUrl = p.origin;
+            }
+          } catch (e) {}
+        }
+      }
+    }
 
-  function renderMarkdown(text) {
-    if (!text) return '';
-    var safe = escapeHtml(text);
+    if (!tenantId) {
+      console.warn('[SupportWidget] Missing data-tenant attribute or ?tenant= URL parameter on script tag.');
+      return;
+    }
 
-    // Code blocks
-    safe = safe.replace(/```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, '<pre class="smm-code-block"><code>$1</code></pre>');
-    // Inline code
-    safe = safe.replace(/`([^`]+)`/g, '<code class="smm-code-inline">$1</code>');
-    // Bold
-    safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    // Italic
-    safe = safe.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    // Markdown Links
-    safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    // Bullet points
-    safe = safe.replace(/^[•*-]\s+(.+)$/gm, '<li class="smm-bullet">$1</li>');
-    safe = safe.replace(/(<li class="smm-bullet">.*<\/li>(\n)?)+/g, '<ul class="smm-list">$&</ul>');
-    // Line breaks
-    safe = safe.replace(/\n/g, '<br>');
+    window.__SMM_SUPPORT_WIDGET_LOADED__ = true;
+    var sessionId = getSessionId(tenantId);
+    var isChatOpen = false;
+    var hasLoadedHistory = false;
 
-    return safe;
-  }
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
 
-  // Inject host container into DOM
-  var host = document.createElement('div');
-  host.id = 'smm-support-widget-root';
-  host.style.position = 'relative';
-  host.style.zIndex = '2147483647';
-  document.body.appendChild(host);
+    function renderMarkdown(text) {
+      if (!text) return '';
+      var safe = escapeHtml(text);
+
+      // Code blocks
+      safe = safe.replace(/```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, '<pre class="smm-code-block"><code>$1</code></pre>');
+      // Inline code
+      safe = safe.replace(/`([^`]+)`/g, '<code class="smm-code-inline">$1</code>');
+      // Bold
+      safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      // Italic
+      safe = safe.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      // Markdown Links
+      safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+      // Bullet points
+      safe = safe.replace(/^[•*-]\s+(.+)$/gm, '<li class="smm-bullet">$1</li>');
+      safe = safe.replace(/(<li class="smm-bullet">.*<\/li>(\n)?)+/g, '<ul class="smm-list">$&</ul>');
+      // Line breaks
+      safe = safe.replace(/\n/g, '<br>');
+
+      return safe;
+    }
+
+    // Inject host container into DOM
+    var host = document.createElement('div');
+    host.id = 'smm-support-widget-root';
+    host.style.position = 'relative';
+    host.style.zIndex = '2147483647';
+    document.body.appendChild(host);
 
   // Shadow DOM for total isolation from host page styles
   var shadow = host.attachShadow({ mode: 'open' });
@@ -852,4 +898,17 @@
     e.preventDefault();
     sendMessage();
   });
+  } // End of initWidget
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWidget);
+    // Extra safety fallback in case DOMContentLoaded was already dispatched
+    setTimeout(function () {
+      if (!window.__SMM_SUPPORT_WIDGET_LOADED__ && document.body) {
+        initWidget();
+      }
+    }, 800);
+  } else {
+    initWidget();
+  }
 })();

@@ -42,12 +42,13 @@ function WidgetEditor({ data, widget }) {
 
     const live = data.status === "live";
     const current = live ? 3 : widget.configSavedAt ? (data.status === "offline" ? 2 : 1) : 0;
-    const snippet = `<script src="https://cdn.yoursmmagent.com/widget.js"
+    const host = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "https://app.yoursmmagent.com";
+    const snippet = `<script src="${host}/widget.js?tenant=${widget.tenantId}"
   data-tenant="${widget.tenantId}"
   data-color="${cfg.color}"
   data-position="${cfg.position}"
   data-lang="${cfg.language}"
-  async></script>`;
+  defer></script>`;
 
     const onLogo = (e) => {
         const file = e.target.files?.[0];
