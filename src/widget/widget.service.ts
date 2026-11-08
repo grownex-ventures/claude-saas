@@ -16,8 +16,9 @@ export interface WidgetPublicConfig {
 }
 
 export interface ChatReplyResult {
-  reply: string;
+  reply: string | null;
   sessionId: string;
+  status?: 'ai' | 'human';
 }
 
 export class WidgetService {
@@ -167,6 +168,30 @@ export class WidgetService {
         content: message
       }
     });
+
+    // Check if conversation was taken over by a human operator
+    try {
+      const webSession = await prisma.webChatSession.findUnique({
+        where: {
+          tenantId_sessionId: {
+            tenantId,
+            sessionId
+          }
+        }
+      });
+      if (webSession) {
+        const mode = await redis.get(`conv:status:${webSession.id}`);
+        if (mode === 'human') {
+          return {
+            sessionId,
+            status: 'human',
+            reply: null
+          };
+        }
+      }
+    } catch (err) {
+      // Non-fatal if Redis is offline
+    }
 
     // 3. Resolve Admin's Catalog API Key (AES-256 decrypted)
     let catalogKey: string | null = null;

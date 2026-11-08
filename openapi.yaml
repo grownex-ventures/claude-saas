@@ -714,6 +714,182 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
+  /tenants/conversations/{id}:
+    get:
+      tags: [Tenants]
+      summary: Retrieve single customer conversation thread by ID
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Full conversation details and message history.
+        '404':
+          description: Conversation not found.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/conversations/{id}/reply:
+    post:
+      tags: [Tenants]
+      summary: Send operator manual reply to customer conversation
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+      responses:
+        '200':
+          description: Reply sent and dispatched.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/conversations/{id}/takeover:
+    post:
+      tags: [Tenants]
+      summary: Take over conversation from AI (suppresses AI auto-replies)
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Conversation marked as human operator mode.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/conversations/{id}/handback:
+    post:
+      tags: [Tenants]
+      summary: Hand conversation back to AI automated assistant
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Conversation returned to AI assistant mode.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/panel:
+    get:
+      tags: [Tenants]
+      summary: Get current SMM panel connection and sync status
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Panel status and catalog metadata.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/panel/test:
+    post:
+      tags: [Tenants]
+      summary: Test connection to an SMM panel API v2
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string }
+                apiKey: { type: string }
+      responses:
+        '200':
+          description: Connection test successful with latency and balance.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/panel/connect:
+    post:
+      tags: [Tenants]
+      summary: Connect and save SMM panel credentials with initial catalog sync
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string }
+                apiKey: { type: string }
+      responses:
+        '200':
+          description: Panel credentials saved and catalog crawled.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/panel/sync:
+    post:
+      tags: [Tenants]
+      summary: Manually sync services catalog from connected SMM panel
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Services catalog synchronized.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tenants/panel/disconnect:
+    post:
+      tags: [Tenants]
+      summary: Disconnect SMM panel and purge cached services catalog
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Panel disconnected.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   /tenants/overview-stats:
     get:
       tags: [Tenants]

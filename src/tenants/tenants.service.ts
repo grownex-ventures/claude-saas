@@ -9,6 +9,10 @@ import { encrypt, decrypt } from '../common/crypto/encryption.js';
 import { widgetService } from '../widget/widget.service.js';
 import { AuditLogService } from '../common/audit/audit-log.service.js';
 import { authService } from '../auth/auth.service.js';
+import { SmmProviderClient } from '../smm-core/smm-client.js';
+import { TelegramBotService } from '../bot-engine/telegram-bot.service.js';
+import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
+import { Prisma } from '@prisma/client';
 
 export interface ConfigureTenantDto {
   botToken: string;
@@ -830,9 +834,9 @@ export class TenantsService {
       });
 
       for (const s of botSessions) {
-        const msgs = s.messages.map((m) => ({
+        const msgs = s.messages.map((m: any) => ({
           id: m.id,
-          from: m.role === 'user' ? 'customer' : 'ai',
+          from: m.role === 'user' ? 'customer' : (m.role === 'agent' ? 'agent' : (m.role === 'system' ? 'system' : 'ai')),
           text: m.content,
           at: new Date(m.createdAt).getTime()
         }));
@@ -870,9 +874,9 @@ export class TenantsService {
       });
 
       for (const s of waSessions) {
-        const msgs = s.messages.map((m) => ({
+        const msgs = s.messages.map((m: any) => ({
           id: m.id,
-          from: m.role === 'user' ? 'customer' : 'ai',
+          from: m.role === 'user' ? 'customer' : (m.role === 'agent' ? 'agent' : (m.role === 'system' ? 'system' : 'ai')),
           text: m.content,
           at: new Date(m.createdAt).getTime()
         }));
@@ -909,9 +913,9 @@ export class TenantsService {
       });
 
       for (const s of webSessions) {
-        const msgs = s.messages.map((m) => ({
+        const msgs = s.messages.map((m: any) => ({
           id: m.id,
-          from: m.role === 'user' ? 'customer' : 'ai',
+          from: m.role === 'user' ? 'customer' : (m.role === 'agent' ? 'agent' : (m.role === 'system' ? 'system' : 'ai')),
           text: m.content,
           at: new Date(m.createdAt).getTime()
         }));
@@ -932,6 +936,21 @@ export class TenantsService {
       }
     }
 
+    // Attach dynamic human takeover statuses from Redis
+    if (conversations.length > 0) {
+      try {
+        const statusKeys = conversations.map((c) => `conv:status:${c.id}`);
+        const statuses = await redis.mget(statusKeys);
+        conversations.forEach((c, idx) => {
+          if (statuses[idx] === 'human') {
+            c.status = 'human';
+          }
+        });
+      } catch (err) {
+        console.warn('[getConversations] Redis mget status warning:', err);
+      }
+    }
+
     conversations.sort((a, b) => b.lastAt - a.lastAt);
 
     if (search && search.trim()) {
@@ -945,6 +964,592 @@ export class TenantsService {
     }
 
     return conversations;
+  }
+
+  /**
+   * Retrieves a single customer conversation by its session ID
+   */
+  async getConversation(tenantId: string, conversationId: string): Promise<any | null> {
+    // 1. Check Telegram
+    const tg = await prisma.botUserSession.findFirst({
+      where: { id: conversationId, tenantId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+    if (tg) {
+      const mode = await redis.get(`conv:status:${tg.id}`);
+      const msgs = tg.messages.map((m: any) => ({
+        id: m.id,
+        from: m.role === 'user' ? 'customer' : (m.role === 'agent' ? 'agent' : (m.role === 'system' ? 'system' : 'ai')),
+        text: m.content,
+        at: new Date(m.createdAt).getTime()
+      }));
+      const lastMsg = msgs[msgs.length - 1];
+      const name = tg.telegramFirstName || (tg.telegramUsername ? `@${tg.telegramUsername}` : `User ${tg.telegramUserId}`);
+      return {
+        id: tg.id,
+        channel: 'telegram',
+        status: mode === 'human' ? 'human' : 'ai',
+        unread: false,
+        lastAt: lastMsg ? lastMsg.at : new Date(tg.updatedAt).getTime(),
+        customer: {
+          name,
+          panelUsername: tg.telegramUsername || undefined,
+          orders: []
+        },
+        messages: msgs,
+        preview: lastMsg ? lastMsg.text : 'Conversation started'
+      };
+    }
+
+    // 2. Check WhatsApp
+    const wa = await prisma.whatsAppSession.findFirst({
+      where: { id: conversationId, tenantId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+    if (wa) {
+      const mode = await redis.get(`conv:status:${wa.id}`);
+      const msgs = wa.messages.map((m: any) => ({
+        id: m.id,
+        from: m.role === 'user' ? 'customer' : (m.role === 'agent' ? 'agent' : (m.role === 'system' ? 'system' : 'ai')),
+        text: m.content,
+        at: new Date(m.createdAt).getTime()
+      }));
+      const lastMsg = msgs[msgs.length - 1];
+      const name = wa.phoneNumber || wa.whatsappJid.split('@')[0];
+      return {
+        id: wa.id,
+        channel: 'whatsapp',
+        status: mode === 'human' ? 'human' : 'ai',
+        unread: false,
+        lastAt: lastMsg ? lastMsg.at : new Date(wa.updatedAt).getTime(),
+        customer: {
+          name,
+          orders: []
+        },
+        messages: msgs,
+        preview: lastMsg ? lastMsg.text : 'Conversation started'
+      };
+    }
+
+    // 3. Check WebChat
+    const web = await prisma.webChatSession.findFirst({
+      where: { id: conversationId, tenantId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+    if (web) {
+      const mode = await redis.get(`conv:status:${web.id}`);
+      const msgs = web.messages.map((m: any) => ({
+        id: m.id,
+        from: m.role === 'user' ? 'customer' : (m.role === 'agent' ? 'agent' : (m.role === 'system' ? 'system' : 'ai')),
+        text: m.content,
+        at: new Date(m.createdAt).getTime()
+      }));
+      const lastMsg = msgs[msgs.length - 1];
+      return {
+        id: web.id,
+        channel: 'widget',
+        status: mode === 'human' ? 'human' : 'ai',
+        unread: false,
+        lastAt: lastMsg ? lastMsg.at : new Date(web.updatedAt).getTime(),
+        customer: {
+          name: `Visitor ${web.sessionId.slice(0, 6)}`,
+          orders: []
+        },
+        messages: msgs,
+        preview: lastMsg ? lastMsg.text : 'Conversation started'
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Helper: Resolves any conversation session across channels for a tenant
+   */
+  private async findSession(tenantId: string, id: string) {
+    const tg = await prisma.botUserSession.findFirst({
+      where: { id, tenantId }
+    });
+    if (tg) {
+      return {
+        channel: 'telegram' as const,
+        id: tg.id,
+        telegramUserId: tg.telegramUserId,
+        customerName: tg.telegramFirstName || (tg.telegramUsername ? `@${tg.telegramUsername}` : `User ${tg.telegramUserId}`)
+      };
+    }
+
+    const wa = await prisma.whatsAppSession.findFirst({
+      where: { id, tenantId }
+    });
+    if (wa) {
+      return {
+        channel: 'whatsapp' as const,
+        id: wa.id,
+        whatsappJid: wa.whatsappJid,
+        customerName: wa.phoneNumber || wa.whatsappJid.split('@')[0]
+      };
+    }
+
+    const web = await prisma.webChatSession.findFirst({
+      where: { id, tenantId }
+    });
+    if (web) {
+      return {
+        channel: 'widget' as const,
+        id: web.id,
+        sessionId: web.sessionId,
+        customerName: `Visitor ${web.sessionId.slice(0, 6)}`
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Helper: Inserts a chat message with a specific role
+   */
+  private async insertChatMessage(
+    tenantId: string,
+    session: NonNullable<Awaited<ReturnType<TenantsService['findSession']>>>,
+    role: 'agent' | 'system' | 'assistant' | 'user',
+    content: string
+  ) {
+    if (session.channel === 'telegram') {
+      const msg = await prisma.telegramChatMessage.create({
+        data: {
+          tenantId,
+          telegramUserId: session.telegramUserId!,
+          role,
+          content
+        }
+      });
+      await prisma.botUserSession.update({
+        where: { id: session.id },
+        data: { updatedAt: new Date() }
+      }).catch(() => {});
+      return msg;
+    } else if (session.channel === 'whatsapp') {
+      const msg = await prisma.whatsAppChatMessage.create({
+        data: {
+          tenantId,
+          whatsappJid: session.whatsappJid!,
+          role,
+          content
+        }
+      });
+      await prisma.whatsAppSession.update({
+        where: { id: session.id },
+        data: { updatedAt: new Date() }
+      }).catch(() => {});
+      return msg;
+    } else {
+      const msg = await prisma.webChatMessage.create({
+        data: {
+          sessionId: session.sessionId!,
+          role,
+          content
+        }
+      });
+      await prisma.webChatSession.update({
+        where: { id: session.id },
+        data: { updatedAt: new Date() }
+      }).catch(() => {});
+      return msg;
+    }
+  }
+
+  /**
+   * Operator takes over a conversation from AI.
+   */
+  async takeOverConversation(tenantId: string, conversationId: string) {
+    const session = await this.findSession(tenantId, conversationId);
+    if (!session) {
+      throw new Error('Conversation not found');
+    }
+
+    await redis.setex(`conv:status:${conversationId}`, 86400, 'human');
+    await this.insertChatMessage(tenantId, session, 'system', 'You took over from the AI');
+
+    await RuntimeLogService.record({
+      tenantId,
+      channel: session.channel,
+      level: 'info',
+      event: 'CONVERSATION_TAKEOVER',
+      message: `Owner took over conversation with ${session.customerName}`,
+      details: { conversationId, channel: session.channel }
+    }).catch(() => {});
+
+    return { success: true, status: 'human', conversationId };
+  }
+
+  /**
+   * Operator hands a conversation back to AI.
+   */
+  async handBackConversation(tenantId: string, conversationId: string) {
+    const session = await this.findSession(tenantId, conversationId);
+    if (!session) {
+      throw new Error('Conversation not found');
+    }
+
+    await redis.del(`conv:status:${conversationId}`);
+    await this.insertChatMessage(tenantId, session, 'system', 'Handed back to the AI');
+
+    await RuntimeLogService.record({
+      tenantId,
+      channel: session.channel,
+      level: 'info',
+      event: 'CONVERSATION_HANDBACK',
+      message: `Conversation with ${session.customerName} handed back to AI`,
+      details: { conversationId, channel: session.channel }
+    }).catch(() => {});
+
+    return { success: true, status: 'ai', conversationId };
+  }
+
+  /**
+   * Operator sends a manual reply into a customer conversation.
+   * Dispatches live across Telegram, WhatsApp, or WebChat socket.
+   */
+  async sendConversationReply(tenantId: string, conversationId: string, text: string) {
+    const session = await this.findSession(tenantId, conversationId);
+    if (!session) {
+      throw new Error('Conversation not found');
+    }
+
+    const savedMsg = await this.insertChatMessage(tenantId, session, 'agent', text);
+
+    if (session.channel === 'telegram') {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { botToken: true }
+      });
+      if (tenant?.botToken) {
+        try {
+          const rawToken = decrypt(tenant.botToken);
+          await TelegramBotService.sendMessage({
+            botToken: rawToken,
+            chatId: session.telegramUserId!,
+            text,
+            parseMode: 'HTML'
+          });
+        } catch (err: any) {
+          console.warn(`[sendConversationReply] Telegram dispatch error:`, err?.message || err);
+        }
+      }
+    } else if (session.channel === 'whatsapp') {
+      const waService = this.whatsAppBotManagerService.getService(tenantId);
+      if (waService && session.whatsappJid) {
+        try {
+          await waService.sendReply(session.whatsappJid, text);
+        } catch (err: any) {
+          console.warn(`[sendConversationReply] WhatsApp dispatch error:`, err?.message || err);
+        }
+      }
+    } else if (session.channel === 'widget') {
+      // Message created in webChatMessage will be delivered on the next poll/read
+    }
+
+    await RuntimeLogService.record({
+      tenantId,
+      channel: session.channel,
+      level: 'info',
+      event: 'OPERATOR_CHAT_REPLY',
+      message: `Operator replied to ${session.customerName}: "${text.slice(0, 40)}"`,
+      details: { conversationId, replyId: savedMsg.id, channel: session.channel }
+    }).catch(() => {});
+
+    return {
+      success: true,
+      message: {
+        id: savedMsg.id,
+        from: 'agent',
+        text,
+        at: Date.now()
+      }
+    };
+  }
+
+  /**
+   * Fetches current SMM panel connection & sync status for this tenant
+   */
+  async getPanelStatus(tenantId: string) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        panelApiUrl: true,
+        widgetPanelUrl: true,
+        widgetApiKey: true,
+        crawledData: true,
+        lastCrawledAt: true
+      }
+    });
+    if (!tenant) throw new Error('Tenant not found');
+
+    const activeUrl = tenant.panelApiUrl || tenant.widgetPanelUrl || '';
+    let apiKeyLast4 = '';
+    if (tenant.widgetApiKey) {
+      try {
+        const decrypted = decrypt(tenant.widgetApiKey);
+        apiKeyLast4 = decrypted.slice(-4);
+      } catch {
+        apiKeyLast4 = '••••';
+      }
+    }
+
+    let servicesCount = 0;
+    if (Array.isArray(tenant.crawledData)) {
+      servicesCount = tenant.crawledData.length;
+    }
+
+    let hostname: string | null = null;
+    if (activeUrl) {
+      try {
+        hostname = new URL(activeUrl).hostname;
+      } catch {}
+    }
+
+    return {
+      connected: Boolean(activeUrl),
+      url: activeUrl,
+      apiKeyLast4,
+      name: hostname ? hostname.replace(/^www\./, '').split('.')[0] : null,
+      services: servicesCount,
+      lastSync: tenant.lastCrawledAt ? tenant.lastCrawledAt.toISOString() : null
+    };
+  }
+
+  /**
+   * Performs a real live connection test to an SMM panel API (v2).
+   * Validates credentials, balance, and services latency without saving.
+   */
+  async testPanel(tenantId: string, url: string, apiKey?: string) {
+    await validateSafeUrl(url);
+
+    let effectiveKey = (apiKey || '').trim();
+    if (!effectiveKey) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { widgetApiKey: true }
+      });
+      if (tenant?.widgetApiKey) {
+        try {
+          effectiveKey = decrypt(tenant.widgetApiKey);
+        } catch {}
+      }
+    }
+
+    if (!effectiveKey) {
+      throw new Error('API key is required to test panel connection');
+    }
+
+    const start = Date.now();
+    const client = new SmmProviderClient(url, effectiveKey);
+
+    let balanceVal: string | number = 0;
+    let currencyVal = 'USD';
+    let servicesCount = 0;
+
+    // 1. Try getBalance
+    try {
+      const bal = await client.getBalance();
+      balanceVal = bal.balance;
+      currencyVal = bal.currency;
+    } catch (err: any) {
+      throw new Error(`Panel connection test failed: ${err.message || 'Invalid API credentials'}`);
+    }
+
+    // 2. Try getServices
+    try {
+      const svcs = await client.getServices();
+      if (Array.isArray(svcs)) {
+        servicesCount = svcs.length;
+      }
+    } catch (err: any) {
+      console.warn('[testPanel] getServices non-fatal warning:', err?.message || err);
+    }
+
+    const latencyMs = Date.now() - start;
+    let panelName = 'Panel';
+    try {
+      panelName = new URL(url).hostname.replace(/^www\./, '').split('.')[0];
+    } catch {}
+
+    await RuntimeLogService.record({
+      tenantId,
+      channel: 'system',
+      level: 'info',
+      event: 'PANEL_TEST_SUCCESS',
+      message: `Panel connection test passed for ${panelName} (${latencyMs}ms, ${servicesCount} services, balance: ${balanceVal} ${currencyVal})`,
+      details: { url, latencyMs, servicesCount }
+    }).catch(() => {});
+
+    return {
+      ok: true,
+      name: panelName,
+      balance: balanceVal,
+      currency: currencyVal,
+      services: servicesCount,
+      latencyMs
+    };
+  }
+
+  /**
+   * Connects and saves SMM panel credentials, immediately crawling and caching the catalog.
+   */
+  async connectPanel(tenantId: string, url: string, apiKey?: string) {
+    await validateSafeUrl(url);
+
+    const normUrl = url.trim().replace(/\/+$/, '');
+    let encryptedKey: string | undefined;
+    let rawKey = (apiKey || '').trim();
+
+    if (rawKey) {
+      encryptedKey = encrypt(rawKey);
+    } else {
+      const current = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { widgetApiKey: true }
+      });
+      if (current?.widgetApiKey) {
+        encryptedKey = current.widgetApiKey;
+        try {
+          rawKey = decrypt(current.widgetApiKey);
+        } catch {}
+      }
+    }
+
+    if (!rawKey && !encryptedKey) {
+      throw new Error('API key is required to connect panel');
+    }
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        panelApiUrl: normUrl,
+        widgetPanelUrl: normUrl,
+        telegramPanelUrl: normUrl,
+        whatsappPanelUrl: normUrl,
+        ...(encryptedKey ? { widgetApiKey: encryptedKey } : {})
+      }
+    });
+
+    let servicesCount = 0;
+    try {
+      await this.panelCrawlerService.crawlAndCachePanel(tenantId, normUrl, rawKey || undefined);
+      const updated = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { crawledData: true }
+      });
+      if (Array.isArray(updated?.crawledData)) {
+        servicesCount = updated.crawledData.length;
+      }
+    } catch (err: any) {
+      console.warn('[connectPanel] Catalog crawl error:', err?.message || err);
+    }
+
+    await RuntimeLogService.record({
+      tenantId,
+      channel: 'system',
+      level: 'info',
+      event: 'PANEL_CONNECTED',
+      message: `SMM Panel connected to ${normUrl} (${servicesCount} services)`,
+      details: { url: normUrl, servicesCount }
+    }).catch(() => {});
+
+    return this.getPanelStatus(tenantId);
+  }
+
+  /**
+   * Syncs the services catalog from the connected SMM panel.
+   */
+  async syncPanelCatalog(tenantId: string) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { panelApiUrl: true, widgetPanelUrl: true, widgetApiKey: true }
+    });
+    const activeUrl = tenant?.panelApiUrl || tenant?.widgetPanelUrl;
+    if (!activeUrl) {
+      throw new Error('No SMM panel configured to sync');
+    }
+
+    let rawKey: string | undefined;
+    if (tenant?.widgetApiKey) {
+      try {
+        rawKey = decrypt(tenant.widgetApiKey);
+      } catch {}
+    }
+
+    await this.panelCrawlerService.crawlAndCachePanel(tenantId, activeUrl, rawKey);
+    const updated = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { crawledData: true, lastCrawledAt: true }
+    });
+
+    const count = Array.isArray(updated?.crawledData) ? updated.crawledData.length : 0;
+
+    await RuntimeLogService.record({
+      tenantId,
+      channel: 'system',
+      level: 'info',
+      event: 'PANEL_SYNCED',
+      message: `Synced ${count} services from panel ${activeUrl}`,
+      details: { url: activeUrl, servicesCount: count }
+    }).catch(() => {});
+
+    return {
+      ok: true,
+      services: count,
+      lastSync: updated?.lastCrawledAt ? updated.lastCrawledAt.toISOString() : new Date().toISOString()
+    };
+  }
+
+  /**
+   * Disconnects the SMM panel from the tenant, wiping cached catalog.
+   */
+  async disconnectPanel(tenantId: string) {
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        panelApiUrl: null,
+        widgetPanelUrl: null,
+        telegramPanelUrl: null,
+        whatsappPanelUrl: null,
+        widgetApiKey: null,
+        crawledData: Prisma.DbNull as any,
+        lastCrawledAt: null
+      }
+    });
+
+    await redis.del(
+      `tenant:${tenantId}:crawl:services`,
+      `tenant:${tenantId}:catalog:services`
+    ).catch(() => {});
+
+    await widgetService.invalidateCatalogCache(tenantId);
+
+    await RuntimeLogService.record({
+      tenantId,
+      channel: 'system',
+      level: 'warn',
+      event: 'PANEL_DISCONNECTED',
+      message: 'SMM panel disconnected and catalog cache purged',
+      details: {}
+    }).catch(() => {});
+
+    return { ok: true, connected: false };
   }
 
   /**

@@ -456,6 +456,20 @@ export class BotManagerService implements OnModuleInit, OnModuleDestroy {
       // 1. Save user message to database
       await this.saveChatMessage(tenantId, telegramUserId, 'user', userText);
 
+      // Check if conversation was taken over by a human operator
+      try {
+        const botSession = await prisma.botUserSession.findUnique({
+          where: { tenantId_telegramUserId: { tenantId, telegramUserId } }
+        });
+        if (botSession) {
+          const mode = await redis.get(`conv:status:${botSession.id}`);
+          if (mode === 'human') {
+            // Live operator is handling this chat; suppress automated AI reply
+            return;
+          }
+        }
+      } catch {}
+
       // 2. Fetch last 6 message turns from database for this specific user
       let history: { role: 'user' | 'assistant'; content: string }[] = [];
       try {

@@ -427,6 +427,17 @@ export class WhatsAppBotManagerService {
       return;
     }
 
+    // Check if conversation was taken over by a human operator
+    try {
+      if (session) {
+        const mode = await redis.get(`conv:status:${session.id}`);
+        if (mode === 'human') {
+          // Live operator is handling this chat; suppress automated AI reply
+          return;
+        }
+      }
+    } catch {}
+
     // 7. General inquiries (AI Support Agent with recent conversation history)
     try {
       const dbHistory = await prisma.whatsAppChatMessage.findMany({

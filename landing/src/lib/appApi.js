@@ -698,94 +698,108 @@ function checkPanel({ url, apiKey }) {
 
 export const getPanel = async () => {
     try {
-        const me = await authApi.me();
-        if (me && me.panelApiUrl) {
+        const data = await apiRequest("/api/v1/tenants/panel");
+        if (data && typeof data === "object") {
             const s = load();
-            s.panel.url = me.panelApiUrl;
-            s.panel.connected = true;
-            s.panel.name = new URL(me.panelApiUrl).hostname.replace(/^www\./, "").split(".")[0];
+            s.panel = {
+                url: data.url || "",
+                apiKeyLast4: data.apiKeyLast4 || "",
+                connected: Boolean(data.connected),
+                lastSync: data.lastSync ? new Date(data.lastSync).getTime() : null,
+                name: data.name,
+                services: data.services || 0,
+            };
             save(s);
+            return s.panel;
         }
     } catch (e) {
-        // fallback
+        console.warn("Backend getPanel error:", e?.message);
     }
     return call((s) => s.panel, 400);
 };
 
-export const testPanelConnection = (input) =>
-    call((s) => {
-        try {
-            const info = checkPanel(input);
-            addLog("info", "panel", `Connection test passed (${info.latencyMs} ms)`, { event: "panel.test", ok: true });
-            return { ok: true, ...info };
-        } catch (e) {
-            addLog("error", "panel", `Connection test failed: ${e.message}`, { event: "panel.test", ok: false });
-            throw e;
-        }
-    }, 1200);
-
-export const connectPanel = async (input) => {
-    const info = checkPanel(input);
-    const s = load();
+export const testPanelConnection = async (input) => {
     try {
-        await apiRequest("/api/v1/tenants/widget/configure", {
+        const data = await apiRequest("/api/v1/tenants/panel/test", {
             method: "POST",
             body: {
-                panelApiUrl: input.url.trim(),
-                widgetApiKey: input.apiKey && input.apiKey.trim() ? input.apiKey.trim() : undefined,
+                url: input.url.trim(),
+                apiKey: input.apiKey ? input.apiKey.trim() : undefined,
             },
         });
-        const token = s.telegram?.token;
-        if (token) {
-            await apiRequest("/api/v1/tenants/configure", {
-                method: "POST",
-                body: {
-                    panelApiUrl: input.url.trim(),
-                    botToken: token,
-                },
-            });
-        }
+        addLog("info", "panel", `Connection test passed (${data.latencyMs} ms)`, { event: "panel.test", ok: true });
+        return {
+            ok: true,
+            name: data.name,
+            balance: data.balance,
+            currency: data.currency,
+            services: data.services,
+            latencyMs: data.latencyMs,
+        };
     } catch (e) {
-        console.warn("Backend panel configure:", e?.message);
+        addLog("error", "panel", `Connection test failed: ${e.message}`, { event: "panel.test", ok: false });
+        throw e;
     }
+};
 
-    Object.assign(s.panel, {
-        url: input.url.trim(),
-        apiKeyLast4: input.apiKey ? input.apiKey.trim().slice(-4) : s.panel.apiKeyLast4,
-        connected: true,
-        lastSync: now(),
-        name: info.name,
-        services: info.services,
-    });
-    addLog("info", "panel", `Panel connected — ${info.services} services synced`, { event: "panel.connected", services: info.services });
-    save(s);
-    return s.panel;
+export const connectPanel = async (input) => {
+    try {
+        const data = await apiRequest("/api/v1/tenants/panel/connect", {
+            method: "POST",
+            body: {
+                url: input.url.trim(),
+                apiKey: input.apiKey ? input.apiKey.trim() : undefined,
+            },
+        });
+        const s = load();
+        s.panel = {
+            url: data.url || input.url.trim(),
+            apiKeyLast4: data.apiKeyLast4 || (input.apiKey ? input.apiKey.trim().slice(-4) : s.panel.apiKeyLast4),
+            connected: true,
+            lastSync: data.lastSync ? new Date(data.lastSync).getTime() : now(),
+            name: data.name,
+            services: data.services || 0,
+        };
+        addLog("info", "panel", `Panel connected — ${s.panel.services} services synced`, { event: "panel.connected", services: s.panel.services });
+        save(s);
+        return s.panel;
+    } catch (e) {
+        addLog("error", "panel", `Panel connection failed: ${e.message}`, { event: "panel.connected", ok: false });
+        throw e;
+    }
 };
 
 export const syncPanel = async () => {
-    const s = load();
-    if (!s.panel.url) fail("Connect your panel first.");
     try {
-        await apiRequest("/api/v1/tenants/widget/configure", {
+        const data = await apiRequest("/api/v1/tenants/panel/sync", {
             method: "POST",
-            body: {
-                panelApiUrl: s.panel.url,
-            },
+        });
+        const s = load();
+        s.panel.lastSync = data.lastSync ? new Date(data.lastSync).getTime() : now();
+        s.panel.services = data.services !== undefined ? data.services : s.panel.services;
+        addLog("info", "panel", `Synced ${s.panel.services} services`, { event: "panel.synced" });
+        save(s);
+        return s.panel;
+    } catch (e) {
+        addLog("error", "panel", `Panel sync failed: ${e.message}`, { event: "panel.synced", ok: false });
+        throw e;
+    }
+};
+
+export const disconnectPanel = async () => {
+    try {
+        await apiRequest("/api/v1/tenants/panel/disconnect", {
+            method: "POST",
         });
     } catch (e) {
-        console.warn("Backend panel sync:", e?.message);
+        console.warn("Backend panel disconnect:", e?.message);
     }
-    s.panel.lastSync = now();
-    addLog("info", "panel", `Synced ${s.panel.services} services`, { event: "panel.synced" });
+    const s = load();
+    s.panel = { url: "", apiKeyLast4: "", connected: false, lastSync: null, name: null, services: 0 };
+    addLog("warn", "panel", "Panel disconnected", { event: "panel.disconnected" });
     save(s);
     return s.panel;
 };
-
-export const disconnectPanel = () =>
-    call((s) => {
-        s.panel = { url: "", apiKeyLast4: "", connected: false, lastSync: null, name: null, services: 0 };
-        addLog("warn", "panel", "Panel disconnected", { event: "panel.disconnected" });
-    }, 800);
 
 /* ------------------------------------------------------------------ */
 /* Conversations (Live inbox)                                          */
@@ -814,11 +828,13 @@ export const getConversations = async ({ channel = "all", status = "all", unread
 
 export const getConversation = async (id) => {
     try {
-        const data = await apiRequest("/api/v1/tenants/conversations");
-        const items = Array.isArray(data) ? data : (Array.isArray(data?.conversations) ? data.conversations : []);
-        const found = items.find((x) => x.id === id);
-        if (found) return found;
-    } catch (_) {}
+        const data = await apiRequest(`/api/v1/tenants/conversations/${id}`);
+        if (data && data.id) {
+            return data;
+        }
+    } catch (e) {
+        console.warn("Backend getConversation error:", e?.message);
+    }
     return call((s) => {
         const c = (s.conversations || []).find((x) => x.id === id);
         if (!c) fail("Conversation not found.");
@@ -834,33 +850,60 @@ function mutateConv(s, id, fn) {
     return c;
 }
 
-export const takeOverConversation = (id) =>
-    call((s) =>
+export const takeOverConversation = async (id) => {
+    try {
+        await apiRequest(`/api/v1/tenants/conversations/${id}/takeover`, {
+            method: "POST",
+        });
+    } catch (e) {
+        console.warn("Backend takeOverConversation error:", e?.message);
+    }
+    return call((s) =>
         mutateConv(s, id, (c) => {
             c.status = "human";
             c.messages.push({ id: uid(), from: "system", text: "You took over from the AI", at: now() });
             addLog("info", c.channel, `Owner took over conversation with ${c.customer.name}`, { event: "conversation.takeover", conversation_id: id });
         }),
-    600);
+    300);
+};
 
-export const handBackConversation = (id) =>
-    call((s) =>
+export const handBackConversation = async (id) => {
+    try {
+        await apiRequest(`/api/v1/tenants/conversations/${id}/handback`, {
+            method: "POST",
+        });
+    } catch (e) {
+        console.warn("Backend handBackConversation error:", e?.message);
+    }
+    return call((s) =>
         mutateConv(s, id, (c) => {
             c.status = "ai";
             c.messages.push({ id: uid(), from: "system", text: "Handed back to the AI", at: now() });
             addLog("info", c.channel, `Conversation with ${c.customer.name} handed back to AI`, { event: "conversation.handback", conversation_id: id });
         }),
-    600);
+    300);
+};
 
-export const sendReply = ({ id, text }) =>
-    call((s) =>
-        mutateConv(s, id, (c) => {
-            if (c.status !== "human") fail("Take over from the AI before replying.");
-            if (!text.trim()) fail("Message can't be empty.");
-            c.messages.push({ id: uid(), from: "agent", text: text.trim(), at: now() });
+export const sendReply = async ({ id, text }) => {
+    if (!text.trim()) fail("Message can't be empty.");
+    try {
+        const res = await apiRequest(`/api/v1/tenants/conversations/${id}/reply`, {
+            method: "POST",
+            body: { text: text.trim() },
+        });
+        const s = load();
+        const c = (s.conversations || []).find((x) => x.id === id);
+        if (c) {
+            c.messages.push(res.message || { id: uid(), from: "agent", text: text.trim(), at: now() });
             c.lastAt = now();
-        }),
-    500);
+            save(s);
+        }
+        return res;
+    } catch (e) {
+        console.warn("Backend sendReply error:", e?.message);
+        throw e;
+    }
+};
 
 /* ------------------------------------------------------------------ */
 /* AI & knowledge                                                      */

@@ -301,6 +301,131 @@ export class TenantsController {
       }
     });
 
+    // GET /api/tenants/conversations/:id
+    this.router.get('/conversations/:id', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const conversationId = req.params.id;
+        const conversation = await this.tenantsService.getConversation(tenantId, conversationId);
+        if (!conversation) {
+          res.status(404).json({ error: 'Conversation not found' });
+          return;
+        }
+        res.status(200).json(conversation);
+      } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to fetch conversation' });
+      }
+    });
+
+    // POST /api/tenants/conversations/:id/reply
+    this.router.post('/conversations/:id/reply', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const conversationId = req.params.id;
+        const { text } = req.body || {};
+        if (!text || !text.trim()) {
+          res.status(400).json({ error: 'Message text cannot be empty' });
+          return;
+        }
+        const result = await this.tenantsService.sendConversationReply(tenantId, conversationId, text.trim());
+        res.status(200).json(result);
+      } catch (error: any) {
+        const status = error.message?.includes('not found') ? 404 : 400;
+        res.status(status).json({ error: error.message || 'Failed to send reply' });
+      }
+    });
+
+    // POST /api/tenants/conversations/:id/takeover
+    this.router.post('/conversations/:id/takeover', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const conversationId = req.params.id;
+        const result = await this.tenantsService.takeOverConversation(tenantId, conversationId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        const status = error.message?.includes('not found') ? 404 : 400;
+        res.status(status).json({ error: error.message || 'Failed to take over conversation' });
+      }
+    });
+
+    // POST /api/tenants/conversations/:id/handback
+    this.router.post('/conversations/:id/handback', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const conversationId = req.params.id;
+        const result = await this.tenantsService.handBackConversation(tenantId, conversationId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        const status = error.message?.includes('not found') ? 404 : 400;
+        res.status(status).json({ error: error.message || 'Failed to hand back conversation' });
+      }
+    });
+
+    // GET /api/tenants/panel
+    this.router.get('/panel', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const status = await this.tenantsService.getPanelStatus(tenantId);
+        res.status(200).json(status);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to fetch panel status' });
+      }
+    });
+
+    // POST /api/tenants/panel/test
+    this.router.post('/panel/test', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { url, apiKey } = req.body || {};
+        if (!url) {
+          res.status(400).json({ error: 'Panel API URL is required' });
+          return;
+        }
+        const result = await this.tenantsService.testPanel(tenantId, url, apiKey);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Panel connection test failed' });
+      }
+    });
+
+    // POST /api/tenants/panel/connect
+    this.router.post('/panel/connect', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { url, apiKey } = req.body || {};
+        if (!url) {
+          res.status(400).json({ error: 'Panel API URL is required' });
+          return;
+        }
+        const result = await this.tenantsService.connectPanel(tenantId, url, apiKey);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Panel connection failed' });
+      }
+    });
+
+    // POST /api/tenants/panel/sync
+    this.router.post('/panel/sync', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await this.tenantsService.syncPanelCatalog(tenantId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Panel sync failed' });
+      }
+    });
+
+    // POST /api/tenants/panel/disconnect
+    this.router.post('/panel/disconnect', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await this.tenantsService.disconnectPanel(tenantId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to disconnect panel' });
+      }
+    });
+
     // GET /api/tenants/overview-stats
     this.router.get('/overview-stats', async (req: AuthenticatedRequest, res: Response) => {
       try {
