@@ -4,6 +4,8 @@ import { redis } from '../common/redis/redis.js';
 import { decrypt } from '../common/crypto/encryption.js';
 import { SmmProviderClient, SmmService } from '../smm-core/smm-client.js';
 import { AiProviderClient, AiChatMessage, AiToolDefinition } from './ai-provider.client.js';
+import { SmmIntentParser } from './smm-intent-parser.js';
+import { SmmPresetMatcher } from './smm-preset-matcher.js';
 
 export interface AiAgentRequest {
   tenantId: string;
@@ -138,26 +140,105 @@ export class AiAgentService {
       }
     }
 
-    // 4. Resolve active catalog (from Redis, Postgres crawledData, or live panel with effective key)
+    // 4. Data-Driven Zero-Token Preset Matcher (Resolves top 8 SMM patterns in <25ms, 0 tokens)
+    const preset = await SmmPresetMatcher.resolveDirect(
+      cleanQuery,
+      tenant,
+      catalogKey,
+      customerApiKey,
+      effectiveAiSettings?.tone
+    );
+    if (preset.matched && preset.reply) {
+      if (!isDynamic) {
+        await redis.setex(cacheKey, 300, preset.reply).catch(() => {});
+        await redis.sadd(`tenant:${tenantId}:qcache_keys`, cacheKey).catch(() => {});
+      }
+      return preset.reply;
+    }
+
+    // 5. High-Confidence Custom FAQ Match (Direct policy answers in <5ms, 0 tokens)
+    if (Array.isArray(effectiveAiSettings?.faqs) && effectiveAiSettings.faqs.length > 0) {
+      const cleanTokens = (t: string) =>
+        t.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter((w) => w.length >= 3);
+      const queryTokens = cleanTokens(cleanQuery);
+
+      const matchedFaq = effectiveAiSettings.faqs.find((f: any) => {
+        if (!f || !f.question || !f.answer) return false;
+        const qTokens = cleanTokens(f.question);
+        if (qTokens.length === 0) return false;
+        if (cleanQuery.toLowerCase().includes(f.question.toLowerCase().trim())) return true;
+        const shared = qTokens.filter((w) => queryTokens.includes(w));
+        return shared.length >= Math.max(1, Math.min(2, qTokens.length));
+      });
+
+      if (matchedFaq) {
+        let answer = matchedFaq.answer;
+        if (effectiveAiSettings.tone === 'friendly') {
+          answer = `Sure thing! ${answer}`;
+        } else if (effectiveAiSettings.tone === 'professional') {
+          answer = `Certainly. ${answer}`;
+        } else if (effectiveAiSettings.tone === 'short') {
+          answer = answer.split(/(?<=[.!?])\s/)[0] || answer;
+        }
+        if (!isDynamic) {
+          await redis.setex(cacheKey, 300, answer).catch(() => {});
+          await redis.sadd(`tenant:${tenantId}:qcache_keys`, cacheKey).catch(() => {});
+        }
+        return answer;
+      }
+    }
+
+    // 6. Resolve active catalog (from Redis, Postgres crawledData, or live panel with effective key)
     const effectiveKey = catalogKey || customerApiKey;
     let services = await this.resolveServicesCatalog(tenantId, tenant, effectiveKey);
 
-    // 5. Build Tools & System Prompt
-    const tools = this.getTools(channel, effectiveAiSettings);
-    const systemPrompt = this.buildSystemPrompt(tenant, services, channel, effectiveAiSettings);
+    // 7. Hybrid SMM Search Parser: Pre-filter services on CPU and bypass 2-step tool calling
+    const searchIntent = SmmIntentParser.parse(cleanQuery);
+    let directSearchResults: SmmService[] = [];
+    if (searchIntent.isSearch && services.length > 0) {
+      directSearchResults = SmmIntentParser.filterCatalog(services, searchIntent, 3);
+      if (directSearchResults.length > 0 && effectiveAiSettings?.tone === 'short') {
+        const formatted = directSearchResults
+          .map((s) => `• ID ${s.service}: **${s.name}** | Rate: $${s.rate}/1k | Min: ${s.min} | Max: ${s.max}`)
+          .join('\n');
+        const reply = `⚡ **Top matching services:**\n\n${formatted}\n\nVisit [${tenant.panelApiUrl || 'our panel'}] to place your order.`;
+        if (!isDynamic) {
+          await redis.setex(cacheKey, 300, reply).catch(() => {});
+          await redis.sadd(`tenant:${tenantId}:qcache_keys`, cacheKey).catch(() => {});
+        }
+        return reply;
+      }
+    }
 
+    // 8. Build Tools & System Prompt
+    const tools = this.getTools(channel, effectiveAiSettings);
+    let systemPrompt = this.buildSystemPrompt(tenant, services, channel, effectiveAiSettings);
+
+    if (directSearchResults.length > 0) {
+      const formatted = directSearchResults
+        .map((s) => `• ID ${s.service}: ${s.name} (Rate: $${s.rate}/1k, Min: ${s.min}, Max: ${s.max})`)
+        .join('\n');
+      systemPrompt += `\n\nPre-filtered Top Matching Services:\n${formatted}\nPlease present these services to the customer politely with emojis and clear pricing.`;
+    }
+
+    // Cap conversation history to the last 2 turns to minimize token load
     const messages: AiChatMessage[] = [
       { role: 'system', content: systemPrompt },
-      ...history.slice(-6), // Include recent conversation turns for context
+      ...history.slice(-2),
       { role: 'user', content: cleanQuery }
     ];
 
-    // 6. Call AI Provider with Tool Calling Loop
+    // When direct search results are present, omit tool definitions (saves 600 schema tokens and prevents 2-step tool calling)
+    const activeTools = directSearchResults.length > 0 ? undefined : tools;
+
+    // 9. Call AI Provider with Micro-Tier Model and 180 token cap
     let reply = '';
     try {
       const initialResponse = await this.aiClient.generateCompletion({
         messages,
-        tools
+        tools: activeTools,
+        tier: 'micro',
+        maxTokens: 180
       });
 
       if (initialResponse.toolCalls && initialResponse.toolCalls.length > 0) {
@@ -217,7 +298,16 @@ export class AiAgentService {
   }
 
   private hashQuery(query: string): string {
-    return crypto.createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
+    const normalized = query
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .replace(/\b(ig|insta)\b/g, 'instagram')
+      .replace(/\b(yt)\b/g, 'youtube')
+      .replace(/\b(tt)\b/g, 'tiktok')
+      .replace(/\b(tg)\b/g, 'telegram')
+      .trim()
+      .replace(/\s+/g, ' ');
+    return crypto.createHash('sha256').update(normalized).digest('hex');
   }
 
   public static isDynamicQuery(query: string): boolean {

@@ -24,6 +24,7 @@ export interface AiCompletionRequest {
   temperature?: number;
   maxTokens?: number;
   model?: string;
+  tier?: 'micro' | 'reasoning';
 }
 
 export interface AiCompletionResponse {
@@ -79,6 +80,26 @@ export class AiProviderClient {
       AiProviderClient.instance = new AiProviderClient();
     }
     return AiProviderClient.instance;
+  }
+
+  public getMicroModel(provider: string): string {
+    switch (provider) {
+      case 'gemini':
+        return 'gemini-2.0-flash-001';
+      case 'openai':
+        return 'gpt-4o-mini';
+      case 'anthropic':
+        return 'claude-3-5-haiku-20241022';
+      case 'nvidia':
+        return 'meta/llama-3.1-8b-instruct';
+      case 'groq':
+        return 'llama-3.1-8b-instant';
+      case 'deepseek':
+        return 'deepseek-chat';
+      case 'openrouter':
+      default:
+        return 'google/gemini-2.0-flash-001';
+    }
   }
 
   private getDefaultModel(provider: string): string {
@@ -185,9 +206,9 @@ export class AiProviderClient {
       return this.fallbackCompletion(request);
     }
 
-    const model = request.model || this.config.model;
+    const model = request.model || (request.tier === 'micro' ? this.getMicroModel(this.config.provider) : this.config.model);
     const temperature = request.temperature ?? this.config.temperature;
-    const maxTokens = request.maxTokens ?? this.config.maxTokens;
+    const maxTokens = request.maxTokens ?? (request.tier === 'micro' ? 180 : (this.config.maxTokens || 600));
 
     // Handle Anthropic Claude
     if (this.config.provider === 'anthropic' && this.anthropicClient) {

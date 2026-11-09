@@ -14,7 +14,7 @@ describe('Tenants AI & Knowledge Base Service Suite', () => {
       email: testEmail,
       password: 'StrongPassword123!'
     });
-    tenantId = signup.tenant.id;
+    tenantId = signup.tenant!.id;
   });
 
   afterAll(async () => {
