@@ -29,9 +29,46 @@ describe('SMM Preset Matcher Suite (Real Chat Pattern Resolvers)', () => {
       expect(r3.reply).toBe('👋 **Hello! Welcome to Test SMM Agency.** How can I assist you?');
     });
 
+    it('matches conversational greetings like "how are you" and "how r u"', () => {
+      const r = SmmPresetMatcher.matchGreeting('how are you', mockTenant);
+      expect(r.matched).toBe(true);
+      expect(r.reply).toContain("I'm doing great, thank you for asking!");
+    });
+
+    it('deduplicates panelName when widgetTitle already contains Customer Support', () => {
+      const doubleTitleTenant = { ...mockTenant, widgetTitle: 'Customer Support' };
+      const r = SmmPresetMatcher.matchGreeting('hello', doubleTitleTenant, 'professional');
+      expect(r.matched).toBe(true);
+      expect(r.reply).not.toContain('Customer Support Customer Support');
+    });
+
     it('does not falsely match regular queries containing greetings', () => {
       const r = SmmPresetMatcher.matchGreeting('say hello to my followers on instagram for 100 likes', mockTenant);
       expect(r.matched).toBe(false);
+    });
+  });
+
+  describe('1.5 Capabilities & Help Menu', () => {
+    it('matches "how can you help me??" and "what can you do" with 0-token capability guide', () => {
+      const r = SmmPresetMatcher.matchCapabilities('how can you help me??', mockTenant);
+      expect(r.matched).toBe(true);
+      expect(r.intent).toBe('capabilities');
+      expect(r.reply).toContain('Check Order Status');
+      expect(r.reply).toContain('Search Services & Rates');
+      expect(r.reply).toContain('Account Balance');
+    });
+  });
+
+  describe('2. Incomplete Order Status Prompt', () => {
+    it('prompts user for Order ID when asking "i want to check order status"', () => {
+      const r1 = SmmPresetMatcher.matchIncompleteOrderTracking('i want to check order status');
+      expect(r1.matched).toBe(true);
+      expect(r1.intent).toBe('incomplete_order_prompt');
+      expect(r1.reply).toContain('Please reply with your **Order ID**');
+
+      const r2 = SmmPresetMatcher.matchIncompleteOrderTracking('how can i check order status??');
+      expect(r2.matched).toBe(true);
+      expect(r2.reply).toContain('Order ID');
     });
   });
 
@@ -40,7 +77,7 @@ describe('SMM Preset Matcher Suite (Real Chat Pattern Resolvers)', () => {
       vi.spyOn(SmmProviderClient.prototype, 'getOrderStatus').mockResolvedValueOnce({
         status: 'Completed',
         start_count: 500,
-        remains: 0,
+        remains: -4200,
         charge: '1.20',
         currency: 'USD'
       });
@@ -55,7 +92,7 @@ describe('SMM Preset Matcher Suite (Real Chat Pattern Resolvers)', () => {
       expect(res.intent).toBe('order_tracking');
       expect(res.reply).toContain('Order #6748424 Details');
       expect(res.reply).toContain('Completed');
-      expect(res.reply).toContain('500');
+      expect(res.reply).toContain('0 (Completed)');
     });
 
     it('handles multiple order IDs in a single message', async () => {
@@ -88,16 +125,27 @@ describe('SMM Preset Matcher Suite (Real Chat Pattern Resolvers)', () => {
   });
 
   describe('3. Wallet & Balance Checks', () => {
-    it('returns live balance when customerApiKey is linked', async () => {
+    it('returns live balance when customerApiKey is linked for /balance or "check bal"', async () => {
       vi.spyOn(SmmProviderClient.prototype, 'getBalance').mockResolvedValueOnce({
         balance: '42.50',
         currency: 'USD'
       });
 
-      const res = await SmmPresetMatcher.matchBalance('/balance', mockTenant, 'user_key_abc');
+      const res = await SmmPresetMatcher.matchBalance('check bal', mockTenant, 'user_key_abc');
       expect(res.matched).toBe(true);
       expect(res.intent).toBe('balance');
       expect(res.reply).toContain('$42.50 USD');
+    });
+
+    it('gracefully handles 401 unauthorized error with reconnection instructions', async () => {
+      vi.spyOn(SmmProviderClient.prototype, 'getBalance').mockRejectedValueOnce(
+        new Error('SMM Provider HTTP Error: 401 Unauthorized')
+      );
+
+      const res = await SmmPresetMatcher.matchBalance('my bal', mockTenant, 'invalid_key');
+      expect(res.matched).toBe(true);
+      expect(res.reply).toContain('unauthorized or expired');
+      expect(res.reply).toContain('/setkey');
     });
 
     it('prompts /setkey when balance is requested without linked account', async () => {
@@ -145,3 +193,4 @@ describe('SMM Preset Matcher Suite (Real Chat Pattern Resolvers)', () => {
     });
   });
 });
+

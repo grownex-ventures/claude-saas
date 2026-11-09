@@ -192,16 +192,28 @@ export class AiAgentService {
     const effectiveKey = catalogKey || customerApiKey;
     let services = await this.resolveServicesCatalog(tenantId, tenant, effectiveKey);
 
-    // 7. Hybrid SMM Search Parser: Pre-filter services on CPU and bypass 2-step tool calling
+    // 7. Hybrid SMM Search Parser: Pre-filter services on CPU and resolve directly in 0 tokens
     const searchIntent = SmmIntentParser.parse(cleanQuery);
     let directSearchResults: SmmService[] = [];
     if (searchIntent.isSearch && services.length > 0) {
-      directSearchResults = SmmIntentParser.filterCatalog(services, searchIntent, 3);
-      if (directSearchResults.length > 0 && effectiveAiSettings?.tone === 'short') {
+      directSearchResults = SmmIntentParser.filterCatalog(services, searchIntent, 4);
+      if (directSearchResults.length > 0) {
         const formatted = directSearchResults
           .map((s) => `• ID ${s.service}: **${s.name}** | Rate: $${s.rate}/1k | Min: ${s.min} | Max: ${s.max}`)
           .join('\n');
-        const reply = `⚡ **Top matching services:**\n\n${formatted}\n\nVisit [${tenant.panelApiUrl || 'our panel'}] to place your order.`;
+
+        let reply = '';
+        const tone = effectiveAiSettings?.tone || 'professional';
+        const targetDesc = [searchIntent.platform, searchIntent.category].filter(Boolean).join(' ') || 'catalog';
+
+        if (tone === 'friendly') {
+          reply = `✨ **Here are our top recommended ${targetDesc} options for you:**\n\n${formatted}\n\n🔗 Ready to order? Head over to [${tenant.panelApiUrl || 'our panel'}] to place your order anytime!`;
+        } else if (tone === 'short') {
+          reply = `⚡ **Top matching ${targetDesc} services:**\n\n${formatted}\n\nVisit [${tenant.panelApiUrl || 'our panel'}] to place your order.`;
+        } else {
+          reply = `⚡ **Here are our top matching ${targetDesc} services:**\n\n${formatted}\n\nVisit our panel at [${tenant.panelApiUrl || 'our panel'}] to view the full catalog or place your order.`;
+        }
+
         if (!isDynamic) {
           await redis.setex(cacheKey, 300, reply).catch(() => {});
           await redis.sadd(`tenant:${tenantId}:qcache_keys`, cacheKey).catch(() => {});
@@ -817,21 +829,28 @@ When a user asks to track an order, search services, check balance, or place an 
       }
 
       if (activeServices.length > 0) {
-        const searchTokens = lower
-          .replace(/[^\w\s]/g, '')
-          .split(/\s+/)
-          .filter((w) => !['show', 'me', 'the', 'what', 'are', 'your', 'list', 'all', 'how', 'much', 'for', 'can', 'i', 'get'].includes(w));
+        const intent = SmmIntentParser.parse(query);
+        let topResults: SmmService[] = [];
+        if (intent.isSearch) {
+          topResults = SmmIntentParser.filterCatalog(activeServices, intent, 6);
+        }
+        if (topResults.length === 0) {
+          const searchTokens = lower
+            .replace(/[^\w\s]/g, '')
+            .split(/\s+/)
+            .filter((w) => !['show', 'me', 'the', 'what', 'are', 'your', 'list', 'all', 'how', 'much', 'for', 'can', 'i', 'get'].includes(w));
 
-        let filtered = activeServices;
-        if (searchTokens.length > 0) {
-          filtered = activeServices.filter((s) => {
-            const nameLower = (s.name || '').toLowerCase();
-            const catLower = (s.category || '').toLowerCase();
-            return searchTokens.some((t) => nameLower.includes(t) || catLower.includes(t));
-          });
+          if (searchTokens.length > 0) {
+            topResults = activeServices
+              .filter((s) => {
+                const nameLower = (s.name || '').toLowerCase();
+                const catLower = (s.category || '').toLowerCase();
+                return searchTokens.some((t) => nameLower.includes(t) || catLower.includes(t));
+              })
+              .slice(0, 6);
+          }
         }
 
-        const topResults = filtered.slice(0, 6);
         if (topResults.length > 0) {
           const formatted = topResults
             .map((s) => `• ID ${s.service}: **${s.name}** | Rate: $${s.rate}/1k | Min: ${s.min} | Max: ${s.max}`)
@@ -852,6 +871,18 @@ When a user asks to track an order, search services, check balance, or place an 
       );
     }
 
-    return `Thank you for reaching out! A customer support representative has been alerted. In the meantime, you can search our catalog by typing any service name (e.g., **Instagram**, **YouTube**, **Services**) or track an existing order with **status <order_id>**.`;
+    const rawPanelName = tenant.widgetTitle || (tenant.panelApiUrl ? new URL(tenant.panelApiUrl.startsWith('http') ? tenant.panelApiUrl : `https://${tenant.panelApiUrl}`).hostname : 'our panel');
+    const panelName = rawPanelName.replace(/\s*Customer\s*Support\s*/gi, '').trim() || rawPanelName;
+
+    return (
+      `👋 I am your 24/7 AI Assistant for **${panelName}**.\n\n` +
+      `Here is how I can assist you right now:\n\n` +
+      `• 📦 **Check Order Status:** Send \`status <order_id>\` (e.g. \`status 150809\`)\n` +
+      `• ⚡ **Search Services:** Type any platform (e.g. \`Instagram followers\`, \`YouTube views\`, \`likes\`)\n` +
+      `• 💰 **Check Balance:** Type \`/balance\` or link account with \`/setkey <key>\`\n` +
+      `• 💳 **Payment Methods:** Type \`how to pay\` or \`add funds\`\n` +
+      `• 🛡️ **Refill Policy:** Type \`refill\`\n\n` +
+      `💬 *Simply type your question or order number above, and I will assist you immediately!*`
+    );
   }
 }

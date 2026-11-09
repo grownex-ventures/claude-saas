@@ -85,7 +85,7 @@ export class AiProviderClient {
   public getMicroModel(provider: string): string {
     switch (provider) {
       case 'gemini':
-        return 'gemini-2.0-flash-001';
+        return 'gemini-flash-lite-latest';
       case 'openai':
         return 'gpt-4o-mini';
       case 'anthropic':
