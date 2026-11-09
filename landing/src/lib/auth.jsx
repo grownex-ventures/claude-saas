@@ -15,14 +15,17 @@ function useAuthMutation(mutationFn) {
     const qc = useQueryClient();
     return useMutation({
         mutationFn,
-        onSuccess: (user) => {
-            qc.removeQueries({ queryKey: ["app"] }); // never show one account's dashboard data to another
-            qc.setQueryData(SESSION_KEY, user ?? null);
+        onSuccess: (data) => {
+            if (data && !data.mfaRequired) {
+                qc.removeQueries({ queryKey: ["app"] }); // never show one account's dashboard data to another
+                qc.setQueryData(SESSION_KEY, data ?? null);
+            }
         },
     });
 }
 
 export const useLogin = () => useAuthMutation(authApi.login);
+export const useVerifyMfaLogin = () => useAuthMutation(authApi.verifyMfaLogin);
 export const useSignup = () => useAuthMutation(authApi.signup);
 export const useLogout = () => useAuthMutation(async () => (await authApi.logout(), null));
 export const useForgotPassword = () => useMutation({ mutationFn: authApi.forgotPassword });

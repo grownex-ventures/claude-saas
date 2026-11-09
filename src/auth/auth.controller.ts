@@ -179,8 +179,9 @@ export class AuthController {
    */
   async mfaVerifyLogin(req: Request, res: Response): Promise<void> {
     try {
-      const { mfaSessionToken, code } = req.body || {};
-      const result = await authService.verifyMfaLogin(mfaSessionToken, code);
+      const { mfaSessionToken, mfaToken, code } = req.body || {};
+      const token = mfaSessionToken || mfaToken;
+      const result = await authService.verifyMfaLogin(token, code);
       const csrfToken = setAuthCookies(res, result.token);
 
       if (result.tenant?.id) {
@@ -226,6 +227,7 @@ export class AuthController {
 
       res.status(200).json({
         success: true,
+        qrCodeUrl: result.qrCodeDataUrl,
         ...result
       });
     } catch (err: any) {
@@ -265,8 +267,9 @@ export class AuthController {
   async mfaDisable(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const tenantId = req.tenantId!;
-      const { passwordOrCode } = req.body || {};
-      const result = await authService.disableMfa(tenantId, passwordOrCode);
+      const { passwordOrCode, password, code } = req.body || {};
+      const verifyValue = passwordOrCode || password || code;
+      const result = await authService.disableMfa(tenantId, verifyValue);
 
       await AuditLogService.record({
         tenantId,

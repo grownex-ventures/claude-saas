@@ -41,6 +41,10 @@ export const ENDPOINTS = {
     me: "/api/v1/auth/me",
     logout: "/api/v1/auth/logout",
     google: "/api/v1/auth/google",
+    mfaVerifyLogin: "/api/v1/auth/mfa/verify-login",
+    mfaSetup: "/api/v1/auth/mfa/setup",
+    mfaEnable: "/api/v1/auth/mfa/enable",
+    mfaDisable: "/api/v1/auth/mfa/disable",
 };
 
 export class ApiError extends Error {
@@ -129,6 +133,22 @@ const real = {
         const data = await apiRequest(ENDPOINTS.login, {
             method: "POST",
             body: { email: identifier, password, remember },
+        });
+        if (data?.mfaRequired) {
+            return {
+                mfaRequired: true,
+                mfaSessionToken: data.mfaSessionToken,
+                message: data.message,
+                remember,
+            };
+        }
+        tokenStore.set(data?.token, remember);
+        return toUser(data);
+    },
+    async verifyMfaLogin({ mfaSessionToken, code, remember }) {
+        const data = await apiRequest(ENDPOINTS.mfaVerifyLogin, {
+            method: "POST",
+            body: { mfaSessionToken, code: (code || "").trim() },
         });
         tokenStore.set(data?.token, remember);
         return toUser(data);

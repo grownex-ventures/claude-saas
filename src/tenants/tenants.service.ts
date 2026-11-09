@@ -1723,15 +1723,32 @@ export class TenantsService {
    */
   async updateTwoFactor(tenantId: string, enabled: boolean) {
     const isEnabled = Boolean(enabled);
-    const data: any = { mfaEnabled: isEnabled };
     if (!isEnabled) {
-      data.mfaSecret = null;
-      data.mfaBackupCodes = Prisma.DbNull;
+      const updated = await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          mfaEnabled: false,
+          mfaSecret: null,
+          mfaBackupCodes: Prisma.DbNull
+        }
+      });
+      return { success: true, twoFA: false };
+    }
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { mfaSecret: true }
+    });
+
+    if (!tenant?.mfaSecret) {
+      const error: any = new Error('Two-factor authentication requires QR code setup and verification first.');
+      error.statusCode = 400;
+      throw error;
     }
 
     const updated = await prisma.tenant.update({
       where: { id: tenantId },
-      data
+      data: { mfaEnabled: true }
     });
 
     return { success: true, twoFA: updated.mfaEnabled };

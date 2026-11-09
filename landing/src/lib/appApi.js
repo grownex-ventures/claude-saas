@@ -1123,6 +1123,47 @@ export const setTwoFactor = async (enabled) => {
     }
 };
 
+export const setupTwoFactor = async () => {
+    try {
+        const res = await apiRequest("/api/v1/auth/mfa/setup", {
+            method: "POST"
+        });
+        return res;
+    } catch (err) {
+        fail(err.message || "Failed to initialize two-factor setup");
+    }
+};
+
+export const enableTwoFactor = async ({ code }) => {
+    if (!code || !/^\d{6}$/.test(code.trim())) {
+        fail("Please enter a valid 6-digit verification code.");
+    }
+    try {
+        const res = await apiRequest("/api/v1/auth/mfa/enable", {
+            method: "POST",
+            body: { code: code.trim() }
+        });
+        return res;
+    } catch (err) {
+        fail(err.message || "Failed to verify and activate two-factor authentication");
+    }
+};
+
+export const disableTwoFactor = async ({ passwordOrCode }) => {
+    if (!passwordOrCode) {
+        fail("Password or verification code is required.");
+    }
+    try {
+        const res = await apiRequest("/api/v1/auth/mfa/disable", {
+            method: "POST",
+            body: { passwordOrCode }
+        });
+        return res;
+    } catch (err) {
+        fail(err.message || "Failed to disable two-factor authentication");
+    }
+};
+
 export const saveNotifications = async (prefs) => {
     try {
         const res = await apiRequest("/api/v1/tenants/settings/notifications", {

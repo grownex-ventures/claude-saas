@@ -47,6 +47,13 @@ export const mockAuth = {
         tokenStore.set(`mock.${user.id}`, remember);
         return publicUser(user);
     },
+    async verifyMfaLogin({ remember }) {
+        await delay();
+        const users = loadUsers();
+        const user = users[0] || { id: "mock-id", email: "user@example.com" };
+        tokenStore.set(`mock.${user.id}`, remember);
+        return publicUser(user);
+    },
     async forgotPassword() {
         await delay();
         return { message: "If an account exists, a reset link has been sent." };

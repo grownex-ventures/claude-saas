@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AtSign, LockKeyhole } from "lucide-react";
+import { ArrowLeft, AtSign, KeyRound, LockKeyhole, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { Field, FormError, GoogleButton, MockBanner, OrDivider, PasswordField, SubmitButton } from "@/components/auth/FormControls";
-import { useLogin, useTitle } from "@/lib/auth";
+import { useLogin, useTitle, useVerifyMfaLogin } from "@/lib/auth";
 import { ROUTES } from "@/lib/site";
 import { validateLogin } from "@/lib/validation";
 
@@ -13,8 +13,12 @@ export default function Login() {
     const navigate = useNavigate();
     const location = useLocation();
     const login = useLogin();
+    const verifyMfa = useVerifyMfaLogin();
     const [values, setValues] = useState({ identifier: "", password: "", remember: true });
     const [errors, setErrors] = useState({});
+    const [mfaChallenge, setMfaChallenge] = useState(null);
+    const [mfaCode, setMfaCode] = useState("");
+    const [mfaError, setMfaError] = useState(null);
 
     const set = (key) => (e) => {
         const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -30,14 +34,105 @@ export default function Login() {
         login.mutate(
             { identifier: values.identifier.trim(), password: values.password, remember: values.remember },
             {
-                onSuccess: (user) => {
-                    toast.success(`Welcome back${user?.username ? `, ${user.username}` : ""}!`);
+                onSuccess: (data) => {
+                    if (data?.mfaRequired) {
+                        setMfaChallenge({
+                            mfaSessionToken: data.mfaSessionToken,
+                            remember: values.remember,
+                        });
+                        setMfaCode("");
+                        setMfaError(null);
+                        return;
+                    }
+                    toast.success(`Welcome back${data?.username ? `, ${data.username}` : ""}!`);
                     navigate(location.state?.from || ROUTES.dashboard, { replace: true });
                 },
                 onError: (err) => err.fields && setErrors(err.fields),
             },
         );
     };
+
+    const onMfaSubmit = (e) => {
+        e.preventDefault();
+        const code = mfaCode.trim();
+        if (!code) {
+            setMfaError("Please enter your 6-digit verification code or backup code.");
+            return;
+        }
+        verifyMfa.mutate(
+            {
+                mfaSessionToken: mfaChallenge.mfaSessionToken,
+                code,
+                remember: mfaChallenge.remember,
+            },
+            {
+                onSuccess: (user) => {
+                    toast.success(`Welcome back${user?.username ? `, ${user.username}` : ""}!`);
+                    navigate(location.state?.from || ROUTES.dashboard, { replace: true });
+                },
+                onError: (err) => {
+                    setMfaError(err.message || "Invalid two-factor code. Please try again.");
+                },
+            },
+        );
+    };
+
+    if (mfaChallenge) {
+        return (
+            <AuthLayout panel="login" testId="login-mfa-page">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
+                        <ShieldCheck className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl" data-testid="login-mfa-heading">
+                            Two-factor auth
+                        </h1>
+                        <p className="mt-1 text-sm text-slate-600">
+                            Enter the 6-digit code from your authenticator app (Google Authenticator, Authy) or backup code.
+                        </p>
+                    </div>
+                </div>
+
+                <form onSubmit={onMfaSubmit} noValidate className="mt-8 space-y-5" data-testid="login-mfa-form">
+                    <FormError message={mfaError} testId="login-mfa-error" />
+                    <Field
+                        id="mfaCode"
+                        label="Security verification code"
+                        icon={KeyRound}
+                        placeholder="123456 or backup code"
+                        autoComplete="one-time-code"
+                        autoFocus
+                        value={mfaCode}
+                        onChange={(e) => {
+                            setMfaCode(e.target.value);
+                            setMfaError(null);
+                        }}
+                        testId="login-input-mfa-code"
+                    />
+                    <SubmitButton loading={verifyMfa.isPending} testId="login-mfa-submit-button">
+                        {verifyMfa.isPending ? "Verifying code…" : "Verify & Sign in"}
+                    </SubmitButton>
+                </form>
+
+                <div className="mt-6 border-t border-slate-100 pt-5">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setMfaChallenge(null);
+                            setMfaCode("");
+                            setMfaError(null);
+                        }}
+                        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+                        data-testid="login-mfa-back-button"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back to sign in
+                    </button>
+                </div>
+            </AuthLayout>
+        );
+    }
 
     return (
         <AuthLayout panel="login" testId="login-page">
