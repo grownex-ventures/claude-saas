@@ -908,47 +908,142 @@ export const sendReply = async ({ id, text }) => {
 /* ------------------------------------------------------------------ */
 /* AI & knowledge                                                      */
 /* ------------------------------------------------------------------ */
-export const getAISettings = () => call((s) => s.ai, 450);
+export const getAISettings = async () => {
+    try {
+        const res = await apiRequest("/api/v1/tenants/ai");
+        if (res && res.tone) {
+            const s = load();
+            s.ai = res;
+            save(s);
+            return res;
+        }
+    } catch (e) {
+        console.warn("Backend getAISettings fallback:", e?.message);
+    }
+    return call((s) => s.ai, 450);
+};
 
-export const saveAISettings = (ai) =>
-    call((s) => {
-        if (ai.hours.enabled && ai.hours.start >= ai.hours.end) fail("Business hours: the end time must be after the start time.");
+export const saveAISettings = async (ai) => {
+    if (ai.hours?.enabled && ai.hours?.start && ai.hours?.end && ai.hours.start >= ai.hours.end) {
+        fail("Business hours: the end time must be after the start time.");
+    }
+    try {
+        const res = await apiRequest("/api/v1/tenants/ai", {
+            method: "PATCH",
+            body: ai,
+        });
+        if (res && res.tone) {
+            const s = load();
+            s.ai = { ...res, faqs: s.ai?.faqs || [] };
+            addLog("info", "system", "AI settings updated", { event: "ai.settings_saved", tone: ai.tone });
+            save(s);
+            return res;
+        }
+    } catch (e) {
+        if (e instanceof AppApiError) throw e;
+        console.warn("Backend saveAISettings fallback:", e?.message);
+    }
+    return call((s) => {
         s.ai = { ...ai, faqs: s.ai.faqs };
         addLog("info", "system", "AI settings updated", { event: "ai.settings_saved", tone: ai.tone });
         return s.ai;
     }, 800);
+};
 
-export const addFaq = ({ question, answer }) =>
-    call((s) => {
-        if (!question.trim() || !answer.trim()) fail("Both a question and an answer are required.");
+export const addFaq = async ({ question, answer }) => {
+    if (!question.trim() || !answer.trim()) fail("Both a question and an answer are required.");
+    try {
+        const res = await apiRequest("/api/v1/tenants/ai/faqs", {
+            method: "POST",
+            body: { question: question.trim(), answer: answer.trim() },
+        });
+        if (res && res.id) {
+            const s = load();
+            if (s.ai && Array.isArray(s.ai.faqs)) {
+                s.ai.faqs.push(res);
+                save(s);
+            }
+            return res;
+        }
+    } catch (e) {
+        if (e instanceof AppApiError) throw e;
+        console.warn("Backend addFaq fallback:", e?.message);
+    }
+    return call((s) => {
         const faq = { id: uid(), question: question.trim(), answer: answer.trim() };
         s.ai.faqs.push(faq);
         return faq;
     }, 500);
+};
 
-export const updateFaq = ({ id, question, answer }) =>
-    call((s) => {
+export const updateFaq = async ({ id, question, answer }) => {
+    if (!question.trim() || !answer.trim()) fail("Both a question and an answer are required.");
+    try {
+        const res = await apiRequest(`/api/v1/tenants/ai/faqs/${id}`, {
+            method: "PUT",
+            body: { question: question.trim(), answer: answer.trim() },
+        });
+        if (res && res.id) {
+            const s = load();
+            if (s.ai && Array.isArray(s.ai.faqs)) {
+                const idx = s.ai.faqs.findIndex((x) => x.id === id);
+                if (idx !== -1) s.ai.faqs[idx] = res;
+                save(s);
+            }
+            return res;
+        }
+    } catch (e) {
+        if (e instanceof AppApiError) throw e;
+        console.warn("Backend updateFaq fallback:", e?.message);
+    }
+    return call((s) => {
         const f = s.ai.faqs.find((x) => x.id === id);
         if (!f) fail("FAQ not found.");
-        if (!question.trim() || !answer.trim()) fail("Both a question and an answer are required.");
         Object.assign(f, { question: question.trim(), answer: answer.trim() });
         return f;
     }, 500);
+};
 
-export const deleteFaq = (id) =>
-    call((s) => {
+export const deleteFaq = async (id) => {
+    try {
+        await apiRequest(`/api/v1/tenants/ai/faqs/${id}`, {
+            method: "DELETE",
+        });
+        const s = load();
+        if (s.ai && Array.isArray(s.ai.faqs)) {
+            s.ai.faqs = s.ai.faqs.filter((x) => x.id !== id);
+            save(s);
+        }
+        return { success: true };
+    } catch (e) {
+        console.warn("Backend deleteFaq fallback:", e?.message);
+    }
+    return call((s) => {
         s.ai.faqs = s.ai.faqs.filter((x) => x.id !== id);
     }, 500);
+};
 
-/** Sandbox: answers with the given (possibly unsaved) settings. */
-export const testAI = ({ message, settings }) =>
-    call(() => {
+/** Sandbox: answers with the given (possibly unsaved) settings via real AiAgentService */
+export const testAI = async ({ message, settings }) => {
+    try {
+        const res = await apiRequest("/api/v1/tenants/ai/test", {
+            method: "POST",
+            body: { message, settings },
+        });
+        if (res && res.reply) {
+            return res;
+        }
+    } catch (e) {
+        console.warn("Backend testAI fallback:", e?.message);
+    }
+    // Fallback sandbox simulation
+    return call(() => {
         const m = message.toLowerCase();
         const a = settings.actions;
         const handoff = "I'll pass this to a human teammate who will reply shortly.";
         const words = (t) => t.toLowerCase().match(/[a-z]{4,}/g) || [];
-        const faq = settings.faqs.find((f) => words(f.question).filter((w) => m.includes(w)).length >= 2);
-        const keywords = settings.escalation.keywords.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
+        const faq = (settings.faqs || []).find((f) => words(f.question).filter((w) => m.includes(w)).length >= 2);
+        const keywords = (settings.escalation?.keywords || "").split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
         let reply;
         if (keywords.some((k) => m.includes(k))) reply = handoff;
         else if (faq) reply = faq.answer;
@@ -965,6 +1060,7 @@ export const testAI = ({ message, settings }) =>
         if (settings.tone === "short") reply = reply.split(/(?<=[.!?])\s/)[0];
         return { reply: reply === handoff ? reply : prefix + reply, escalated: reply === handoff };
     }, 900);
+};
 
 /* ------------------------------------------------------------------ */
 /* Logs                                                                */

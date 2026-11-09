@@ -13,6 +13,7 @@ import { authService } from '../auth/auth.service.js';
 import { SmmProviderClient } from '../smm-core/smm-client.js';
 import { TelegramBotService } from '../bot-engine/telegram-bot.service.js';
 import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
+import { AiAgentService } from '../ai-engine/ai-agent.service.js';
 import { Prisma } from '@prisma/client';
 
 export interface ConfigureTenantDto {
@@ -1771,7 +1772,222 @@ export class TenantsService {
       createdAt: Date.now()
     };
   }
+
+  /**
+   * Retrieves AI knowledge settings and custom FAQs
+   */
+  async getAiSettings(tenantId: string) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { aiSettings: true }
+    });
+    if (!tenant) throw new Error(`Tenant ${tenantId} not found`);
+    const current = (tenant.aiSettings as any) || {};
+    return {
+      tone: current.tone || DEFAULT_AI_SETTINGS.tone,
+      language: current.language || DEFAULT_AI_SETTINGS.language,
+      hours: { ...DEFAULT_AI_SETTINGS.hours, ...(current.hours || {}) },
+      escalation: { ...DEFAULT_AI_SETTINGS.escalation, ...(current.escalation || {}) },
+      actions: { ...DEFAULT_AI_SETTINGS.actions, ...(current.actions || {}) },
+      faqs: Array.isArray(current.faqs) ? current.faqs : DEFAULT_AI_SETTINGS.faqs
+    };
+  }
+
+  /**
+   * Saves updated AI settings (tone, language, hours, escalation, actions)
+   */
+  async updateAiSettings(tenantId: string, payload: any) {
+    if (payload.hours?.enabled && payload.hours?.start && payload.hours?.end) {
+      if (payload.hours.start >= payload.hours.end) {
+        throw new Error('Business hours: the end time must be after the start time.');
+      }
+    }
+    const currentSettings = await this.getAiSettings(tenantId);
+    const updatedAi = {
+      tone: payload.tone || currentSettings.tone,
+      language: payload.language || currentSettings.language,
+      hours: { ...currentSettings.hours, ...(payload.hours || {}) },
+      escalation: { ...currentSettings.escalation, ...(payload.escalation || {}) },
+      actions: { ...currentSettings.actions, ...(payload.actions || {}) },
+      faqs: currentSettings.faqs // preserve existing FAQs
+    };
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { aiSettings: updatedAi }
+    });
+
+    await this.clearAiQueryCache(tenantId);
+
+    return updatedAi;
+  }
+
+  /**
+   * Appends a new FAQ entry
+   */
+  async addFaq(tenantId: string, { question, answer }: { question: string; answer: string }) {
+    const q = (question || '').trim();
+    const a = (answer || '').trim();
+    if (!q || !a) {
+      throw new Error('Both a question and an answer are required.');
+    }
+    const current = await this.getAiSettings(tenantId);
+    const newFaq = {
+      id: crypto.randomUUID ? crypto.randomUUID() : `faq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      question: q,
+      answer: a
+    };
+    current.faqs.push(newFaq);
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { aiSettings: current }
+    });
+
+    await this.clearAiQueryCache(tenantId);
+    return newFaq;
+  }
+
+  /**
+   * Updates an existing FAQ entry
+   */
+  async updateFaq(tenantId: string, faqId: string, { question, answer }: { question: string; answer: string }) {
+    const q = (question || '').trim();
+    const a = (answer || '').trim();
+    if (!q || !a) {
+      throw new Error('Both a question and an answer are required.');
+    }
+    const current = await this.getAiSettings(tenantId);
+    const targetFaq = current.faqs.find((f: any) => f.id === faqId);
+    if (!targetFaq) {
+      throw new Error('FAQ not found.');
+    }
+    targetFaq.question = q;
+    targetFaq.answer = a;
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { aiSettings: current }
+    });
+
+    await this.clearAiQueryCache(tenantId);
+    return targetFaq;
+  }
+
+  /**
+   * Deletes an FAQ entry
+   */
+  async deleteFaq(tenantId: string, faqId: string) {
+    const current = await this.getAiSettings(tenantId);
+    current.faqs = current.faqs.filter((f: any) => f.id !== faqId);
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { aiSettings: current }
+    });
+
+    await this.clearAiQueryCache(tenantId);
+    return { success: true };
+  }
+
+  /**
+   * Clears cached replies in Redis for tenant when AI settings change
+   */
+  async clearAiQueryCache(tenantId: string) {
+    try {
+      const keys = await redis.smembers(`tenant:${tenantId}:qcache_keys`);
+      if (keys && keys.length > 0) {
+        await redis.del(...keys);
+        await redis.del(`tenant:${tenantId}:qcache_keys`);
+      }
+    } catch {}
+  }
+
+  /**
+   * Tests the AI in sandbox playground with current or draft settings
+   */
+  async testAiAgent(tenantId: string, { message, settings }: { message: string; settings?: any }) {
+    const text = (message || '').trim();
+    if (!text) {
+      throw new Error('Message is required.');
+    }
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        panelApiUrl: true,
+        telegramPanelUrl: true,
+        whatsappPanelUrl: true,
+        widgetPanelUrl: true,
+        widgetTitle: true,
+        widgetWelcomeMessage: true,
+        widgetApiKey: true,
+        crawledData: true,
+        subscriptionStatus: true,
+        aiSettings: true
+      }
+    });
+    if (!tenant) throw new Error('Tenant not found');
+
+    const effectiveSettings = settings || tenant.aiSettings || (await this.getAiSettings(tenantId));
+
+    const aiAgent = AiAgentService.getInstance();
+    const reply = await aiAgent.generateReply({
+      tenantId,
+      message: text,
+      channel: 'widget',
+      tenant,
+      aiSettings: effectiveSettings
+    });
+
+    // Check if escalated
+    let escalated = false;
+    const keywords = (effectiveSettings.escalation?.keywords || '')
+      .split(',')
+      .map((k: string) => k.trim().toLowerCase())
+      .filter(Boolean);
+
+    const lowerQuery = text.toLowerCase();
+    const lowerReply = reply.toLowerCase();
+
+    if (keywords.some((k: string) => lowerQuery.includes(k))) {
+      escalated = true;
+    } else if (
+      lowerReply.includes('pass this to a human') ||
+      lowerReply.includes('human agent') ||
+      lowerReply.includes('human teammate') ||
+      lowerReply.includes('human support escalation') ||
+      lowerReply.includes('ticket created')
+    ) {
+      escalated = true;
+    }
+
+    return {
+      reply,
+      escalated
+    };
+  }
 }
+
+export const DEFAULT_AI_SETTINGS = {
+  tone: 'friendly',
+  language: 'auto',
+  hours: { enabled: false, start: '09:00', end: '21:00', timezone: 'UTC' },
+  escalation: { onRequest: true, afterFailed: 2, keywords: 'refund, chargeback, scam', notifyEmail: true },
+  actions: { balance: true, services: true, orderStatus: true, refill: true, cancel: false },
+  faqs: [
+    {
+      id: 'faq_default_1',
+      question: 'How long does delivery take?',
+      answer: 'Most services start within 0–30 minutes. Exact speed is listed on each service.'
+    },
+    {
+      id: 'faq_default_2',
+      question: 'What payment methods do you accept?',
+      answer: 'We accept cards, crypto and local payment methods from the Add Funds page.'
+    }
+  ]
+};
 
 /**
  * Unified tenant resource purge routine (Phase 8).

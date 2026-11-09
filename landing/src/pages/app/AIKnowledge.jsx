@@ -32,7 +32,7 @@ export default function AIKnowledge() {
 }
 
 function AIEditor({ ai }) {
-    const { faqs, ...saved } = ai;
+    const { faqs = [], ...saved } = ai || {};
     const [draft, setDraft] = useState(saved);
     useEffect(() => {
         setDraft(saved);

@@ -584,6 +584,77 @@ export class TenantsController {
         res.status(500).json({ error: error.message || 'Failed to regenerate API key' });
       }
     });
+
+    // GET /api/v1/tenants/ai
+    this.router.get('/ai', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const settings = await this.tenantsService.getAiSettings(tenantId);
+        res.status(200).json(settings);
+      } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to fetch AI settings' });
+      }
+    });
+
+    // PATCH /api/v1/tenants/ai
+    this.router.patch('/ai', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const updated = await this.tenantsService.updateAiSettings(tenantId, req.body || {});
+        res.status(200).json(updated);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to save AI settings' });
+      }
+    });
+
+    // POST /api/v1/tenants/ai/faqs
+    this.router.post('/ai/faqs', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { question, answer } = req.body || {};
+        const faq = await this.tenantsService.addFaq(tenantId, { question, answer });
+        res.status(201).json(faq);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to add FAQ' });
+      }
+    });
+
+    // PUT /api/v1/tenants/ai/faqs/:id
+    this.router.put('/ai/faqs/:id', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const faqId = req.params.id;
+        const { question, answer } = req.body || {};
+        const faq = await this.tenantsService.updateFaq(tenantId, faqId, { question, answer });
+        res.status(200).json(faq);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to update FAQ' });
+      }
+    });
+
+    // DELETE /api/v1/tenants/ai/faqs/:id
+    this.router.delete('/ai/faqs/:id', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const faqId = req.params.id;
+        const result = await this.tenantsService.deleteFaq(tenantId, faqId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to delete FAQ' });
+      }
+    });
+
+    // POST /api/v1/tenants/ai/test
+    this.router.post('/ai/test', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { message, settings } = req.body || {};
+        const result = await this.tenantsService.testAiAgent(tenantId, { message, settings });
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'AI test failed' });
+      }
+    });
   }
 
   public async getLogs(req: AuthenticatedRequest, res: Response): Promise<void> {

@@ -13,6 +13,7 @@ export interface AiAgentRequest {
   userId?: string;
   history?: AiChatMessage[];
   tenant?: any;
+  aiSettings?: any;
 }
 
 /**
@@ -55,13 +56,16 @@ export class AiAgentService {
         widgetWelcomeMessage: true,
         widgetApiKey: true,
         crawledData: true,
-        subscriptionStatus: true
+        subscriptionStatus: true,
+        aiSettings: true
       }
     });
 
     if (!tenant) {
       return 'Customer support service is currently unavailable.';
     }
+
+    const effectiveAiSettings = params.aiSettings || tenant.aiSettings || {};
 
     // Resolve channel-specific panel API URL with fallback to global panelApiUrl
     const channelPanelUrl = params.channel === 'whatsapp'
@@ -139,8 +143,8 @@ export class AiAgentService {
     let services = await this.resolveServicesCatalog(tenantId, tenant, effectiveKey);
 
     // 5. Build Tools & System Prompt
-    const tools = this.getTools(channel);
-    const systemPrompt = this.buildSystemPrompt(tenant, services, channel);
+    const tools = this.getTools(channel, effectiveAiSettings);
+    const systemPrompt = this.buildSystemPrompt(tenant, services, channel, effectiveAiSettings);
 
     const messages: AiChatMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -197,7 +201,7 @@ export class AiAgentService {
 
     // 7. Fallback to catalog matching if LLM produced empty or offline output
     if (!reply || reply.includes('[Platform AI Assistant]')) {
-      reply = await this.deterministicFallback(cleanQuery, tenant, services, catalogKey, customerKeyCorrupted);
+      reply = await this.deterministicFallback(cleanQuery, tenant, services, catalogKey, customerKeyCorrupted, effectiveAiSettings);
     }
 
     // 8. Cache response in Redis (300-second TTL). Never cache dynamic requests or responses using dynamic AI tools.
@@ -311,9 +315,86 @@ export class AiAgentService {
     return [];
   }
 
-  private buildSystemPrompt(tenant: any, services: SmmService[], channel?: string): string {
+  private buildSystemPrompt(tenant: any, services: SmmService[], channel?: string, effectiveAiSettings?: any): string {
     const categories = Array.from(new Set(services.map((s) => s.category).filter(Boolean))).slice(0, 15);
     const serviceSample = services.slice(0, 8).map((s) => `ID ${s.service}: ${s.name} (Rate: $${s.rate}/1k)`).join('\n');
+
+    let toneInstruction = 'Tone: Maintain a warm, helpful, polite, and professional persona.';
+    if (effectiveAiSettings?.tone === 'friendly') {
+      toneInstruction = 'Tone: Warm, welcoming, enthusiastic, friendly, and conversational. Use friendly phrasing and supportive tone.';
+    } else if (effectiveAiSettings?.tone === 'professional') {
+      toneInstruction = 'Tone: Courteous, direct, professional, clear, and businesslike. Avoid slang or overly casual phrasing.';
+    } else if (effectiveAiSettings?.tone === 'short') {
+      toneInstruction = 'Tone: Extremely concise, direct, and brief (1-3 sentences maximum). Deliver immediate answers without fluff, excessive pleasantries, or preamble.';
+    }
+
+    let languageInstruction = 'Language: Respond in the same language the customer uses (auto-detection).';
+    const lang = effectiveAiSettings?.language;
+    if (lang && lang !== 'auto') {
+      const langMap: Record<string, string> = {
+        en: 'English',
+        es: 'Spanish (Español)',
+        pt: 'Portuguese (Português)',
+        ru: 'Russian (Русский)',
+        hi: 'Hindi (हिन्दी)',
+        ar: 'Arabic (العربية)'
+      };
+      const langName = langMap[lang] || lang;
+      languageInstruction = `Language: You must ALWAYS respond in ${langName}, regardless of what language the customer writes in.`;
+    }
+
+    let hoursNotice = '';
+    if (effectiveAiSettings?.hours?.enabled) {
+      hoursNotice = `\nBusiness Hours Policy:
+- Human staff operating hours: ${effectiveAiSettings.hours.start || '09:00'} to ${effectiveAiSettings.hours.end || '21:00'} (${effectiveAiSettings.hours.timezone || 'UTC'}).
+- If the customer asks for a human teammate or asks when staff will reply, mention that our human team is available during operating hours, while you are here to assist 24/7 with instant inquiries and orders.`;
+    }
+
+    let escalationNotice = '';
+    const esc = effectiveAiSettings?.escalation;
+    if (esc) {
+      const parts: string[] = [];
+      if (esc.onRequest) {
+        parts.push('- If the customer explicitly asks to talk to a human, agent, person, or representative, use the escalate_to_human tool.');
+      }
+      if (esc.keywords && typeof esc.keywords === 'string') {
+        const kws = esc.keywords.split(',').map((k: string) => k.trim()).filter(Boolean);
+        if (kws.length > 0) {
+          parts.push(`- If the customer mentions any of these critical keywords: [${kws.join(', ')}], escalate immediately using escalate_to_human.`);
+        }
+      }
+      if (parts.length > 0) {
+        escalationNotice = `\nEscalation Guidelines:\n${parts.join('\n')}`;
+      }
+    }
+
+    let faqSection = '';
+    if (Array.isArray(effectiveAiSettings?.faqs) && effectiveAiSettings.faqs.length > 0) {
+      const faqList = effectiveAiSettings.faqs
+        .filter((f: any) => f && f.question && f.answer)
+        .map((f: any) => `Q: ${f.question.trim()}\nA: ${f.answer.trim()}`)
+        .join('\n\n');
+      if (faqList) {
+        faqSection = `\n<verified_faqs>
+The following are verified answers directly from this SMM panel's administration. Whenever a customer asks any question related to these topics, you MUST provide these exact details and adhere strictly to these policies:
+${faqList}
+</verified_faqs>\n`;
+      }
+    }
+
+    let actionsNotice = '';
+    const actions = effectiveAiSettings?.actions;
+    if (actions) {
+      const disabled: string[] = [];
+      if (actions.balance === false) disabled.push('balance checks');
+      if (actions.orderStatus === false) disabled.push('order status tracking');
+      if (actions.services === false) disabled.push('service catalog searches');
+      if (actions.refill === false) disabled.push('refill requests');
+      if (actions.cancel === false) disabled.push('order cancellations');
+      if (disabled.length > 0) {
+        actionsNotice = `\nRestricted Actions: The panel administrator has disabled automated AI tools for: ${disabled.join(', ')}. If the customer asks for any of these disabled actions, politely inform them that this must be done directly on the panel website.`;
+      }
+    }
 
     const widgetNotice = channel === 'widget'
       ? `\n5. Channel Scope (Website Chat Widget):
@@ -332,7 +413,14 @@ Core Identity & Guidelines:
    - Refills: Most guaranteed services offer 30-day automatic or button refills if drops occur.
    - Speed: Start times typically range between 5 minutes to 2 hours depending on current server queue.
    - Cancel / Refund: Orders in "Processing" or "In progress" cannot be canceled once submitted to servers. If canceled by server, funds automatically return to panel balance.
-4. Available Categories Overview (${categories.length} categories):
+4. Persona & Tone Directives:
+   - ${toneInstruction}
+   - ${languageInstruction}
+${hoursNotice}
+${escalationNotice}
+${actionsNotice}
+${faqSection}
+5. Available Categories Overview (${categories.length} categories):
 ${categories.join(', ') || 'Instagram, YouTube, Telegram, TikTok, Facebook, Twitter, Spotify'}
 
 Sample Featured Services:
@@ -348,9 +436,12 @@ Visual Presentation & Formatting Rules for Chat:
 When a user asks to track an order, search services, check balance, or place an order, use the appropriate live tools to provide real-time information.`;
   }
 
-  private getTools(channel?: string): AiToolDefinition[] {
-    const tools: AiToolDefinition[] = [
-      {
+  private getTools(channel?: string, effectiveAiSettings?: any): AiToolDefinition[] {
+    const tools: AiToolDefinition[] = [];
+    const actions = effectiveAiSettings?.actions;
+
+    if (!actions || actions.services !== false) {
+      tools.push({
         name: 'search_services',
         description: 'Searches the panel service catalog for matching social media services, IDs, rates per 1,000, and limits.',
         parameters: {
@@ -361,8 +452,11 @@ When a user asks to track an order, search services, check balance, or place an 
           },
           required: ['query']
         }
-      },
-      {
+      });
+    }
+
+    if (!actions || actions.orderStatus !== false) {
+      tools.push({
         name: 'check_order_status',
         description: 'Checks the live execution status of an SMM order by order ID.',
         parameters: {
@@ -372,16 +466,19 @@ When a user asks to track an order, search services, check balance, or place an 
           },
           required: ['orderId']
         }
-      },
-      {
+      });
+    }
+
+    if (!actions || actions.balance !== false) {
+      tools.push({
         name: 'check_balance',
         description: 'Checks the remaining user account balance on the SMM panel.',
         parameters: {
           type: 'object',
           properties: {}
         }
-      }
-    ];
+      });
+    }
 
     // Widget is strictly for public inquiry and support - ordering is reserved for direct authenticated bot channels
     if (channel !== 'widget') {
@@ -529,8 +626,45 @@ When a user asks to track an order, search services, check balance, or place an 
     }
   }
 
-  private async deterministicFallback(query: string, tenant: any, services: SmmService[], catalogKey?: string, customerKeyCorrupted?: boolean): Promise<string> {
+  private async deterministicFallback(
+    query: string,
+    tenant: any,
+    services: SmmService[],
+    catalogKey?: string,
+    customerKeyCorrupted?: boolean,
+    effectiveAiSettings?: any
+  ): Promise<string> {
     const lower = query.toLowerCase();
+
+    // 0. Custom Tenant FAQ Matching (Exact ground truth from AI Settings)
+    if (Array.isArray(effectiveAiSettings?.faqs) && effectiveAiSettings.faqs.length > 0) {
+      const cleanWords = (t: string) =>
+        t.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter((w) => w.length >= 3);
+      const queryWords = cleanWords(lower);
+
+      const matchedFaq = effectiveAiSettings.faqs.find((f: any) => {
+        if (!f || !f.question || !f.answer) return false;
+        const qWords = cleanWords(f.question);
+        if (qWords.length === 0) return false;
+        // Check if query contains the full question substring or >= 2 significant words
+        const fullMatch = lower.includes(f.question.toLowerCase().trim());
+        if (fullMatch) return true;
+        const shared = qWords.filter((w: string) => queryWords.includes(w));
+        return shared.length >= Math.min(2, qWords.length);
+      });
+
+      if (matchedFaq) {
+        let answer = matchedFaq.answer;
+        if (effectiveAiSettings.tone === 'friendly') {
+          answer = `Sure thing! ${answer}`;
+        } else if (effectiveAiSettings.tone === 'professional') {
+          answer = `Certainly. ${answer}`;
+        } else if (effectiveAiSettings.tone === 'short') {
+          answer = answer.split(/(?<=[.!?])\s/)[0] || answer;
+        }
+        return answer;
+      }
+    }
 
     // 1. Order tracking (/status 12345, order 12345, #12345)
     const orderMatch =

@@ -55,6 +55,7 @@ model Tenant {
   mfaBackupCodes     Json?              // Array of SHA-256 hashed 10-char backup codes
   name               String?            // Tenant display name
   notificationPreferences Json?         // Email notification preferences
+  aiSettings         Json?              // Custom tone, language, hours, escalation, actions & FAQs
   apiKey             String?            // Live developer API key (ysmm_live_...)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt

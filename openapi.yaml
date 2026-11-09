@@ -1141,6 +1141,114 @@ paths:
         '200':
           description: New API key generated.
 
+  /tenants/ai:
+    get:
+      tags: [Tenants]
+      summary: Retrieve AI knowledge configuration, personality, hours, actions and custom FAQs
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: AI knowledge settings and FAQs.
+    patch:
+      tags: [Tenants]
+      summary: Update AI personality, language, hours, escalation rules, and allowed actions
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: AI settings updated successfully.
+
+  /tenants/ai/faqs:
+    post:
+      tags: [Tenants]
+      summary: Add a new custom FAQ entry to tenant knowledge base
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question, answer]
+              properties:
+                question: { type: string }
+                answer: { type: string }
+      responses:
+        '201':
+          description: FAQ added successfully.
+
+  /tenants/ai/faqs/{id}:
+    put:
+      tags: [Tenants]
+      summary: Update an existing FAQ entry
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question, answer]
+              properties:
+                question: { type: string }
+                answer: { type: string }
+      responses:
+        '200':
+          description: FAQ updated successfully.
+    delete:
+      tags: [Tenants]
+      summary: Delete an FAQ entry from tenant knowledge base
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: FAQ deleted successfully.
+
+  /tenants/ai/test:
+    post:
+      tags: [Tenants]
+      summary: Test AI agent response in private sandbox with live or draft settings
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+                settings: { type: object }
+      responses:
+        '200':
+          description: AI test reply generated.
+
   # ===========================================================================
   # TELEGRAM WEBHOOK INGESTION
   # ===========================================================================
