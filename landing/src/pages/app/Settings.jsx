@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell, ChevronDown, KeyRound, Lock, Mail, RefreshCw, ShieldCheck, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
-import { Button, Card, ConfirmModal, CopyButton, Field, PageHeader, QueryState, SecretInput, SkeletonCard, StatusBadge, ToggleRow } from "@/components/app/ui";
+import { Button, Card, ConfirmModal, CopyButton, Field, Modal, PageHeader, QueryState, SecretInput, SkeletonCard, StatusBadge, ToggleRow } from "@/components/app/ui";
 import {
     VERIFY_COOLDOWN_MS,
     changePassword,
@@ -14,7 +14,6 @@ import {
     saveNotifications,
     saveProfile,
     setTwoFactor,
-    simulateEmailVerified,
 } from "@/lib/appApi";
 import { authApi } from "@/lib/api";
 import { formatDateTime, useAppMutation, useAppQuery } from "@/lib/appQueries";
@@ -38,7 +37,7 @@ export default function Settings() {
                 {(s) => (
                     <div className="mx-auto max-w-3xl space-y-6">
                         <Profile s={s} />
-                        <EmailVerification s={s} />
+                        <EmailVerification s={s} onRefresh={() => q.refetch()} />
                         <PasswordCard />
                         <Security s={s} />
                         <Notifications s={s} />
@@ -83,17 +82,30 @@ function Profile({ s }) {
     );
 }
 
-function EmailVerification({ s }) {
+function EmailVerification({ s, onRefresh }) {
     const { data: user } = useSession();
     const [left, setLeft] = useState(0);
+    const [checking, setChecking] = useState(false);
+
     useEffect(() => {
         const tick = () => setLeft(s.verificationSentAt ? Math.max(0, Math.ceil((s.verificationSentAt + VERIFY_COOLDOWN_MS - Date.now()) / 1000)) : 0);
         tick();
         const t = setInterval(tick, 1000);
         return () => clearInterval(t);
     }, [s.verificationSentAt]);
-    const resend = useAppMutation(resendVerification, { success: `Verification email sent to ${user?.email}` });
-    const verify = useAppMutation(simulateEmailVerified, { success: "Email verified" });
+
+    const resend = useAppMutation(resendVerification, { success: `Verification email dispatched to ${user?.email}` });
+
+    const handleCheckStatus = async () => {
+        setChecking(true);
+        try {
+            await onRefresh?.();
+            toast.info("Refreshed verification status");
+        } finally {
+            setChecking(false);
+        }
+    };
+
     return (
         <Card
             title="Email verification"
@@ -103,19 +115,19 @@ function EmailVerification({ s }) {
         >
             {s.emailVerified ? (
                 <p className="text-sm app-muted">
-                    <b className="app-heading">{user?.email}</b> is verified. You'll receive alerts and invoices here.
+                    <b className="app-heading">{user?.email}</b> is verified. You will receive alerts and invoices here.
                 </p>
             ) : (
                 <>
                     <p className="text-sm app-muted">
-                        We sent a link to <b className="break-all app-heading">{user?.email}</b>. Click it to verify your address.
+                        We sent a verification link to <b className="break-all app-heading">{user?.email}</b>. Please click the link in your email to verify your address.
                     </p>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                         <Button icon={RefreshCw} loading={resend.isPending} disabled={left > 0} onClick={() => resend.mutate()} data-testid="email-resend-button">
                             {left > 0 ? `Resend in ${left}s` : "Resend email"}
                         </Button>
-                        <Button variant="ghost" loading={verify.isPending} onClick={() => verify.mutate()} data-testid="email-simulate-verify">
-                            I've clicked the link (demo)
+                        <Button variant="secondary" loading={checking} onClick={handleCheckStatus} data-testid="email-check-status">
+                            Check status
                         </Button>
                     </div>
                 </>
@@ -285,6 +297,7 @@ const KeyRow = ({ label, value, display, hint, extra, testId }) => (
 
 function DangerZone() {
     const [open, setOpen] = useState(false);
+    const [password, setPassword] = useState("");
     const navigate = useNavigate();
     const qc = useQueryClient();
     const del = useAppMutation(deleteAccount, {
@@ -296,26 +309,53 @@ function DangerZone() {
             navigate(ROUTES.login, { replace: true });
         },
     });
+
+    const handleDelete = (e) => {
+        e.preventDefault();
+        if (!password) {
+            toast.error("Please enter your current password to confirm deletion.");
+            return;
+        }
+        del.mutate({ password });
+    };
+
     return (
         <section className="rounded-2xl border border-rose-200 bg-white p-5 dark:border-rose-500/30 dark:bg-slate-900 sm:p-6" data-testid="settings-danger-zone">
             <h2 className="text-base font-semibold text-rose-700 dark:text-rose-400">Danger zone</h2>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
-                <p className="max-w-lg text-sm app-muted">Delete your account, stop all channels and erase conversations, logs and settings. This can't be undone.</p>
-                <Button variant="danger-outline" icon={Trash2} onClick={() => setOpen(true)} data-testid="delete-account-button">
+                <p className="max-w-lg text-sm app-muted">Delete your account, stop all channels and permanently erase conversations, logs and settings. This cannot be undone.</p>
+                <Button variant="danger-outline" icon={Trash2} onClick={() => { setPassword(""); setOpen(true); }} data-testid="delete-account-button">
                     Delete account
                 </Button>
             </div>
-            <ConfirmModal
+            <Modal
                 open={open}
                 title="Delete your account?"
-                description="All channels stop immediately and your data is permanently erased."
-                confirmLabel="Delete account"
-                requireText="DELETE"
-                loading={del.isPending}
-                onConfirm={() => del.mutate()}
-                onClose={() => setOpen(false)}
+                description="All channels will stop immediately and your data will be permanently erased. Enter your password to confirm."
+                onClose={() => !del.isPending && setOpen(false)}
                 testId="delete-account-modal"
-            />
+            >
+                <form onSubmit={handleDelete} className="space-y-4">
+                    <Field label="Account password" htmlFor="delete-account-password">
+                        <SecretInput
+                            id="delete-account-password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Enter your current password"
+                            autoComplete="current-password"
+                            testId="delete-account-password-input"
+                        />
+                    </Field>
+                    <div className="flex flex-wrap justify-end gap-2 pt-2">
+                        <Button variant="secondary" onClick={() => setOpen(false)} disabled={del.isPending} data-testid="delete-account-cancel">
+                            Cancel
+                        </Button>
+                        <Button variant="danger" type="submit" loading={del.isPending} disabled={!password} data-testid="delete-account-confirm">
+                            Permanently delete account
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
         </section>
     );
 }

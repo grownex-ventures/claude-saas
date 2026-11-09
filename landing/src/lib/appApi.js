@@ -1069,14 +1069,9 @@ export const getSettings = async () => {
         }
     } catch (e) {
         console.warn("Backend getSettings error:", e?.message);
+        throw e;
     }
-    return call((s) => ({
-        ...s.settings,
-        emailVerified: s.emailVerified,
-        verificationSentAt: s.verificationSentAt,
-        tenantId: s.tenantId,
-        apiKeys: s.apiKeys,
-    }), 400);
+    throw new Error("Unable to retrieve account settings");
 };
 
 export const saveProfile = async ({ name }) => {
@@ -1086,9 +1081,6 @@ export const saveProfile = async ({ name }) => {
             method: "PATCH",
             body: { name: name.trim() }
         });
-        const s = load();
-        s.settings.name = name.trim();
-        save(s);
         return res;
     } catch (err) {
         fail(err.message || "Failed to save profile");
@@ -1096,34 +1088,24 @@ export const saveProfile = async ({ name }) => {
 };
 
 export const resendVerification = async () => {
-    const s = load();
-    if (s.verificationSentAt && now() - s.verificationSentAt < VERIFY_COOLDOWN_MS) fail("Please wait before requesting another email.");
     try {
-        await apiRequest("/api/v1/auth/resend-verification", { method: "POST" });
+        const res = await apiRequest("/api/v1/auth/resend-verification", { method: "POST" });
+        return { sentAt: Date.now(), ...res };
     } catch (e) {
-        console.warn("Backend resend verification:", e?.message);
+        fail(e.message || "Failed to dispatch verification email");
     }
-    s.verificationSentAt = now();
-    save(s);
-    return { sentAt: s.verificationSentAt };
 };
-
-/** Demo only — in production the user clicks the link in their inbox. */
-export const simulateEmailVerified = () =>
-    call((s) => {
-        s.emailVerified = true;
-        addLog("info", "system", "Email address verified", { event: "account.email_verified" });
-    }, 500);
 
 export const changePassword = async ({ current, next }) => {
     if (!current) fail("Enter your current password.");
     if (next.length < 8 || !/[A-Za-z]/.test(next) || !/\d/.test(next)) fail("New password needs 8+ characters with a letter and a number.");
     if (next === current) fail("New password must be different from the current one.");
     try {
-        await apiRequest("/api/v1/auth/change-password", {
+        const res = await apiRequest("/api/v1/auth/change-password", {
             method: "POST",
             body: { current, next },
         });
+        return res;
     } catch (err) {
         fail(err.message || "Failed to update password");
     }
@@ -1135,9 +1117,6 @@ export const setTwoFactor = async (enabled) => {
             method: "PATCH",
             body: { enabled: Boolean(enabled) }
         });
-        const s = load();
-        s.settings.twoFA = Boolean(enabled);
-        save(s);
         return res;
     } catch (err) {
         fail(err.message || "Failed to update two-factor authentication");
@@ -1150,9 +1129,6 @@ export const saveNotifications = async (prefs) => {
             method: "PATCH",
             body: prefs
         });
-        const s = load();
-        s.settings.notifications = prefs;
-        save(s);
         return res;
     } catch (err) {
         fail(err.message || "Failed to save notifications");
@@ -1170,14 +1146,15 @@ export const regenerateApiKey = async (_id) => {
     }
 };
 
-export const deleteAccount = async () => {
+export const deleteAccount = async ({ password } = {}) => {
+    if (!password) fail("Password is required to delete your account.");
     try {
         await apiRequest("/api/v1/tenants/me", {
             method: "DELETE",
-            body: { password: "confirmed" },
+            body: { password },
         });
     } catch (e) {
-        console.warn("Backend delete account:", e?.message);
+        fail(e.message || "Failed to delete account");
     }
     localStorage.removeItem(storageKey());
     tokenStore.clear();
