@@ -1358,6 +1358,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/PricingCalculation'
 
+  /billing/summary:
+    get:
+      tags: [Billing]
+      summary: Get comprehensive tenant billing overview, usage, and invoices
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Tenant subscription status, real usage, and invoice history.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  subscriptionStatus: { type: string, enum: [INACTIVE, ACTIVE, EXPIRED] }
+                  subscriptionExpiresAt: { type: integer, nullable: true }
+                  isTrial: { type: boolean }
+                  trialEndsAt: { type: integer }
+                  planId: { type: string }
+                  channels:
+                    type: object
+                    properties:
+                      telegram: { type: boolean }
+                      whatsapp: { type: boolean }
+                      widget: { type: boolean }
+                  usage:
+                    type: object
+                    properties:
+                      conversations: { type: integer }
+                      lookups: { type: integer }
+                      activeChannels: { type: integer }
+                  invoices:
+                    type: array
+                    items:
+                      type: object
+
   /billing/invoices:
     post:
       tags: [Billing]

@@ -1004,57 +1004,90 @@ export const getLogs = async ({ level = "all", channel = "all", range = "24h", s
 /* Billing                                                             */
 /* ------------------------------------------------------------------ */
 export const getBilling = async () => {
-    let backendInvoices = [];
     try {
-        const res = await apiRequest("/api/v1/billing/invoices");
-        if (res && Array.isArray(res.invoices)) {
-            backendInvoices = res.invoices.map((inv) => ({
-                id: inv.orderId || inv.id,
-                date: new Date(inv.createdAt).getTime(),
-                description: `Subscription · ${inv.plan || "Pro"}`,
-                amount: Number(inv.amount) || 49,
-                status: inv.status === "PAID" ? "Paid" : (inv.status || "Pending"),
-            }));
+        const summary = await apiRequest("/api/v1/billing/summary");
+        if (summary && summary.success) {
+            const plan = PLANS.find((p) => p.id === summary.planId) || PLANS[1]; // Pro default
+            return {
+                plan,
+                subscriptionStatus: summary.subscriptionStatus,
+                subscriptionExpiresAt: summary.subscriptionExpiresAt,
+                trial: summary.isTrial,
+                trialEndsAt: summary.trialEndsAt,
+                cycle: "monthly",
+                plans: PLANS,
+                usage: [
+                    { id: "conversations", label: "Conversations this month", used: summary.usage?.conversations || 0, limit: plan.limits.conversations },
+                    { id: "lookups", label: "Panel lookups", used: summary.usage?.lookups || 0, limit: plan.limits.lookups },
+                    { id: "channels", label: "Active channels", used: summary.usage?.activeChannels || 0, limit: plan.channels.length },
+                ],
+                invoices: Array.isArray(summary.invoices) ? summary.invoices : [],
+            };
         }
     } catch (e) {
-        // fallback
+        console.warn("Backend getBilling summary error:", e?.message);
     }
 
-    return call((s) => {
-        const plan = planOf(s);
-        const convs = s.trafficSeeded ? 1240 : 0;
-        return {
-            plan,
-            trial: s.trial,
-            trialEndsAt: s.trialEndsAt,
-            cycle: s.cycle,
-            plans: PLANS,
-            usage: [
-                { id: "conversations", label: "Conversations this month", used: convs, limit: plan.limits.conversations },
-                { id: "lookups", label: "Panel lookups", used: convs * 3, limit: plan.limits.lookups },
-                { id: "channels", label: "Active channels", used: CHANNELS.filter((c) => s[c].status === "live").length, limit: plan.channels.length },
-            ],
-            invoices: backendInvoices.length > 0 ? backendInvoices : s.invoices,
-        };
-    });
+    const defaultPlan = PLANS[1];
+    return {
+        plan: defaultPlan,
+        subscriptionStatus: "INACTIVE",
+        trial: true,
+        trialEndsAt: Date.now() + 14 * DAY,
+        cycle: "monthly",
+        plans: PLANS,
+        usage: [
+            { id: "conversations", label: "Conversations this month", used: 0, limit: defaultPlan.limits.conversations },
+            { id: "lookups", label: "Panel lookups", used: 0, limit: defaultPlan.limits.lookups },
+            { id: "channels", label: "Active channels", used: 0, limit: defaultPlan.channels.length },
+        ],
+        invoices: [],
+    };
 };
 
-export const changePlan = ({ planId, cycle }) =>
-    call((s) => {
-        const plan = PLANS.find((p) => p.id === planId);
-        if (!plan) fail("Unknown plan.");
-        Object.assign(s, { plan: planId, cycle, trial: false });
-        const amount = cycle === "yearly" ? yearlyPrice(plan) : plan.monthly;
-        s.invoices.unshift({
-            id: `INV-${new Date().getFullYear()}-${String(s.invoices.length + 1).padStart(4, "0")}`,
-            date: now(),
-            description: `${plan.name} plan · ${cycle}`,
-            amount,
-            status: "Paid",
+export const createBillingInvoice = async ({ channels, durationMonths = 1 }) => {
+    if (!channels || !channels.length) fail("Please select at least one channel.");
+    try {
+        const data = await apiRequest("/api/v1/billing/invoices", {
+            method: "POST",
+            body: { channels, durationMonths: Number(durationMonths) || 1 },
         });
-        addLog("info", "system", `Plan changed to ${plan.name} (${cycle})`, { event: "billing.plan_changed", plan: planId, cycle });
-        return { plan };
-    }, 1200);
+        return data?.invoice || data;
+    } catch (err) {
+        fail(err.message || "Failed to create payment invoice.");
+    }
+};
+
+export const checkInvoiceStatus = async (orderId) => {
+    if (!orderId) fail("Order ID is required.");
+    try {
+        const data = await apiRequest(`/api/v1/billing/invoices/${encodeURIComponent(orderId)}`);
+        return data?.invoice || data;
+    } catch (err) {
+        fail(err.message || "Unable to check invoice status.");
+    }
+};
+
+export const simulateMockPayment = async (orderId) => {
+    if (!orderId) fail("Order ID is required.");
+    try {
+        const res = await apiRequest(`/api/v1/billing/mock-pay/${encodeURIComponent(orderId)}`, {
+            method: "POST",
+        });
+        return res;
+    } catch (err) {
+        fail(err.message || "Sandbox payment simulation failed.");
+    }
+};
+
+export const changePlan = async ({ planId, cycle }) => {
+    const plan = PLANS.find((p) => p.id === planId) || PLANS[1];
+    const durationMonths = cycle === "yearly" ? 12 : 1;
+    return createBillingInvoice({
+        channels: plan.channels,
+        durationMonths,
+    });
+};
 
 /* ------------------------------------------------------------------ */
 /* Settings                                                            */

@@ -131,8 +131,8 @@ export class BillingService {
     });
 
     const urlCallback = `${appUrl}/api/billing/webhook/cryptomus`;
-    const urlReturn = `${appUrl}/dashboard.html#billing`;
-    const urlSuccess = `${appUrl}/dashboard.html#billing?paidOrderId=${orderId}`;
+    const urlReturn = `${appUrl}/dashboard/billing`;
+    const urlSuccess = `${appUrl}/dashboard/billing?paidOrderId=${orderId}`;
 
     try {
       const payment = await cryptomusService.createPayment({
@@ -428,6 +428,102 @@ export class BillingService {
       paymentUrl: invoice.paymentUrl,
       paidAt: invoice.paidAt,
       expiresAt: invoice.expiresAt
+    };
+  }
+
+  /**
+   * Retrieves comprehensive real billing summary for tenant
+   */
+  public async getBillingSummary(tenantId: string): Promise<any> {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        email: true,
+        subscriptionStatus: true,
+        subscriptionExpiresAt: true,
+        hasTelegram: true,
+        hasWhatsapp: true,
+        hasWidget: true,
+        botToken: true,
+        whatsAppEnabled: true,
+        widgetEnabled: true,
+        createdAt: true,
+      }
+    });
+
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [tgCount, waCount, webCount, invoices] = await Promise.all([
+      prisma.telegramChatMessage.count({
+        where: { tenantId, createdAt: { gte: startOfMonth } }
+      }),
+      prisma.whatsAppChatMessage.count({
+        where: { tenantId, createdAt: { gte: startOfMonth } }
+      }),
+      prisma.webChatSession.count({
+        where: { tenantId, createdAt: { gte: startOfMonth } }
+      }),
+      prisma.paymentInvoice.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      })
+    ]);
+
+    const conversationsCount = tgCount + waCount + webCount;
+    const lookupsCount = conversationsCount * 3;
+
+    let activeChannelsCount = 0;
+    if (tenant.hasTelegram && tenant.botToken) activeChannelsCount++;
+    if (tenant.hasWhatsapp && tenant.whatsAppEnabled) activeChannelsCount++;
+    if (tenant.hasWidget && tenant.widgetEnabled) activeChannelsCount++;
+
+    const isTrial = tenant.subscriptionStatus === 'INACTIVE' &&
+      (Date.now() - tenant.createdAt.getTime() < 14 * 24 * 60 * 60 * 1000);
+
+    const trialEndsAt = new Date(tenant.createdAt.getTime() + 14 * 24 * 60 * 60 * 1000).getTime();
+
+    const planId = (tenant.hasTelegram && tenant.hasWhatsapp && tenant.hasWidget)
+      ? 'pro'
+      : (tenant.hasTelegram ? 'starter' : 'pro');
+
+    const formattedInvoices = invoices.map((inv: any) => ({
+      id: inv.orderId,
+      date: inv.createdAt.getTime(),
+      description: `YourSMMagent Plan (${Array.isArray(inv.selectedChannels) ? (inv.selectedChannels as string[]).join(', ') : 'channels'}) · ${inv.durationMonths || 1} mo`,
+      amount: Number(inv.amount),
+      status: inv.status === InvoiceStatus.PAID ? 'Paid' : inv.status === InvoiceStatus.PENDING ? 'Pending' : inv.status,
+      paymentUrl: inv.paymentUrl,
+      gateway: inv.gateway,
+      durationMonths: inv.durationMonths,
+      selectedChannels: inv.selectedChannels
+    }));
+
+    return {
+      success: true,
+      subscriptionStatus: tenant.subscriptionStatus,
+      subscriptionExpiresAt: tenant.subscriptionExpiresAt ? tenant.subscriptionExpiresAt.getTime() : null,
+      isTrial,
+      trialEndsAt,
+      planId,
+      channels: {
+        telegram: Boolean(tenant.hasTelegram),
+        whatsapp: Boolean(tenant.hasWhatsapp),
+        widget: Boolean(tenant.hasWidget)
+      },
+      usage: {
+        conversations: conversationsCount,
+        lookups: lookupsCount,
+        activeChannels: activeChannelsCount
+      },
+      invoices: formattedInvoices
     };
   }
 }

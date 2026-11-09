@@ -99,6 +99,17 @@ export class BillingController {
       }
     });
 
+    // GET /api/billing/summary - Get tenant billing overview, usage, and invoices
+    authRouter.get('/summary', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+      try {
+        const tenantId = req.tenantId!;
+        const summary = await billingService.getBillingSummary(tenantId);
+        res.status(200).json(summary);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
     // GET /api/billing/invoices - Get billing history
     authRouter.get('/invoices', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
       try {
