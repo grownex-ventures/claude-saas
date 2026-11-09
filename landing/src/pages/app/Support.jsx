@@ -23,7 +23,7 @@ export default function Support() {
     const selected = params.get("t");
     const creating = params.get("new") === "1";
     const [filters, setFilters] = useState({ status: "all", search: "" });
-    const list = useAppQuery(["tickets", filters], () => getTickets(filters), { placeholderData: (p) => p });
+    const list = useAppQuery(["tickets", filters], () => getTickets(filters), { placeholderData: (p) => p, refetchInterval: 10000 });
     const go = (p) => setParams(p, { replace: true });
     const rightOpen = selected || creating;
 
@@ -102,6 +102,11 @@ export default function Support() {
                                             <div className="mt-2 flex flex-wrap items-center gap-2">
                                                 <StatusBadge status={t.status} />
                                                 <PriorityTag value={t.priority} />
+                                                {t.status === "answered" && (
+                                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                                                        New reply
+                                                    </span>
+                                                )}
                                             </div>
                                         </button>
                                     </li>
@@ -199,7 +204,7 @@ function NewTicket({ onCancel, onCreated }) {
 }
 
 function TicketDetail({ id, onBack }) {
-    const q = useAppQuery(["ticket", id], () => getTicket(id));
+    const q = useAppQuery(["ticket", id], () => getTicket(id), { refetchInterval: 5000 });
     const [text, setText] = useState("");
     const [confirm, setConfirm] = useState(false);
     const endRef = useRef(null);

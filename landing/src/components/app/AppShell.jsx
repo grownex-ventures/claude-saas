@@ -52,11 +52,19 @@ export default function AppShell() {
     const [collapsed, setCollapsed] = useState(() => localStorage.getItem("ysmm_sidebar") === "collapsed");
     const [drawer, setDrawer] = useState(false);
     const [unreadTickets, setUnreadTickets] = useState(0);
+    const prevCountRef = useRef(null);
 
     const fetchTicketUnread = async () => {
         try {
             const count = await getUnreadTicketCount();
             if (typeof count === "number") {
+                if (prevCountRef.current !== null && count > prevCountRef.current) {
+                    toast.info("📩 Support has replied to your ticket!", {
+                        description: "Check the Support tab to view the response.",
+                        duration: 6000,
+                    });
+                }
+                prevCountRef.current = count;
                 setUnreadTickets(count);
             }
         } catch {

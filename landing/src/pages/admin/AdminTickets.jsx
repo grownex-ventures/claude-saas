@@ -105,7 +105,33 @@ export default function AdminTickets() {
 
   useEffect(() => {
     fetchTickets();
+    const interval = setInterval(() => {
+      adminApi.getTickets({
+        status: statusFilter,
+        priority: priorityFilter,
+        search: search.trim(),
+        page,
+        limit: 50
+      }).then((data) => {
+        if (data?.tickets) setTickets(data.tickets);
+        if (data?.pagination) setPagination(data.pagination);
+      }).catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
   }, [statusFilter, priorityFilter, page]);
+
+  useEffect(() => {
+    if (!activeTicketId) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await adminApi.getTicket(activeTicketId);
+        setActiveTicket(data);
+      } catch {
+        // silent polling
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [activeTicketId]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
