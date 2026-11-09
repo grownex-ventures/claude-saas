@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { prisma } from '../common/database/prisma.js';
 import { redis } from '../common/redis/redis.js';
 import { tenantStatusKey } from '../common/redis/keys.js';
@@ -1619,6 +1620,138 @@ export class TenantsService {
       avgResponseSec: totalConversations > 0 ? 1.2 : null,
       panelLookups: totalMessages,
       activeChannels: activeChannels.length
+    };
+  }
+
+  /**
+   * Retrieves comprehensive tenant settings including profile, 2FA, notification preferences, and API key.
+   */
+  async getSettings(tenantId: string) {
+    let tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        emailVerified: true,
+        mfaEnabled: true,
+        notificationPreferences: true,
+        apiKey: true,
+        createdAt: true
+      }
+    });
+
+    if (!tenant) {
+      throw new Error('Tenant not found');
+    }
+
+    // Auto-generate live API key if not present
+    if (!tenant.apiKey) {
+      const generatedKey = `ysmm_live_${crypto.randomBytes(16).toString('hex')}`;
+      tenant = await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { apiKey: generatedKey },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          emailVerified: true,
+          mfaEnabled: true,
+          notificationPreferences: true,
+          apiKey: true,
+          createdAt: true
+        }
+      });
+    }
+
+    const defaultNotifs = {
+      handoff: true,
+      channelDown: true,
+      dailySummary: true,
+      billing: true
+    };
+
+    return {
+      name: tenant.name || '',
+      email: tenant.email,
+      emailVerified: Boolean(tenant.emailVerified),
+      twoFA: Boolean(tenant.mfaEnabled),
+      notifications: (tenant.notificationPreferences as any) || defaultNotifs,
+      tenantId: tenant.id,
+      apiKeys: [
+        {
+          id: 'primary',
+          label: 'Live Secret Key',
+          key: tenant.apiKey,
+          createdAt: tenant.createdAt.getTime()
+        }
+      ]
+    };
+  }
+
+  /**
+   * Updates tenant display name
+   */
+  async updateProfile(tenantId: string, name: string) {
+    const trimmed = (name || '').trim();
+    if (trimmed.length > 60) {
+      throw new Error('Name must be 60 characters or fewer');
+    }
+
+    const updated = await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { name: trimmed }
+    });
+
+    return { success: true, name: updated.name || '' };
+  }
+
+  /**
+   * Updates notification preferences
+   */
+  async updateNotifications(tenantId: string, prefs: any) {
+    const updated = await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { notificationPreferences: prefs || {} }
+    });
+
+    return { success: true, notifications: updated.notificationPreferences };
+  }
+
+  /**
+   * Toggles two-factor authentication
+   */
+  async updateTwoFactor(tenantId: string, enabled: boolean) {
+    const isEnabled = Boolean(enabled);
+    const data: any = { mfaEnabled: isEnabled };
+    if (!isEnabled) {
+      data.mfaSecret = null;
+      data.mfaBackupCodes = Prisma.DbNull;
+    }
+
+    const updated = await prisma.tenant.update({
+      where: { id: tenantId },
+      data
+    });
+
+    return { success: true, twoFA: updated.mfaEnabled };
+  }
+
+  /**
+   * Regenerates developer live secret API key
+   */
+  async regenerateApiKey(tenantId: string) {
+    const newKey = `ysmm_live_${crypto.randomBytes(16).toString('hex')}`;
+    const updated = await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { apiKey: newKey }
+    });
+
+    return {
+      id: 'primary',
+      label: 'Live Secret Key',
+      key: updated.apiKey,
+      createdAt: Date.now()
     };
   }
 }

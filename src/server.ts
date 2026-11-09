@@ -165,8 +165,11 @@ app.get('/verify-email', (_req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'verify-email.html'));
 });
 
-app.get('/admin', (_req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'admin.html'));
+app.get(['/admin', '/admin/*'], (_req, res) => {
+  if (fs.existsSync(landingDist)) {
+    return res.sendFile(path.join(landingDist, 'index.html'));
+  }
+  return res.sendFile(path.join(process.cwd(), 'public', 'admin.html'));
 });
 
 // Deep Health Check endpoint (checks Postgres and Redis connections)

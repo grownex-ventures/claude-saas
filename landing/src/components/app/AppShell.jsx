@@ -26,7 +26,7 @@ import {
 import { toast } from "sonner";
 import { LogoMark } from "@/components/landing/Logo";
 import { initials } from "@/components/app/ui";
-import { getAccount } from "@/lib/appApi";
+import { getAccount, getUnreadTicketCount } from "@/lib/appApi";
 import { useAppQuery } from "@/lib/appQueries";
 import { useLogout, useSession } from "@/lib/auth";
 import { LANDING_URL, ROUTES } from "@/lib/site";
@@ -51,6 +51,30 @@ export default function AppShell() {
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(() => localStorage.getItem("ysmm_sidebar") === "collapsed");
     const [drawer, setDrawer] = useState(false);
+    const [unreadTickets, setUnreadTickets] = useState(0);
+
+    const fetchTicketUnread = async () => {
+        try {
+            const count = await getUnreadTicketCount();
+            if (typeof count === "number") {
+                setUnreadTickets(count);
+            }
+        } catch {
+            // background polling
+        }
+    };
+
+    useEffect(() => {
+        fetchTicketUnread();
+        const interval = setInterval(fetchTicketUnread, 15000);
+        const onTicketRead = () => fetchTicketUnread();
+        window.addEventListener("tenant-ticket-read", onTicketRead);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener("tenant-ticket-read", onTicketRead);
+        };
+    }, [location.pathname]);
+
     const current = [...NAV].reverse().find((n) => (n.end ? location.pathname === n.to : location.pathname.startsWith(n.to))) || NAV[0];
 
     useEffect(() => {
@@ -68,7 +92,7 @@ export default function AppShell() {
                 data-testid="app-sidebar"
                 data-collapsed={collapsed}
             >
-                <SidebarContent collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+                <SidebarContent collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} unreadTickets={unreadTickets} />
             </aside>
 
             <AnimatePresence>
@@ -89,7 +113,7 @@ export default function AppShell() {
                             className="fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:hidden"
                             data-testid="app-mobile-drawer"
                         >
-                            <SidebarContent />
+                            <SidebarContent unreadTickets={unreadTickets} />
                             <button
                                 type="button"
                                 onClick={() => setDrawer(false)}
@@ -121,7 +145,7 @@ export default function AppShell() {
     );
 }
 
-function SidebarContent({ collapsed = false, onToggle }) {
+function SidebarContent({ collapsed = false, onToggle, unreadTickets = 0 }) {
     return (
         <div className="flex h-full flex-col">
             <a href={LANDING_URL} className={`flex h-16 shrink-0 items-center gap-2.5 ${collapsed ? "justify-center px-0" : "px-5"}`} data-testid="app-logo-link" aria-label="YourSMMagent home">
@@ -133,32 +157,56 @@ function SidebarContent({ collapsed = false, onToggle }) {
                 )}
             </a>
             <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3" aria-label="App navigation">
-                {NAV.map(({ to, label, icon: Icon, end }) => (
-                    <NavLink
-                        key={to}
-                        to={to}
-                        end={end}
-                        title={collapsed ? label : undefined}
-                        data-testid={`sidebar-link-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
-                        className={({ isActive }) =>
-                            `group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                                collapsed ? "justify-center px-0" : "px-3"
-                            } ${
-                                isActive
-                                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
-                                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                            }`
-                        }
-                    >
-                        {({ isActive }) => (
-                            <>
-                                {isActive && <span className="absolute left-0 top-2 h-6 w-1 rounded-r-full bg-indigo-600 dark:bg-indigo-400" />}
-                                <Icon className="h-[18px] w-[18px] shrink-0" />
-                                {!collapsed && <span>{label}</span>}
-                            </>
-                        )}
-                    </NavLink>
-                ))}
+                {NAV.map(({ to, label, icon: Icon, end }) => {
+                    const isSupport = to === "/dashboard/support";
+                    const count = isSupport ? unreadTickets : 0;
+
+                    return (
+                        <NavLink
+                            key={to}
+                            to={to}
+                            end={end}
+                            title={collapsed ? (count > 0 ? `${label} (${count})` : label) : undefined}
+                            data-testid={`sidebar-link-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                            className={({ isActive }) =>
+                                `group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                                    collapsed ? "justify-center px-0" : "px-3"
+                                } ${
+                                    isActive
+                                        ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+                                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                                }`
+                            }
+                        >
+                            {({ isActive }) => (
+                                <>
+                                    {isActive && <span className="absolute left-0 top-2 h-6 w-1 rounded-r-full bg-indigo-600 dark:bg-indigo-400" />}
+                                    <div className="relative shrink-0 flex items-center justify-center">
+                                        <Icon className="h-[18px] w-[18px] shrink-0" />
+                                        {collapsed && count > 0 && (
+                                            <span
+                                                className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-bold text-amber-950 ring-2 ring-white dark:ring-slate-900"
+                                                title={`${count} unread`}
+                                            >
+                                                {count > 9 ? "9+" : count}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {!collapsed && (
+                                        <>
+                                            <span className="truncate">{label}</span>
+                                            {count > 0 && (
+                                                <span className="ml-auto inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                                                    ({count})
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </NavLink>
+                    );
+                })}
             </nav>
             {onToggle && (
                 <div className="border-t border-slate-200 p-3 dark:border-slate-800">

@@ -1061,20 +1061,39 @@ export const changePlan = ({ planId, cycle }) =>
 /* ------------------------------------------------------------------ */
 export const VERIFY_COOLDOWN_MS = 60_000;
 
-export const getSettings = () =>
-    call((s) => ({
+export const getSettings = async () => {
+    try {
+        const data = await apiRequest("/api/v1/tenants/settings");
+        if (data && data.tenantId) {
+            return data;
+        }
+    } catch (e) {
+        console.warn("Backend getSettings error:", e?.message);
+    }
+    return call((s) => ({
         ...s.settings,
         emailVerified: s.emailVerified,
         verificationSentAt: s.verificationSentAt,
         tenantId: s.tenantId,
         apiKeys: s.apiKeys,
     }), 400);
+};
 
-export const saveProfile = ({ name }) =>
-    call((s) => {
-        if (name.trim().length > 60) fail("Name must be 60 characters or fewer.");
+export const saveProfile = async ({ name }) => {
+    if (!name || name.trim().length > 60) fail("Name must be 60 characters or fewer.");
+    try {
+        const res = await apiRequest("/api/v1/tenants/settings/profile", {
+            method: "PATCH",
+            body: { name: name.trim() }
+        });
+        const s = load();
         s.settings.name = name.trim();
-    }, 700);
+        save(s);
+        return res;
+    } catch (err) {
+        fail(err.message || "Failed to save profile");
+    }
+};
 
 export const resendVerification = async () => {
     const s = load();
@@ -1110,25 +1129,46 @@ export const changePassword = async ({ current, next }) => {
     }
 };
 
-export const setTwoFactor = (enabled) =>
-    call((s) => {
-        s.settings.twoFA = enabled;
-        addLog("info", "system", `Two-factor authentication ${enabled ? "enabled" : "disabled"}`, { event: "account.2fa", enabled });
-    }, 700);
+export const setTwoFactor = async (enabled) => {
+    try {
+        const res = await apiRequest("/api/v1/tenants/settings/2fa", {
+            method: "PATCH",
+            body: { enabled: Boolean(enabled) }
+        });
+        const s = load();
+        s.settings.twoFA = Boolean(enabled);
+        save(s);
+        return res;
+    } catch (err) {
+        fail(err.message || "Failed to update two-factor authentication");
+    }
+};
 
-export const saveNotifications = (prefs) =>
-    call((s) => {
+export const saveNotifications = async (prefs) => {
+    try {
+        const res = await apiRequest("/api/v1/tenants/settings/notifications", {
+            method: "PATCH",
+            body: prefs
+        });
+        const s = load();
         s.settings.notifications = prefs;
-    }, 600);
+        save(s);
+        return res;
+    } catch (err) {
+        fail(err.message || "Failed to save notifications");
+    }
+};
 
-export const regenerateApiKey = (id) =>
-    call((s) => {
-        const k = s.apiKeys.find((x) => x.id === id);
-        if (!k) fail("Key not found.");
-        k.key = k.key.replace(/_[a-z0-9]+$/, `_${rand(k.key.split("_").pop().length)}`);
-        k.createdAt = now();
-        return k;
-    }, 800);
+export const regenerateApiKey = async (_id) => {
+    try {
+        const keyData = await apiRequest("/api/v1/tenants/settings/api-key/regenerate", {
+            method: "POST"
+        });
+        return keyData;
+    } catch (err) {
+        fail(err.message || "Failed to regenerate API key");
+    }
+};
 
 export const deleteAccount = async () => {
     try {
@@ -1182,67 +1222,71 @@ function findTicket(s, id) {
     return t;
 }
 
-export const getTickets = ({ status = "all", search = "" } = {}) =>
-    call((s) => {
-        const q = search.trim().toLowerCase();
-        return (s.tickets || [])
-            .filter((t) => status === "all" || t.status === status)
-            .filter((t) => !q || `${t.id} ${t.subject}`.toLowerCase().includes(q))
-            .sort((a, b) => b.updatedAt - a.updatedAt)
-            .map(ticketSummary);
-    }, 450);
+export const getTickets = async ({ status = "all", search = "" } = {}) => {
+    try {
+        const params = new URLSearchParams();
+        if (status && status !== "all") params.set("status", status);
+        if (search) params.set("search", search);
+        const data = await apiRequest(`/api/v1/tenants/tickets?${params.toString()}`);
+        if (Array.isArray(data)) {
+            return data;
+        }
+    } catch (e) {
+        console.warn("Backend getTickets error:", e?.message);
+    }
+    return [];
+};
 
-export const getTicket = (id) => call((s) => findTicket(s, id), 350);
+export const getTicket = async (id) => {
+    try {
+        const data = await apiRequest(`/api/v1/tenants/tickets/${encodeURIComponent(id)}`);
+        if (data && data.id) {
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(new Event("tenant-ticket-read"));
+            }
+            return data;
+        }
+    } catch (e) {
+        console.warn("Backend getTicket error:", e?.message);
+        throw e;
+    }
+    fail("Ticket not found.");
+};
 
-export const createTicket = ({ subject, category, priority, message }) =>
-    call((s) => {
-        if (subject.trim().length < 5) fail("Subject should be at least 5 characters.");
-        if (message.trim().length < 10) fail("Please describe the issue in at least 10 characters.");
-        s.tickets = s.tickets || [];
-        const t0 = now();
-        const ticket = {
-            id: `TCK-${1001 + s.tickets.length}`,
-            subject: subject.trim(),
-            category,
-            priority,
-            status: "open",
-            createdAt: t0,
-            updatedAt: t0,
-            messages: [
-                { id: uid(), from: "user", text: message.trim(), at: t0 },
-                { id: uid(), from: "support", text: "Thanks for reaching out! Your ticket is in our queue — a support agent will reply here, usually within a few hours.", at: t0 + 1000 },
-            ],
-        };
-        s.tickets.push(ticket);
-        addLog("info", "system", `Support ticket ${ticket.id} created`, { event: "ticket.created", ticket_id: ticket.id, priority });
-        return ticket;
-    }, 900);
+export const createTicket = async ({ subject, category, priority, message }) => {
+    return apiRequest("/api/v1/tenants/tickets", {
+        method: "POST",
+        body: { subject, category, priority, message }
+    });
+};
 
-export const replyTicket = ({ id, message }) =>
-    call((s) => {
-        const t = findTicket(s, id);
-        if (t.status === "closed") fail("This ticket is closed. Reopen it to reply.");
-        if (!message.trim()) fail("Reply can't be empty.");
-        t.messages.push({ id: uid(), from: "user", text: message.trim(), at: now() });
-        t.status = "open";
-        t.updatedAt = now();
-        return t;
-    }, 600);
+export const replyTicket = async ({ id, message }) => {
+    return apiRequest(`/api/v1/tenants/tickets/${encodeURIComponent(id)}/reply`, {
+        method: "POST",
+        body: { message }
+    });
+};
 
-export const closeTicket = (id) =>
-    call((s) => {
-        const t = findTicket(s, id);
-        t.status = "closed";
-        t.updatedAt = now();
-        t.messages.push({ id: uid(), from: "system", text: "Ticket closed", at: now() });
-        return t;
-    }, 600);
+export const closeTicket = async (id) => {
+    return apiRequest(`/api/v1/tenants/tickets/${encodeURIComponent(id)}/close`, {
+        method: "POST"
+    });
+};
 
-export const reopenTicket = (id) =>
-    call((s) => {
-        const t = findTicket(s, id);
-        t.status = "open";
-        t.updatedAt = now();
-        t.messages.push({ id: uid(), from: "system", text: "Ticket reopened", at: now() });
-        return t;
-    }, 600);
+export const reopenTicket = async (id) => {
+    return apiRequest(`/api/v1/tenants/tickets/${encodeURIComponent(id)}/reopen`, {
+        method: "POST"
+    });
+};
+
+export const getUnreadTicketCount = async () => {
+    try {
+        const data = await apiRequest("/api/v1/tenants/tickets/unread-count");
+        if (data && typeof data.unreadCount === "number") {
+            return data.unreadCount;
+        }
+    } catch (e) {
+        console.warn("Backend getUnreadTicketCount error:", e?.message);
+    }
+    return 0;
+};

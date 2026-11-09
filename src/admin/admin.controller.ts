@@ -2,6 +2,7 @@ import { Request, Response, Router } from 'express';
 import crypto from 'crypto';
 import { rateLimit } from 'express-rate-limit';
 import { adminService } from './admin.service.js';
+import { ticketsService } from '../tickets/tickets.service.js';
 import { adminAuthGuard } from './admin.guard.js';
 import {
   setAuthCookies,
@@ -308,6 +309,69 @@ export class AdminController {
         res.json(result);
       } catch (err: any) {
         res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ==========================================
+    // Support Tickets Oversight
+    // ==========================================
+    // GET /api/v1/admin/tickets
+    this.router.get('/tickets', async (req: Request, res: Response) => {
+      try {
+        const { status, priority, search, page, limit } = req.query;
+        const result = await ticketsService.getAdminTickets({
+          status: status as string,
+          priority: priority as string,
+          search: search as string,
+          page: page ? parseInt(page as string, 10) : 1,
+          limit: limit ? parseInt(limit as string, 10) : 50
+        });
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // GET /api/v1/admin/tickets/unread-count
+    this.router.get('/tickets/unread-count', async (_req: Request, res: Response) => {
+      try {
+        const result = await ticketsService.getAdminUnreadCount();
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // GET /api/v1/admin/tickets/:id
+    this.router.get('/tickets/:id', async (req: Request, res: Response) => {
+      try {
+        const ticket = await ticketsService.getAdminTicket(req.params.id);
+        res.json(ticket);
+      } catch (err: any) {
+        res.status(404).json({ error: err.message });
+      }
+    });
+
+    // POST /api/v1/admin/tickets/:id/reply
+    this.router.post('/tickets/:id/reply', async (req: Request, res: Response) => {
+      try {
+        const { message } = req.body || {};
+        const adminName = (req as any).admin?.name || 'Support';
+        const updated = await ticketsService.replyAdminTicket(req.params.id, message, adminName);
+        res.json({ success: true, ticket: updated });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // PATCH /api/v1/admin/tickets/:id/status
+    this.router.patch('/tickets/:id/status', async (req: Request, res: Response) => {
+      try {
+        const { status } = req.body || {};
+        const updated = await ticketsService.updateAdminTicketStatus(req.params.id, status);
+        res.json({ success: true, ticket: updated });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
       }
     });
   }

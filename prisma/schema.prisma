@@ -29,6 +29,7 @@ model Tenant {
   subscriptionStatus SubscriptionStatus @default(INACTIVE)
   subscriptionExpiresAt DateTime?
   invoices           PaymentInvoice[]
+  supportTickets     SupportTicket[]
   crawledData        Json?
   lastCrawledAt      DateTime?
   endUserSessions    BotUserSession[]
@@ -52,6 +53,9 @@ model Tenant {
   mfaEnabled         Boolean            @default(false)
   mfaSecret          String?            // AES-256 encrypted TOTP secret
   mfaBackupCodes     Json?              // Array of SHA-256 hashed 10-char backup codes
+  name               String?            // Tenant display name
+  notificationPreferences Json?         // Email notification preferences
+  apiKey             String?            // Live developer API key (ysmm_live_...)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -242,6 +246,62 @@ model PaymentInvoice {
   @@index([tenantId, createdAt])
   @@index([status])
 }
+
+enum TicketCategory {
+  TECHNICAL
+  CHANNEL
+  PANEL
+  BILLING
+  FEATURE
+  OTHER
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
+model SupportTicket {
+  id             String         @id @default(uuid())
+  ticketNumber   String         @unique // e.g. TCK-1001
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subject        String
+  category       TicketCategory @default(TECHNICAL)
+  priority       TicketPriority @default(NORMAL)
+  status         TicketStatus   @default(OPEN)
+  unreadByAdmin  Boolean        @default(true)
+  unreadByTenant Boolean        @default(false)
+  messages       TicketMessage[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([tenantId, status])
+  @@index([status, priority])
+  @@index([unreadByAdmin])
+  @@index([tenantId, unreadByTenant])
+}
+
+model TicketMessage {
+  id         String        @id @default(uuid())
+  ticketId   String
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender     String        // "user" or "support"
+  senderName String?       // e.g. "Support" or tenant name
+  text       String        @db.Text
+  createdAt  DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
 
 
 

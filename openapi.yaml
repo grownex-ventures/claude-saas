@@ -940,6 +940,207 @@ paths:
         '200':
           description: Runtime logs cleared.
 
+  /tenants/tickets:
+    get:
+      tags: [Tenants]
+      summary: List support tickets for tenant
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of support tickets.
+    post:
+      tags: [Tenants]
+      summary: Create a new support ticket
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject, message]
+              properties:
+                subject: { type: string }
+                category: { type: string }
+                priority: { type: string }
+                message: { type: string }
+      responses:
+        '201':
+          description: Ticket created successfully.
+
+  /tenants/tickets/unread-count:
+    get:
+      tags: [Tenants]
+      summary: Get unread answered ticket count for tenant
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Unread ticket count.
+
+  /tenants/tickets/{id}:
+    get:
+      tags: [Tenants]
+      summary: Get details and messages for a support ticket
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ticket details and message history.
+
+  /tenants/tickets/{id}/reply:
+    post:
+      tags: [Tenants]
+      summary: Add a tenant reply to an active support ticket
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+      responses:
+        '200':
+          description: Reply added.
+
+  /tenants/tickets/{id}/close:
+    post:
+      tags: [Tenants]
+      summary: Close a support ticket
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ticket closed.
+
+  /tenants/tickets/{id}/reopen:
+    post:
+      tags: [Tenants]
+      summary: Reopen a closed support ticket
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ticket reopened.
+
+  /tenants/settings:
+    get:
+      tags: [Tenants]
+      summary: Retrieve complete tenant profile and account settings
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Tenant settings object.
+
+  /tenants/settings/profile:
+    patch:
+      tags: [Tenants]
+      summary: Update tenant display name
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '200':
+          description: Profile updated.
+
+  /tenants/settings/notifications:
+    patch:
+      tags: [Tenants]
+      summary: Update email notification preferences
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Notification preferences saved.
+
+  /tenants/settings/2fa:
+    patch:
+      tags: [Tenants]
+      summary: Toggle two-factor authentication
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: Two-factor authentication status updated.
+
+  /tenants/settings/api-key/regenerate:
+    post:
+      tags: [Tenants]
+      summary: Regenerate tenant live developer API secret key
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: New API key generated.
+
   # ===========================================================================
   # TELEGRAM WEBHOOK INGESTION
   # ===========================================================================
@@ -1638,6 +1839,110 @@ paths:
       responses:
         '200':
           description: Invoice paid and tenant activated.
+
+  /admin/tickets:
+    get:
+      tags: [Admin]
+      summary: List all tenant support tickets across the platform
+      security:
+        - AdminCookieAuth: []
+        - AdminBearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: priority
+          in: query
+          schema: { type: string }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Paginated support tickets.
+
+  /admin/tickets/unread-count:
+    get:
+      tags: [Admin]
+      summary: Get total count of unread tickets needing admin attention
+      security:
+        - AdminCookieAuth: []
+        - AdminBearerAuth: []
+      responses:
+        '200':
+          description: Total unread ticket count.
+
+  /admin/tickets/{id}:
+    get:
+      tags: [Admin]
+      summary: Retrieve a single ticket with full message history and tenant information
+      security:
+        - AdminCookieAuth: []
+        - AdminBearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ticket details.
+
+  /admin/tickets/{id}/reply:
+    post:
+      tags: [Admin]
+      summary: Super admin replies to tenant support ticket
+      security:
+        - AdminCookieAuth: []
+        - AdminBearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+      responses:
+        '200':
+          description: Reply recorded and sent to tenant.
+
+  /admin/tickets/{id}/status:
+    patch:
+      tags: [Admin]
+      summary: Super admin updates support ticket status
+      security:
+        - AdminCookieAuth: []
+        - AdminBearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [OPEN, ANSWERED, CLOSED] }
+      responses:
+        '200':
+          description: Ticket status updated.
 
   # ===========================================================================
   # OPERATIONAL HEALTH

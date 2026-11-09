@@ -4,6 +4,7 @@ import {
   tenantAccessMiddleware
 } from '../common/middleware/tenant-access.middleware.js';
 import { TenantsService } from './tenants.service.js';
+import { ticketsService } from '../tickets/tickets.service.js';
 import { RuntimeLogService } from '../common/logging/runtime-log.service.js';
 
 export class TenantsController {
@@ -443,6 +444,146 @@ export class TenantsController {
 
     // DELETE /api/tenants/logs
     this.router.delete('/logs', (req: AuthenticatedRequest, res: Response) => this.clearLogs(req, res));
+
+    // Support Tickets Endpoints
+    // GET /api/v1/tenants/tickets
+    this.router.get('/tickets', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { status, search } = (req.query || {}) as { status?: string; search?: string };
+        const tickets = await ticketsService.getTenantTickets(tenantId, { status, search });
+        res.status(200).json(tickets);
+      } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to fetch tickets' });
+      }
+    });
+
+    // GET /api/v1/tenants/tickets/unread-count
+    this.router.get('/tickets/unread-count', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await ticketsService.getTenantUnreadCount(tenantId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to fetch unread ticket count' });
+      }
+    });
+
+    // GET /api/v1/tenants/tickets/:id
+    this.router.get('/tickets/:id', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const ticket = await ticketsService.getTenantTicket(tenantId, req.params.id);
+        res.status(200).json(ticket);
+      } catch (error: any) {
+        res.status(404).json({ error: error.message || 'Ticket not found' });
+      }
+    });
+
+    // POST /api/v1/tenants/tickets
+    this.router.post('/tickets', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const ticket = await ticketsService.createTenantTicket(tenantId, req.body || {});
+        res.status(201).json(ticket);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to create ticket' });
+      }
+    });
+
+    // POST /api/v1/tenants/tickets/:id/reply
+    this.router.post('/tickets/:id/reply', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { message } = req.body || {};
+        const ticket = await ticketsService.replyTenantTicket(tenantId, req.params.id, message);
+        res.status(200).json(ticket);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to send reply' });
+      }
+    });
+
+    // POST /api/v1/tenants/tickets/:id/close
+    this.router.post('/tickets/:id/close', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await ticketsService.closeTenantTicket(tenantId, req.params.id);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to close ticket' });
+      }
+    });
+
+    // POST /api/v1/tenants/tickets/:id/reopen
+    this.router.post('/tickets/:id/reopen', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await ticketsService.reopenTenantTicket(tenantId, req.params.id);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to reopen ticket' });
+      }
+    });
+
+    // ==========================================
+    // Real Tenant Settings & Profile Endpoints
+    // ==========================================
+    // GET /api/v1/tenants/settings
+    this.router.get('/settings', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const settings = await this.tenantsService.getSettings(tenantId);
+        res.status(200).json(settings);
+      } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to fetch settings' });
+      }
+    });
+
+    // PATCH /api/v1/tenants/settings/profile
+    this.router.patch('/settings/profile', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { name } = req.body || {};
+        const result = await this.tenantsService.updateProfile(tenantId, name);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to update profile' });
+      }
+    });
+
+    // PATCH /api/v1/tenants/settings/notifications
+    this.router.patch('/settings/notifications', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await this.tenantsService.updateNotifications(tenantId, req.body || {});
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to update notifications' });
+      }
+    });
+
+    // PATCH /api/v1/tenants/settings/2fa
+    this.router.patch('/settings/2fa', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const { enabled } = req.body || {};
+        const result = await this.tenantsService.updateTwoFactor(tenantId, enabled);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(400).json({ error: error.message || 'Failed to update two-factor setting' });
+      }
+    });
+
+    // POST /api/v1/tenants/settings/api-key/regenerate
+    this.router.post('/settings/api-key/regenerate', async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const tenantId = req.tenantId!;
+        const result = await this.tenantsService.regenerateApiKey(tenantId);
+        res.status(200).json(result);
+      } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to regenerate API key' });
+      }
+    });
   }
 
   public async getLogs(req: AuthenticatedRequest, res: Response): Promise<void> {

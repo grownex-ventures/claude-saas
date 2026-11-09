@@ -436,6 +436,49 @@ export function StepperFlow({ steps, current, testId = "stepper" }) {
 }
 
 /* ---------------- Modal ---------------- */
+export function Modal({ open = true, title, description, onClose, children, maxWidth = "max-w-md", testId = "modal" }) {
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKey = (e) => e.key === "Escape" && onClose && onClose();
+        document.addEventListener("keydown", onKey);
+        return () => document.removeEventListener("keydown", onKey);
+    }, [open, onClose]);
+
+    return (
+        <AnimatePresence>
+            {open && (
+                <motion.div className="fixed inset-0 z-[60] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
+                    <motion.div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby={`${testId}-title`}
+                        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                        transition={{ duration: 0.18 }}
+                        className={`app-card relative w-full ${maxWidth} p-6 shadow-2xl`}
+                        data-testid={testId}
+                    >
+                        {onClose && (
+                            <button type="button" onClick={onClose} aria-label="Close" className="btn btn-ghost btn-icon absolute right-3 top-3">
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                        {title && (
+                            <h2 id={`${testId}-title`} className="text-lg font-semibold app-heading">
+                                {title}
+                            </h2>
+                        )}
+                        {description && <p className="mt-1 text-sm app-muted mb-4">{description}</p>}
+                        {children}
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    );
+}
+
 export function ConfirmModal({ open, title, description, confirmLabel = "Confirm", danger = true, loading, onConfirm, onClose, requireText, testId = "confirm-modal" }) {
     const [typed, setTyped] = useState("");
     useEffect(() => {
